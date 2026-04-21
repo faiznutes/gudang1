@@ -1,0 +1,19 @@
+{
+  "name": "stockpilot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @stockpilot/frontend dev",
+    "build": "pnpm --filter @stockpilot/frontend build",
+    "preview": "pnpm --filter @stockpilot/frontend preview",
+    "lint": "pnpm --filter @stockpilot/frontend lint",
+    "test:e2e": "pnpm --filter @stockpilot/frontend test:e2e"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  }
+}
