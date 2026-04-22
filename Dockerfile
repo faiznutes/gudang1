@@ -9,6 +9,7 @@ RUN cd packages/frontend && pnpm build
 
 FROM nginx:alpine
 COPY --from=builder /app/packages/frontend/dist /usr/share/nginx/html
-RUN echo 'server { listen 80; root /usr/share/nginx/html; index index.html; try_files $uri $uri/ /index.html; }' > /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/nginx.conf
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://127.0.0.1/health >/dev/null 2>&1 || exit 1
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

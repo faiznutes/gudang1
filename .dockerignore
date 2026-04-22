@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+node_modules
+packages/frontend/node_modules
+packages/frontend/dist
+dist
+*.log
+*.tar
+*.tgz
+*.zip
+Dockerfile.*
+update-app.json
