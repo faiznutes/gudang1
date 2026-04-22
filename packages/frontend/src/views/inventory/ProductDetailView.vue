@@ -43,7 +43,7 @@ function formatCurrency(amount: number) {
   <div class="p-4 lg:p-8 space-y-6">
     <!-- Back -->
     <router-link
-      :to="{ name: 'inventory' }"
+      to="/app/inventory"
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
@@ -65,7 +65,7 @@ function formatCurrency(amount: number) {
               </div>
               <div class="flex gap-2">
                 <router-link
-                  :to="{ name: 'inventory-edit', params: { id: product.id } }"
+                  :to="`/app/inventory/${product.id}/edit`"
                   class="btn-secondary btn-sm"
                 >
                   Edit
@@ -126,11 +126,11 @@ function formatCurrency(amount: number) {
 
         <!-- Quick Actions -->
         <div class="mt-4 flex gap-3">
-          <router-link :to="{ name: 'stock-in' }" class="btn-primary btn-sm">
+          <router-link to="/app/stock-in" class="btn-primary btn-sm">
             <ArrowDownToLine class="w-4 h-4" />
             Stock Masuk
           </router-link>
-          <router-link :to="{ name: 'stock-out' }" class="btn-secondary btn-sm">
+          <router-link to="/app/stock-out" class="btn-secondary btn-sm">
             <ArrowUpFromLine class="w-4 h-4" />
             Stock Keluar
           </router-link>
@@ -184,7 +184,7 @@ function formatCurrency(amount: number) {
     <div v-else class="card p-12 text-center">
       <Package class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
       <h2 class="text-lg font-medium text-neutral-900 mb-2">Produk tidak ditemukan</h2>
-      <router-link :to="{ name: 'inventory' }" class="btn-primary mt-4">
+      <router-link to="/app/inventory" class="btn-primary mt-4">
         Kembali ke Inventori
       </router-link>
     </div>

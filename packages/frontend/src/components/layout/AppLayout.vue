@@ -5,13 +5,14 @@ import { useResponsiveNav } from '@/composables/useResponsiveNav'
 import DesktopSidebar from '@/components/layout/DesktopSidebar.vue'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import TrialBanner from '@/components/TrialBanner.vue'
 
 const { showSidebar, showBottomNav, isDesktop } = useResponsiveNav()
 const route = useRoute()
 
 const sidebarCollapsed = ref(false)
 
-const hideOnRoutes = ['login', 'register']
+const hideOnRoutes = ['login', 'register', 'trial-signup', 'landing']
 const shouldShowLayout = () => !hideOnRoutes.includes(route.name as string)
 
 watch(
@@ -44,6 +45,7 @@ function toggleSidebar() {
         showSidebar ? (sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64') : ''
       ]"
     >
+      <TrialBanner />
       <AppHeader />
 
       <main class="flex-1 pb-20 lg:pb-8">

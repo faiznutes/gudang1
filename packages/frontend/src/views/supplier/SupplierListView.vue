@@ -50,7 +50,7 @@ function deleteSupplier(id: string) {
           class="input pl-9"
         />
       </div>
-      <router-link :to="{ name: 'supplier-new' }" class="btn-primary">
+      <router-link to="/app/suppliers/new" class="btn-primary">
         <Plus class="w-4 h-4" />
         Tambah Supplier
       </router-link>
@@ -132,7 +132,7 @@ function deleteSupplier(id: string) {
       <User class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
       <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada supplier</h3>
       <p class="text-neutral-500 mb-4">Tambahkan supplier pertama kamu</p>
-      <router-link :to="{ name: 'supplier-new' }" class="btn-primary">
+      <router-link to="/app/suppliers/new" class="btn-primary">
         <Plus class="w-4 h-4" />
         Tambah Supplier
       </router-link>

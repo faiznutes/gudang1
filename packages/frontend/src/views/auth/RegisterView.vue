@@ -51,7 +51,7 @@ async function handleRegister() {
     <div class="w-full max-w-md">
       <!-- Back -->
       <router-link
-        :to="{ name: 'login' }"
+        to="/login"
         class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-6"
       >
         <ArrowLeft class="w-4 h-4" />
@@ -149,7 +149,7 @@ async function handleRegister() {
         <!-- Login Link -->
         <p class="text-center text-sm text-neutral-600 mt-6">
           Sudah punya akun?
-          <router-link :to="{ name: 'login' }" class="font-medium text-primary-600 hover:text-primary-700">
+          <router-link to="/login" class="font-medium text-primary-600 hover:text-primary-700">
             Masuk
           </router-link>
         </p>

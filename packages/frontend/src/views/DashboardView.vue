@@ -105,7 +105,7 @@ function formatDate(dateStr: string) {
             <Plus class="w-4 h-4" />
             Tambah Data Contoh
           </button>
-          <router-link :to="{ name: 'warehouse-new' }" class="btn-secondary btn-sm">
+          <router-link to="/app/warehouses/new" class="btn-secondary btn-sm">
             <Warehouse class="w-4 h-4" />
             Buat Gudang
           </router-link>
@@ -121,14 +121,14 @@ function formatDate(dateStr: string) {
         </h2>
         <p class="text-neutral-600">Ini ringkasan aktivitas gudangmu</p>
       </div>
-      <div class="flex gap-2">
-        <router-link :to="{ name: 'stock-in' }" class="btn-secondary btn-sm">
-          <ArrowDownToLine class="w-4 h-4" />
-          <span class="hidden sm:inline">Stock Masuk</span>
+      <div class="flex gap-3">
+        <router-link to="/app/stock-in" class="flex-1 flex items-center justify-center gap-2 py-3 lg:py-2 px-4 bg-success-50 hover:bg-success-100 text-success-700 font-medium rounded-xl transition-colors">
+          <ArrowDownToLine class="w-5 h-5 lg:w-4 lg:h-4 flex-shrink-0" />
+          <span class="hidden lg:inline">Stock Masuk</span>
         </router-link>
-        <router-link :to="{ name: 'stock-out' }" class="btn-secondary btn-sm">
-          <ArrowUpFromLine class="w-4 h-4" />
-          <span class="hidden sm:inline">Stock Keluar</span>
+        <router-link to="/app/stock-out" class="flex-1 flex items-center justify-center gap-2 py-3 lg:py-2 px-4 bg-danger-50 hover:bg-danger-100 text-danger-700 font-medium rounded-xl transition-colors">
+          <ArrowUpFromLine class="w-5 h-5 lg:w-4 lg:h-4 flex-shrink-0" />
+          <span class="hidden lg:inline">Stock Keluar</span>
         </router-link>
       </div>
     </div>
@@ -196,7 +196,7 @@ function formatDate(dateStr: string) {
             {{ lowStockCount }} produk memiliki stok di bawah batas minimum
           </p>
           <router-link
-            :to="{ name: 'inventory', query: { filter: 'low-stock' } }"
+            :to="{ path: '/app/inventory', query: { filter: 'low-stock' } }"
             class="inline-flex items-center gap-1 text-sm font-medium text-warning-800 hover:underline mt-2"
           >
             Lihat produk
@@ -210,7 +210,7 @@ function formatDate(dateStr: string) {
     <div class="card">
       <div class="flex items-center justify-between p-4 border-b border-neutral-100">
         <h3 class="font-semibold text-neutral-900">Aktivitas Terkini</h3>
-        <router-link :to="{ name: 'activity' }" class="text-sm text-primary-600 hover:text-primary-700">
+        <router-link to="/app/activity" class="text-sm text-primary-600 hover:text-primary-700">
           Lihat semua
         </router-link>
       </div>
@@ -271,28 +271,28 @@ function formatDate(dateStr: string) {
 
     <!-- Quick Actions -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <router-link :to="{ name: 'inventory-new' }" class="card-hover p-4 text-center group">
+      <router-link to="/app/inventory/new" class="card-hover p-4 text-center group">
         <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary-200 transition-colors">
           <Plus class="w-6 h-6 text-primary-600" />
         </div>
         <p class="text-sm font-medium text-neutral-900">Tambah Produk</p>
       </router-link>
 
-      <router-link :to="{ name: 'warehouse-new' }" class="card-hover p-4 text-center group">
+      <router-link to="/app/warehouses/new" class="card-hover p-4 text-center group">
         <div class="w-12 h-12 bg-success-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-success-200 transition-colors">
           <Warehouse class="w-6 h-6 text-success-600" />
         </div>
         <p class="text-sm font-medium text-neutral-900">Tambah Gudang</p>
       </router-link>
 
-      <router-link :to="{ name: 'supplier-new' }" class="card-hover p-4 text-center group">
+      <router-link to="/app/suppliers/new" class="card-hover p-4 text-center group">
         <div class="w-12 h-12 bg-warning-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-warning-200 transition-colors">
           <Package class="w-6 h-6 text-warning-600" />
         </div>
         <p class="text-sm font-medium text-neutral-900">Tambah Supplier</p>
       </router-link>
 
-      <router-link :to="{ name: 'tutorial' }" class="card-hover p-4 text-center group">
+      <router-link to="/app/tutorial" class="card-hover p-4 text-center group">
         <div class="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-neutral-200 transition-colors">
           <AlertTriangle class="w-6 h-6 text-neutral-600" />
         </div>

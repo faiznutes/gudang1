@@ -57,7 +57,7 @@ function deleteWarehouse(id: string) {
           class="input pl-9"
         />
       </div>
-      <router-link :to="{ name: 'warehouse-new' }" class="btn-primary">
+      <router-link to="/app/warehouses/new" class="btn-primary">
         <Plus class="w-4 h-4" />
         Tambah Gudang
       </router-link>
@@ -128,7 +128,7 @@ function deleteWarehouse(id: string) {
       <Warehouse class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
       <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada gudang</h3>
       <p class="text-neutral-500 mb-4">Tambahkan gudang pertama kamu</p>
-      <router-link :to="{ name: 'warehouse-new' }" class="btn-primary">
+      <router-link to="/app/warehouses/new" class="btn-primary">
         <Plus class="w-4 h-4" />
         Tambah Gudang
       </router-link>

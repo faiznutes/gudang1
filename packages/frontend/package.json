@@ -13,10 +13,18 @@
   "dependencies": {
     "@headlessui/vue": "^1.7.22",
     "@heroicons/vue": "^2.1.5",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
     "@vueuse/core": "^10.9.0",
     "axios": "^1.7.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
     "lucide-vue-next": "^0.378.0",
     "pinia": "^2.1.7",
+    "tailwind-merge": "^3.5.0",
     "vue": "^3.4.27",
     "vue-router": "^4.3.2"
   },

@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Package, Eye, EyeOff } from 'lucide-vue-next'
+import { Package, Eye, EyeOff, Sparkles } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -25,12 +25,16 @@ async function handleLogin() {
   try {
     await new Promise(resolve => setTimeout(resolve, 800))
     authStore.login(email.value, password.value)
-    router.push({ name: 'dashboard' })
+    router.push('/app')
   } catch (e) {
     error.value = 'Email atau password salah'
   } finally {
     isLoading.value = false
   }
+}
+
+function goToTrial() {
+  router.push({ name: 'trial-signup' })
 }
 </script>
 
@@ -100,14 +104,27 @@ async function handleLogin() {
             <span v-else>Masuk</span>
           </button>
         </form>
+      </div>
 
-        <!-- Register Link -->
-        <p class="text-center text-sm text-neutral-600 mt-6">
-          Belum punya akun?
-          <router-link :to="{ name: 'register' }" class="font-medium text-primary-600 hover:text-primary-700">
-            Daftar gratis
-          </router-link>
-        </p>
+      <!-- Trial CTA -->
+      <div class="mt-6 bg-white rounded-xl shadow-lg p-6 border border-primary-100">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Sparkles class="w-5 h-5 text-primary-600" />
+          </div>
+          <div class="flex-1">
+            <h3 class="font-semibold text-neutral-900">Coba Gratis 7 Hari</h3>
+            <p class="text-sm text-neutral-600 mt-1">
+              Akses semua fitur Pro gratis selama 7 hari. Tanpa kartu kredit.
+            </p>
+          </div>
+        </div>
+        <button
+          @click="goToTrial"
+          class="btn-primary w-full mt-4"
+        >
+          Mulai Trial Gratis
+        </button>
       </div>
 
       <!-- Demo Hint -->

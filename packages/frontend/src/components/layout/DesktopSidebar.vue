@@ -31,27 +31,27 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const navItems = computed(() => [
-  { name: 'Dashboard', icon: LayoutDashboard, route: 'dashboard' },
-  { name: 'Inventori', icon: Package, route: 'inventory' },
-  { name: 'Gudang', icon: Warehouse, route: 'warehouses' },
-  { name: 'Mutasi', icon: ArrowLeftRight, route: 'stock-movement' },
-  { name: 'Supplier', icon: Users, route: 'suppliers' },
-  { name: 'Aktivitas', icon: Activity, route: 'activity' },
-  { name: 'Analitik', icon: BarChart3, route: 'analytics' },
+  { name: 'Dashboard', icon: LayoutDashboard, route: '/app' },
+  { name: 'Inventori', icon: Package, route: '/app/inventory' },
+  { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
+  { name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement' },
+  { name: 'Supplier', icon: Users, route: '/app/suppliers' },
+  { name: 'Aktivitas', icon: Activity, route: '/app/activity' },
+  { name: 'Analitik', icon: BarChart3, route: '/app/analytics' },
 ])
 
 const bottomNavItems = computed(() => [
-  { name: 'Pengaturan', icon: Settings, route: 'settings' },
-  { name: 'Billing', icon: CreditCard, route: 'billing' },
-  { name: 'Bantuan', icon: HelpCircle, route: 'tutorial' },
+  { name: 'Pengaturan', icon: Settings, route: '/app/settings' },
+  { name: 'Billing', icon: CreditCard, route: '/app/billing' },
+  { name: 'Bantuan', icon: HelpCircle, route: '/app/tutorial' },
 ])
 
 function isActive(routeName: string) {
-  return route.name === routeName
+  return route.path.startsWith(routeName)
 }
 
-function navigate(routeName: string) {
-  router.push({ name: routeName })
+function navigate(routePath: string) {
+  router.push(routePath)
 }
 
 function handleLogout() {

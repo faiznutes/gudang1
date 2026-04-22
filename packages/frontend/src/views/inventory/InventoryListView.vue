@@ -98,7 +98,7 @@ function deleteProduct(id: string) {
           Filter
         </button>
       </div>
-      <router-link :to="{ name: 'inventory-new' }" class="btn-primary">
+      <router-link to="/app/inventory/new" class="btn-primary">
         <Plus class="w-4 h-4" />
         Tambah Produk
       </router-link>
@@ -230,7 +230,7 @@ function deleteProduct(id: string) {
         <Package class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
         <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada produk</h3>
         <p class="text-neutral-500 mb-4">Mulai tambahkan produk pertama kamu</p>
-        <router-link :to="{ name: 'inventory-new' }" class="btn-primary">
+        <router-link to="/app/inventory/new" class="btn-primary">
           <Plus class="w-4 h-4" />
           Tambah Produk
         </router-link>

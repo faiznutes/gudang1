@@ -1,0 +1,26 @@
+{
+  "name": "StockPilot - Sistem Kelola Gudang",
+  "short_name": "StockPilot",
+  "description": "Aplikasi pengelolaan inventori dan stok untuk UMKM Indonesia",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["business", "productivity"],
+  "lang": "id",
+  "dir": "ltr"
+}

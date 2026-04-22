@@ -76,7 +76,7 @@ async function handleSubmit() {
   <div class="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
     <!-- Back -->
     <router-link
-      :to="{ name: 'suppliers' }"
+      to="/app/suppliers"
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
@@ -163,7 +163,7 @@ async function handleSubmit() {
 
         <!-- Submit -->
         <div class="flex justify-end gap-3">
-          <router-link :to="{ name: 'suppliers' }" class="btn-secondary">
+          <router-link to="/app/suppliers" class="btn-secondary">
             Batal
           </router-link>
           <button type="submit" :disabled="isLoading" class="btn-primary">

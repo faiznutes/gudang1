@@ -1,205 +1,121 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Check, Sparkles, Building2, Rocket, Crown } from 'lucide-vue-next'
-import type { Component } from 'vue'
+import { usePlansStore, PLANS, type Plan } from '@/stores/plans'
+import { Check, Sparkles, Building2, Rocket, Crown, Clock } from 'lucide-vue-next'
 
-interface Plan {
-  id: string
-  name: string
-  price: number | null
-  period: string | null
-  description: string
-  icon: Component
-  features: string[]
-  popular?: boolean
-}
-
+const router = useRouter()
 const authStore = useAuthStore()
+const plansStore = usePlansStore()
 
-const currentPlan = ref<'starter' | 'growth' | 'pro' | 'custom'>(authStore.workspace?.plan || 'starter')
+const currentPlan = ref(authStore.workspace?.plan || 'free')
 
-const plans: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: 0,
-    period: 'forever',
-    description: 'Untuk bisnis kecil dengan satu lokasi',
-    icon: Sparkles,
-    features: [
-      '1 Gudang',
-      '100 Produk',
-      '2 User',
-      'Aktivitas stok dasar',
-      'Support email',
-    ],
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    price: 199000,
-    period: 'bulan',
-    description: 'Untuk tim yang berkembang',
-    icon: Building2,
-    features: [
-      '5 Gudang',
-      '1.000 Produk',
-      '10 User',
-      'Multi-warehouse transfer',
-      'Laporan analytics',
-      'Priority support',
-    ],
-    popular: true,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 499000,
-    period: 'bulan',
-    description: 'Untuk bisnis yang lebih besar',
-    icon: Rocket,
-    features: [
-      '20 Gudang',
-      '10.000 Produk',
-      'Unlimited User',
-      'Auto reorder alerts',
-      'Import/Export CSV',
-      'API access',
-      'Priority support',
-    ],
-  },
-  {
-    id: 'custom',
-    name: 'Custom',
-    price: null,
-    period: null,
-    description: 'Untuk kebutuhan enterprise',
-    icon: Crown,
-    features: [
-      'Unlimited gudang & produk',
-      'Custom integrasi',
-      'Dedicated support',
-      'SLA guarantee',
-      'Custom training',
-    ],
-  },
-]
-
-function formatPrice(price: number | null) {
-  if (price === null) return 'Hubungi Kami'
-  return 'Rp ' + price.toLocaleString('id-ID')
+const featureNames: Record<string, string> = {
+  stockInOut: 'Stock Masuk/Keluar',
+  multiWarehouse: 'Multi Gudang',
+  analytics: 'Analytics',
+  exportPDF: 'Export PDF',
+  batchImport: 'Import CSV',
+  reports: 'Laporan',
 }
+
+const featureColumns = ['stockInOut', 'multiWarehouse', 'analytics', 'exportPDF', 'batchImport', 'reports']
 
 function isActive(planId: string) {
   return currentPlan.value === planId
 }
 
-function selectPlan(planId: 'starter' | 'growth' | 'pro' | 'custom') {
-  if (planId === 'starter' || planId === 'custom') return
-  currentPlan.value = planId
+function selectPlan(planId: string) {
+  if (planId === 'free') return
+  currentPlan.value = planId as any
+  authStore.upgradePlan(planId as any)
+}
+
+function goToTrial() {
+  router.push('/trial-signup')
+}
+
+function formatPrice(price: number | null): string {
+  if (price === null || price === 0) return 'Gratis'
+  return 'Rp ' + price.toLocaleString('id-ID')
+}
+
+function getFeatureValue(plan: Plan, feature: string): boolean {
+  return (plan.features as any)[feature] || false
 }
 </script>
 
 <template>
-  <div class="p-4 lg:p-8 space-y-6">
+  <div class="p-4 lg:p-8 space-y-8">
     <div>
       <h1 class="text-2xl font-bold text-neutral-900">Billing & Paket</h1>
-      <p class="text-neutral-600">Pilih paket yang sesuai dengan kebutuhanbisnismu</p>
+      <p class="text-neutral-600">Pilih paket yang sesuai dengan kebutuhan bisnismu</p>
     </div>
 
     <!-- Current Plan Banner -->
-    <div class="card p-6 bg-gradient-to-r from-primary-600 to-primary-700 text-white">
+    <div class="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <p class="text-primary-100 text-sm">Paket Saat Ini</p>
-          <h2 class="text-2xl font-bold">{{ plans.find(p => p.id === currentPlan)?.name }}</h2>
-          <p v-if="currentPlan !== 'custom'" class="text-primary-100">
-            {{ currentPlan === 'starter' ? 'Gratis selamanya' : `${formatPrice(plans.find(p => p.id === currentPlan)?.price || 0)}/bulan` }}
+          <p class="text-primary-200 text-sm">Paket Saat Ini</p>
+          <h2 class="text-2xl font-bold">{{ plansStore.getPlanById(currentPlan)?.name }}</h2>
+          <p v-if="currentPlan !== 'custom'" class="text-primary-200">
+            {{ currentPlan === 'free' ? 'Gratis selamanya' : `${formatPrice(plansStore.getPlanById(currentPlan)?.price || 0)}/bulan` }}
           </p>
         </div>
-        <div v-if="currentPlan !== 'custom'" class="badge bg-white/20 text-white">
-          Aktif
+        <div v-if="currentPlan !== 'custom'" class="flex items-center gap-2">
+          <span class="bg-white/20 px-3 py-1 rounded-full text-sm">Aktif</span>
         </div>
       </div>
     </div>
 
     <!-- Plans Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:plan-cols-4 gap-6">
       <div
-        v-for="plan in plans"
+        v-for="plan in PLANS"
         :key="plan.id"
         :class="[
           'card p-6 relative',
-          plan.popular ? 'ring-2 ring-primary-500' : '',
+          plan.id === 'growth' ? 'ring-2 ring-primary-500' : '',
           isActive(plan.id) ? 'bg-primary-50 border-primary-200' : ''
         ]"
       >
-        <!-- Popular Badge -->
-        <div
-          v-if="plan.popular"
-          class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-full"
-        >
+        <div v-if="plan.id === 'growth'" class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-full">
           Popular
         </div>
 
-        <!-- Current Badge -->
-        <div
-          v-if="isActive(plan.id)"
-          class="absolute top-4 right-4"
-        >
+        <div v-if="isActive(plan.id)" class="absolute top-4 right-4">
           <Check class="w-5 h-5 text-primary-600" />
         </div>
 
-        <!-- Icon -->
-        <div
-          :class="[
-            'w-12 h-12 rounded-xl flex items-center justify-center mb-4',
-            isActive(plan.id) ? 'bg-primary-200' : 'bg-neutral-100'
-          ]"
-        >
-          <component
-            :is="plan.icon"
-            :class="['w-6 h-6', isActive(plan.id) ? 'text-primary-700' : 'text-neutral-600']"
-          />
+        <div :class="['w-12 h-12 rounded-xl flex items-center justify-center mb-4', isActive(plan.id) ? 'bg-primary-200' : 'bg-neutral-100']">
+          <component :is="plan.id === 'free' ? Sparkles : plan.id === 'starter' ? Building2 : plan.id === 'growth' ? Rocket : Crown" :class="['w-6 h-6', isActive(plan.id) ? 'text-primary-700' : 'text-neutral-600']" />
         </div>
 
-        <!-- Name & Price -->
         <h3 class="text-lg font-semibold text-neutral-900">{{ plan.name }}</h3>
         <div class="mt-2 mb-4">
-          <span v-if="plan.price !== null" class="text-3xl font-bold text-neutral-900">
-            {{ formatPrice(plan.price) }}
-          </span>
-          <span v-else class="text-2xl font-bold text-neutral-900">Hubungi Kami</span>
+          <span class="text-3xl font-bold text-neutral-900">{{ formatPrice(plan.price) }}</span>
           <span v-if="plan.period" class="text-neutral-500">/{{ plan.period }}</span>
         </div>
         <p class="text-sm text-neutral-600 mb-6">{{ plan.description }}</p>
 
-        <!-- Features -->
         <ul class="space-y-3 mb-6">
           <li
-            v-for="feature in plan.features"
-            :key="feature"
+            v-for="feature in Object.entries(plan.features).filter(([_, v]) => v)"
+            :key="feature[0]"
             class="flex items-start gap-2 text-sm"
           >
             <Check class="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" />
-            <span class="text-neutral-700">{{ feature }}</span>
+            <span class="text-neutral-700">{{ featureNames[feature[0]] || feature[0] }}</span>
           </li>
         </ul>
 
-        <!-- Action -->
         <button
-          v-if="plan.id === 'starter'"
+          v-if="plan.id === 'free'"
           class="btn-secondary w-full"
           disabled
         >
           Current Plan
-        </button>
-        <button
-          v-else-if="plan.id === 'custom'"
-          class="btn-primary w-full"
-        >
-          Hubungi Sales
         </button>
         <button
           v-else-if="isActive(plan.id)"
@@ -210,7 +126,7 @@ function selectPlan(planId: 'starter' | 'growth' | 'pro' | 'custom') {
         </button>
         <button
           v-else
-          @click="selectPlan(plan.id as 'starter' | 'growth' | 'pro' | 'custom')"
+          @click="selectPlan(plan.id)"
           class="btn-primary w-full"
         >
           Upgrade
@@ -218,9 +134,59 @@ function selectPlan(planId: 'starter' | 'growth' | 'pro' | 'custom') {
       </div>
     </div>
 
+    <!-- Feature Comparison Table -->
+    <div class="card overflow-hidden">
+      <div class="p-4 border-b border-neutral-100">
+        <h2 class="font-semibold text-neutral-900">Perbandingan Fitur</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-neutral-100">
+              <th class="table-header text-left">Fitur</th>
+              <th v-for="plan in PLANS" :key="plan.id" class="table-header text-center">{{ plan.name }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-100">
+            <tr
+              v-for="feature in featureColumns"
+              :key="feature"
+              class="hover:bg-neutral-50"
+            >
+              <td class="table-cell font-medium">{{ featureNames[feature] }}</td>
+              <td v-for="plan in PLANS" :key="plan.id" class="table-cell text-center">
+                <div v-if="getFeatureValue(plan, feature)" class="flex justify-center">
+                  <Check class="w-5 h-5 text-success-600" />
+                </div>
+                <span v-else class="text-neutral-300">×</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Trial CTA -->
+    <div class="card p-6 bg-primary-50 border-primary-200">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex-1">
+          <h3 class="font-semibold text-primary-900 flex items-center gap-2">
+            <Clock class="w-5 h-5" />
+            Belum yakin dengan paket?
+          </h3>
+          <p class="text-sm text-primary-700 mt-1">
+            Coba semua fitur Pro gratis selama 7 hari. Tidak perlu kartu kredit!
+          </p>
+        </div>
+        <button @click="goToTrial" class="btn-primary">
+          Coba Trial Gratis
+        </button>
+      </div>
+    </div>
+
     <!-- FAQ -->
     <div class="card p-6">
-      <h2 class="text-lg font-semibold text-neutral-900 mb-4">Pertanyaan Umum</h2>
+      <h2 class="font-semibold text-neutral-900 mb-4">Pertanyaan Umum</h2>
       <div class="space-y-4">
         <div>
           <h3 class="font-medium text-neutral-900">Apakah bisa downgrade paket?</h3>

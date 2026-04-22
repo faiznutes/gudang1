@@ -4,12 +4,18 @@ import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { ArrowLeft, ArrowDownToLine, CheckCircle } from 'lucide-vue-next'
+import FeatureLockModal from '@/components/FeatureLockModal.vue'
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
 const activityStore = useActivityStore()
 const authStore = useAuthStore()
+const { canAccessStockInOut, getLockedFeatureMessage } = useFeatureAccess()
+
+const showLockModal = ref(false)
+const lockedInfo = computed(() => getLockedFeatureMessage('stockInOut'))
 
 const form = ref({
   product_id: '',
@@ -27,6 +33,11 @@ const warehouses = computed(() => inventoryStore.warehouses)
 
 function validate() {
   errors.value = {}
+
+  if (!canAccessStockInOut()) {
+    showLockModal.value = true
+    return false
+  }
 
   if (!form.value.product_id) {
     errors.value.product_id = 'Produk wajib dipilih'
@@ -73,7 +84,7 @@ async function handleSubmit() {
 
     isSuccess.value = true
     setTimeout(() => {
-      router.push({ name: 'inventory' })
+      router.push('/app/inventory')
     }, 1500)
   } catch (e) {
     errors.value.submit = 'Gagal menyimpan stock masuk'
@@ -86,13 +97,22 @@ function resetForm() {
   form.value = { product_id: '', warehouse_id: '', quantity: 1, notes: '' }
   isSuccess.value = false
 }
+
+function closeLockModal() {
+  showLockModal.value = false
+}
+
+function goToBilling() {
+  router.push({ name: 'billing' })
+  showLockModal.value = false
+}
 </script>
 
 <template>
   <div class="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
     <!-- Back -->
     <router-link
-      :to="{ name: 'inventory' }"
+      :to="'/app/inventory'"
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
@@ -128,6 +148,9 @@ function resetForm() {
               </option>
             </select>
             <p v-if="errors.product_id" class="text-xs text-danger-600 mt-1">{{ errors.product_id }}</p>
+            <p v-if="!canAccessStockInOut()" class="text-xs text-primary-600 mt-1">
+              🔒 Fitur terkunci untuk paket Free. <button type="button" @click="showLockModal = true" class="underline">Upgrade</button>
+            </p>
           </div>
 
           <!-- Warehouse -->
@@ -182,5 +205,16 @@ function resetForm() {
         </form>
       </div>
     </template>
+
+    <!-- Feature Lock Modal -->
+    <FeatureLockModal
+      :show="showLockModal"
+      :title="lockedInfo.title"
+      :message="lockedInfo.message"
+      :current-plan="lockedInfo.currentPlan"
+      :required-plan="lockedInfo.requiredPlan"
+      @close="closeLockModal"
+      @upgrade="goToBilling"
+    />
   </div>
 </template>
