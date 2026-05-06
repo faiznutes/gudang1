@@ -42,7 +42,9 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          const appScript = document.querySelector('script[type="module"][src*="/assets/index-"]');
+          const swVersion = appScript?.getAttribute('src') || 'dev';
+          navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(swVersion)}`).catch(() => {});
         });
       }
       
