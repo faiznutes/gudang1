@@ -6,7 +6,8 @@ services:
     image: ghcr.io/faiznutes/gudang1-frontend:latest
     restart: unless-stopped
     depends_on:
-      - stockpilot-backend
+      stockpilot-backend:
+        condition: service_healthy
     expose:
       - 80
     networks:
@@ -34,6 +35,12 @@ services:
         condition: service_healthy
     expose:
       - 4000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - stockpilot-internal
 

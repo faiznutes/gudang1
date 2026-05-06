@@ -1,5 +1,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/
@@ -11,8 +12,9 @@ RUN cd packages/backend && DATABASE_URL="postgresql://stockpilot:stockpilot@post
 
 FROM node:20-alpine
 WORKDIR /app
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY --from=builder /app /app
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["sh", "-c", "cd packages/backend && pnpm prisma migrate deploy && pnpm start"]
+CMD ["sh", "-c", "cd packages/backend && pnpm prisma migrate deploy && pnpm db:seed && pnpm start"]
