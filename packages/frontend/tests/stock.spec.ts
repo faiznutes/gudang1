@@ -6,11 +6,11 @@ test.describe('Stock Flows', () => {
     await page.getByPlaceholder('nama@email.com').fill('admin@example.com')
     await page.getByPlaceholder('••••••••').fill('password123')
     await page.getByRole('button', { name: 'Masuk' }).click()
-    await page.waitForURL('http://localhost:3000/')
+    await page.waitForURL('http://localhost:3000/app')
   })
 
   test('stock in flow', async ({ page }) => {
-    await page.goto('http://localhost:3000/stock-in')
+    await page.goto('http://localhost:3000/app/stock-in')
 
     await page.getByLabel('Produk').selectOption({ index: 1 })
     await page.getByLabel('Gudang Tujuan').selectOption({ index: 1 })
@@ -22,7 +22,7 @@ test.describe('Stock Flows', () => {
   })
 
   test('stock out flow', async ({ page }) => {
-    await page.goto('http://localhost:3000/stock-out')
+    await page.goto('http://localhost:3000/app/stock-out')
 
     await page.getByLabel('Produk').selectOption({ index: 1 })
     await page.getByLabel('Gudang Asal').selectOption({ index: 1 })
@@ -40,7 +40,7 @@ test.describe('Stock Flows', () => {
   })
 
   test('insufficient stock guard', async ({ page }) => {
-    await page.goto('http://localhost:3000/stock-out')
+    await page.goto('http://localhost:3000/app/stock-out')
 
     await page.getByLabel('Produk').selectOption({ index: 1 })
     await page.getByLabel('Gudang Asal').selectOption({ index: 1 })

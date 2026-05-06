@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @stockpilot/frontend dev",
+    "dev:backend": "pnpm --filter @stockpilot/backend dev",
     "build": "pnpm --filter @stockpilot/frontend build",
+    "build:backend": "pnpm --filter @stockpilot/backend build",
+    "build:all": "pnpm --filter @stockpilot/shared build && pnpm --filter @stockpilot/backend build && pnpm --filter @stockpilot/frontend build",
     "preview": "pnpm --filter @stockpilot/frontend preview",
     "lint": "pnpm --filter @stockpilot/frontend lint",
+    "test:backend": "pnpm --filter @stockpilot/backend test",
     "test:e2e": "pnpm --filter @stockpilot/frontend test:e2e"
   },
   "devDependencies": {

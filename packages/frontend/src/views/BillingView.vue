@@ -26,10 +26,10 @@ function isActive(planId: string) {
   return currentPlan.value === planId
 }
 
-function selectPlan(planId: string) {
+async function selectPlan(planId: string) {
   if (planId === 'free') return
   currentPlan.value = planId as any
-  authStore.upgradePlan(planId as any)
+  await authStore.upgradePlan(planId as any)
 }
 
 function goToTrial() {

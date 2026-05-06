@@ -20,7 +20,10 @@ const form = ref({
 const errors = ref<Record<string, string>>({})
 const isLoading = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
+  if (inventoryStore.warehouses.length === 0) {
+    await inventoryStore.loadAll().catch(() => {})
+  }
   if (isEdit.value) {
     const warehouse = inventoryStore.getWarehouseById(warehouseId.value)
     if (warehouse) {
@@ -49,17 +52,15 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-
     if (isEdit.value) {
-      inventoryStore.updateWarehouse(warehouseId.value, form.value)
+      await inventoryStore.updateWarehouse(warehouseId.value, form.value)
     } else {
-      inventoryStore.addWarehouse(form.value)
+      await inventoryStore.addWarehouse(form.value)
     }
 
     router.push({ name: 'warehouses' })
   } catch (e) {
-    errors.value.submit = 'Gagal menyimpan gudang'
+    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan gudang'
   } finally {
     isLoading.value = false
   }

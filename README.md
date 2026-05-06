@@ -1,6 +1,6 @@
-# Gudang Management (StockPilot Frontend)
+# Gudang Management (StockPilot)
 
-Gudang management system frontend - built with Vue.js, Tailwind CSS, and Vite.
+Gudang management system for Indonesian MSME inventory workflows.
 
 ## Setup
 
@@ -9,10 +9,19 @@ pnpm install
 pnpm dev
 ```
 
+Backend setup:
+
+```bash
+cp packages/backend/.env.example packages/backend/.env
+pnpm --filter @stockpilot/backend db:migrate
+pnpm --filter @stockpilot/backend db:seed
+pnpm dev:backend
+```
+
 ## Build
 
 ```bash
-pnpm build
+pnpm build:all
 ```
 
 ## Tech Stack
@@ -20,3 +29,8 @@ pnpm build
 - Tailwind CSS
 - Vite
 - Pinia
+- Fastify
+- Prisma
+- PostgreSQL
+
+See `docs/backend-pwa-plan.md` for the backend, entitlement, access-control, and PWA offline-sync plan.

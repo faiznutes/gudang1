@@ -50,8 +50,7 @@ async function handleTrialSignup() {
   error.value = ''
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 800))
-    authStore.trialSignup(name.value, email.value)
+    await authStore.trialSignup(name.value, email.value, password.value)
     router.push('/app')
   } catch (e) {
     error.value = 'Pendaftaran gagal'

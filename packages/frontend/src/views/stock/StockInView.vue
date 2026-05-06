@@ -58,16 +58,15 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-
     const product = inventoryStore.getProductById(form.value.product_id)
     const warehouse = inventoryStore.getWarehouseById(form.value.warehouse_id)
 
-    inventoryStore.updateInventory(
-      form.value.product_id,
-      form.value.warehouse_id,
-      form.value.quantity
-    )
+    await inventoryStore.stockIn({
+      product_id: form.value.product_id,
+      warehouse_id: form.value.warehouse_id,
+      quantity: form.value.quantity,
+      notes: form.value.notes,
+    })
 
     activityStore.addActivity({
       product_id: form.value.product_id,
@@ -81,13 +80,14 @@ async function handleSubmit() {
       user_id: authStore.user?.id || '1',
       user_name: authStore.user?.name || 'User',
     })
+    activityStore.loadActivities().catch(() => {})
 
     isSuccess.value = true
     setTimeout(() => {
       router.push('/app/inventory')
     }, 1500)
   } catch (e) {
-    errors.value.submit = 'Gagal menyimpan stock masuk'
+    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan stock masuk'
   } finally {
     isLoading.value = false
   }

@@ -1,0 +1,8 @@
+export { default as api, default as apiClient } from './client'
+export { authService, type LoginRequest, type RegisterRequest, type User, type AuthResponse } from './auth'
+export { inventoryService, type Category, type Product, type Warehouse, type InventoryItem, type CreateProductRequest, type CreateWarehouseRequest, type StockMovementRequest } from './inventory'
+export { adminService, type Workspace, type WorkspaceUser, type Subscription, type AuditLog, type SystemSetting, type PaginatedResponse } from './admin'
+export { entitlementService } from './entitlements'
+export { billingService } from './billing'
+export { supplierService, type Supplier, type SupplierPayload } from './suppliers'
+export { activityService, type StockMove } from './activities'

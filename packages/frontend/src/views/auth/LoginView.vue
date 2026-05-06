@@ -23,8 +23,7 @@ async function handleLogin() {
   error.value = ''
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 800))
-    authStore.login(email.value, password.value)
+    await authStore.login(email.value, password.value)
     router.push('/app')
   } catch (e) {
     error.value = 'Email atau password salah'
@@ -129,7 +128,7 @@ function goToTrial() {
 
       <!-- Demo Hint -->
       <p class="text-center text-sm text-neutral-500 mt-6">
-        Demo: masuk dengan email apapun
+        Demo: admin@example.com / password123
       </p>
     </div>
   </div>

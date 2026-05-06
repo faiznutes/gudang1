@@ -1,78 +1,67 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { supplierService, type Supplier, type SupplierPayload } from '@/services/api/suppliers'
+import { enqueueOfflineOperation, isOfflineError } from '@/services/offlineQueue'
 
-export interface Supplier {
-  id: string
-  name: string
-  contact_person?: string
-  phone?: string
-  email?: string
-  address?: string
-  notes?: string
-  created_at: string
-}
+export type { Supplier }
 
 export const useSupplierStore = defineStore('supplier', () => {
-  const suppliers = ref<Supplier[]>([
-    {
-      id: 's1',
-      name: 'PT Maju Jaya',
-      contact_person: 'Budi Santoso',
-      phone: '0812-3456-7890',
-      email: 'budi@majujaya.com',
-      address: 'Jl. Industri Raya No. 15, Jakarta',
-      notes: 'Supplier utama untuk produk pakaian',
-      created_at: '2024-01-10T10:00:00Z',
-    },
-    {
-      id: 's2',
-      name: 'CV Berkah Sejahtera',
-      contact_person: 'Siti Aminah',
-      phone: '0813-9876-5432',
-      email: 'siti@berkahsejahtera.com',
-      address: 'Jl. Gatot Subroto No. 25, Bandung',
-      notes: 'Supplier aksesoris',
-      created_at: '2024-01-12T10:00:00Z',
-    },
-  ])
+  const suppliers = ref<Supplier[]>([])
+  const isLoading = ref(false)
 
-  function addSupplier(supplier: Omit<Supplier, 'id' | 'created_at'>) {
-    const newSupplier: Supplier = {
-      ...supplier,
-      id: 's' + Date.now(),
-      created_at: new Date().toISOString(),
+  async function loadSuppliers() {
+    isLoading.value = true
+    try {
+      suppliers.value = await supplierService.getSuppliers()
+    } finally {
+      isLoading.value = false
     }
-    suppliers.value.push(newSupplier)
-    return newSupplier
   }
 
-  function updateSupplier(id: string, updates: Partial<Supplier>) {
-    const index = suppliers.value.findIndex(s => s.id === id)
-    if (index !== -1) {
-      suppliers.value[index] = { ...suppliers.value[index], ...updates }
-      return suppliers.value[index]
+  async function addSupplier(supplier: SupplierPayload) {
+    let created: Supplier
+    try {
+      created = await supplierService.createSupplier(supplier, crypto.randomUUID())
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'supplier.create', endpoint: '/suppliers', method: 'POST', payload: supplier })
+        throw new Error('Supplier disimpan sebagai draft offline dan akan disinkronkan saat online')
+      }
+      throw error
     }
-    return null
+    suppliers.value.push(created)
+    return created
   }
 
-  function deleteSupplier(id: string) {
+  async function updateSupplier(id: string, updates: Partial<SupplierPayload>) {
+    const updated = await supplierService.updateSupplier(id, updates)
     const index = suppliers.value.findIndex(s => s.id === id)
-    if (index !== -1) {
-      suppliers.value.splice(index, 1)
-      return true
-    }
-    return false
+    if (index !== -1) suppliers.value[index] = updated
+    return updated
+  }
+
+  async function deleteSupplier(id: string) {
+    await supplierService.deleteSupplier(id)
+    suppliers.value = suppliers.value.filter(s => s.id !== id)
+    return true
   }
 
   function getSupplierById(id: string) {
     return suppliers.value.find(s => s.id === id)
   }
 
+  function reset() {
+    suppliers.value = []
+  }
+
   return {
     suppliers,
+    isLoading,
+    loadSuppliers,
     addSupplier,
     updateSupplier,
     deleteSupplier,
     getSupplierById,
+    reset,
   }
 })

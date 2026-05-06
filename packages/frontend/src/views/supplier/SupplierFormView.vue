@@ -23,7 +23,10 @@ const form = ref({
 const errors = ref<Record<string, string>>({})
 const isLoading = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
+  if (supplierStore.suppliers.length === 0) {
+    await supplierStore.loadSuppliers().catch(() => {})
+  }
   if (isEdit.value) {
     const supplier = supplierStore.getSupplierById(supplierId.value)
     if (supplier) {
@@ -55,17 +58,15 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-
     if (isEdit.value) {
-      supplierStore.updateSupplier(supplierId.value, form.value)
+      await supplierStore.updateSupplier(supplierId.value, form.value)
     } else {
-      supplierStore.addSupplier(form.value)
+      await supplierStore.addSupplier(form.value)
     }
 
     router.push({ name: 'suppliers' })
   } catch (e) {
-    errors.value.submit = 'Gagal menyimpan supplier'
+    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan supplier'
   } finally {
     isLoading.value = false
   }

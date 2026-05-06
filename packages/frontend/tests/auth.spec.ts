@@ -5,13 +5,13 @@ test.describe('Authentication', () => {
     await page.goto('http://localhost:3000/login')
 
     await expect(page.getByText('StockPilot')).toBeVisible()
-    await expect(page.getByText('Masuk')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Masuk' })).toBeVisible()
 
     await page.getByPlaceholder('nama@email.com').fill('admin@example.com')
     await page.getByPlaceholder('••••••••').fill('password123')
     await page.getByRole('button', { name: 'Masuk' }).click()
 
-    await expect(page).toHaveURL('http://localhost:3000/')
+    await expect(page).toHaveURL('http://localhost:3000/app')
     await expect(page.getByText('Halo, Admin')).toBeVisible()
   })
 
@@ -24,7 +24,7 @@ test.describe('Authentication', () => {
     await page.getByPlaceholder('••••••••').last().fill('password123')
     await page.getByRole('button', { name: 'Daftar' }).click()
 
-    await expect(page).toHaveURL('http://localhost:3000/')
+    await expect(page).toHaveURL('http://localhost:3000/app')
   })
 
   test('logout flow', async ({ page }) => {

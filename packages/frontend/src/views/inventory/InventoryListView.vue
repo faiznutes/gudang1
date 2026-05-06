@@ -68,9 +68,9 @@ function toggleDropdown(id: string) {
   activeDropdown.value = activeDropdown.value === id ? null : id
 }
 
-function deleteProduct(id: string) {
+async function deleteProduct(id: string) {
   if (confirm('Yakin hapus produk ini?')) {
-    inventoryStore.deleteProduct(id)
+    await inventoryStore.deleteProduct(id)
   }
   activeDropdown.value = null
 }

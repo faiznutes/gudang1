@@ -1,98 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { inventoryService, type Category, type Product, type InventoryItem, type Warehouse } from '@/services/api/inventory'
+import { enqueueOfflineOperation, isOfflineError } from '@/services/offlineQueue'
 
-export interface Category {
-  id: string
-  name: string
-  description?: string
-}
-
-export interface Product {
-  id: string
-  sku: string
-  name: string
-  description?: string
-  category_id: string
-  category?: Category
-  min_stock: number
-  price: number
-  created_at: string
-  updated_at: string
-}
-
-export interface InventoryItem {
-  id: string
-  product_id: string
-  product?: Product
-  warehouse_id: string
-  warehouse?: Warehouse
-  quantity: number
-  updated_at: string
-}
-
-export interface Warehouse {
-  id: string
-  name: string
-  address?: string
-  is_default: boolean
-  created_at: string
-}
+export type { Category, Product, InventoryItem, Warehouse }
 
 export const useInventoryStore = defineStore('inventory', () => {
-  const products = ref<Product[]>([
-    {
-      id: 'p1',
-      sku: 'SKU-001',
-      name: 'Baju Kaos Polos',
-      description: 'Baju kaos polos warna putih',
-      category_id: 'c1',
-      min_stock: 10,
-      price: 25000,
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'p2',
-      sku: 'SKU-002',
-      name: 'Celana Jeans Slim',
-      description: 'Celana jeans ukuran 30-32',
-      category_id: 'c1',
-      min_stock: 5,
-      price: 150000,
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'p3',
-      sku: 'SKU-003',
-      name: 'Sepatu Sneakers',
-      description: 'Sepatu sneakers warna hitam',
-      category_id: 'c2',
-      min_stock: 3,
-      price: 250000,
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-15T10:00:00Z',
-    },
-  ])
-
-  const categories = ref<Category[]>([
-    { id: 'c1', name: 'Pakaian', description: 'Baju, celana, jaket' },
-    { id: 'c2', name: 'Sepatu', description: 'Sepatu sneakers, sandals' },
-    { id: 'c3', name: 'Aksesoris', description: 'Topi, tas, sabuk' },
-  ])
-
-  const warehouses = ref<Warehouse[]>([
-    { id: 'w1', name: 'Gudang Utama', address: 'Jl. Merdeka No. 10, Jakarta', is_default: true, created_at: '2024-01-10T10:00:00Z' },
-    { id: 'w2', name: 'Gudang Bandung', address: 'Jl. Asia Afrika No. 5, Bandung', is_default: false, created_at: '2024-01-12T10:00:00Z' },
-  ])
-
-  const inventory = ref<InventoryItem[]>([
-    { id: 'i1', product_id: 'p1', warehouse_id: 'w1', quantity: 50, updated_at: '2024-01-15T10:00:00Z' },
-    { id: 'i2', product_id: 'p2', warehouse_id: 'w1', quantity: 20, updated_at: '2024-01-15T10:00:00Z' },
-    { id: 'i3', product_id: 'p3', warehouse_id: 'w1', quantity: 8, updated_at: '2024-01-15T10:00:00Z' },
-    { id: 'i4', product_id: 'p1', warehouse_id: 'w2', quantity: 30, updated_at: '2024-01-15T10:00:00Z' },
-    { id: 'i5', product_id: 'p2', warehouse_id: 'w2', quantity: 15, updated_at: '2024-01-15T10:00:00Z' },
-  ])
+  const products = ref<Product[]>([])
+  const categories = ref<Category[]>([])
+  const warehouses = ref<Warehouse[]>([])
+  const inventory = ref<InventoryItem[]>([])
+  const isLoading = ref(false)
+  const lastError = ref<string | null>(null)
 
   const totalProducts = computed(() => products.value.length)
   const totalWarehouses = computed(() => warehouses.value.length)
@@ -111,6 +30,42 @@ export const useInventoryStore = defineStore('inventory', () => {
     })
   })
 
+  function setError(error: unknown) {
+    lastError.value = error instanceof Error ? error.message : 'Gagal memuat data inventori'
+  }
+
+  async function loadAll() {
+    isLoading.value = true
+    lastError.value = null
+    try {
+      const [productData, categoryData, warehouseData, inventoryData] = await Promise.all([
+        inventoryService.getProducts(),
+        inventoryService.getCategories(),
+        inventoryService.getWarehouses(),
+        inventoryService.getInventory(),
+      ])
+      products.value = productData
+      categories.value = categoryData
+      warehouses.value = warehouseData
+      inventory.value = inventoryData
+    } catch (error) {
+      setError(error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadInventory(warehouseId?: string) {
+    inventory.value = await inventoryService.getInventory(warehouseId)
+  }
+
+  function upsertInventoryItem(item: InventoryItem) {
+    const index = inventory.value.findIndex(i => i.id === item.id || (i.product_id === item.product_id && i.warehouse_id === item.warehouse_id))
+    if (index === -1) inventory.value.push(item)
+    else inventory.value[index] = item
+  }
+
   function getProductById(id: string) {
     return products.value.find(p => p.id === id)
   }
@@ -127,116 +82,142 @@ export const useInventoryStore = defineStore('inventory', () => {
     return inventory.value.filter(i => i.warehouse_id === warehouseId)
   }
 
-  function addProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) {
-    const newProduct: Product = {
-      ...product,
-      id: 'p' + Date.now(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  async function addProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) {
+    const payload = {
+      sku: product.sku,
+      name: product.name,
+      description: product.description,
+      category_id: product.category_id,
+      min_stock: product.min_stock,
+      price: product.price,
     }
-    products.value.push(newProduct)
-    return newProduct
-  }
-
-  function updateProduct(id: string, updates: Partial<Product>) {
-    const index = products.value.findIndex(p => p.id === id)
-    if (index !== -1) {
-      products.value[index] = {
-        ...products.value[index],
-        ...updates,
-        updated_at: new Date().toISOString(),
+    try {
+      const created = await inventoryService.createProduct(payload)
+      products.value.unshift(created)
+      return created
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'product.create', endpoint: '/products', method: 'POST', payload })
+        throw new Error('Produk disimpan sebagai draft offline dan akan disinkronkan saat online')
       }
-      return products.value[index]
+      throw error
     }
-    return null
   }
 
-  function deleteProduct(id: string) {
+  async function updateProduct(id: string, updates: Partial<Product>) {
+    const updated = await inventoryService.updateProduct(id, {
+      sku: updates.sku,
+      name: updates.name,
+      description: updates.description,
+      category_id: updates.category_id,
+      min_stock: updates.min_stock,
+      price: updates.price,
+    })
     const index = products.value.findIndex(p => p.id === id)
-    if (index !== -1) {
-      products.value.splice(index, 1)
-      inventory.value = inventory.value.filter(i => i.product_id !== id)
-      return true
-    }
-    return false
+    if (index !== -1) products.value[index] = updated
+    return updated
   }
 
-  function addCategory(category: Omit<Category, 'id'>) {
-    const newCategory: Category = {
-      ...category,
-      id: 'c' + Date.now(),
-    }
-    categories.value.push(newCategory)
-    return newCategory
+  async function deleteProduct(id: string) {
+    await inventoryService.deleteProduct(id)
+    products.value = products.value.filter(p => p.id !== id)
+    inventory.value = inventory.value.filter(i => i.product_id !== id)
+    return true
   }
 
-  function updateCategory(id: string, updates: Partial<Category>) {
-    const index = categories.value.findIndex(c => c.id === id)
-    if (index !== -1) {
-      categories.value[index] = { ...categories.value[index], ...updates }
-      return categories.value[index]
-    }
-    return null
+  async function addCategory(category: Omit<Category, 'id'>) {
+    const created = await inventoryService.createCategory(category)
+    categories.value.push(created)
+    return created
   }
 
-  function deleteCategory(id: string) {
-    const index = categories.value.findIndex(c => c.id === id)
-    if (index !== -1) {
-      categories.value.splice(index, 1)
-      return true
-    }
-    return false
+  async function addWarehouse(warehouse: Omit<Warehouse, 'id' | 'created_at'>) {
+    const created = await inventoryService.createWarehouse({
+      name: warehouse.name,
+      address: warehouse.address,
+    })
+    warehouses.value.push(created)
+    return created
   }
 
-  function addWarehouse(warehouse: Omit<Warehouse, 'id' | 'created_at'>) {
-    const newWarehouse: Warehouse = {
-      ...warehouse,
-      id: 'w' + Date.now(),
-      created_at: new Date().toISOString(),
-    }
-    warehouses.value.push(newWarehouse)
-    return newWarehouse
-  }
-
-  function updateWarehouse(id: string, updates: Partial<Warehouse>) {
+  async function updateWarehouse(id: string, updates: Partial<Warehouse>) {
+    const updated = await inventoryService.updateWarehouse(id, {
+      name: updates.name,
+      address: updates.address,
+    })
     const index = warehouses.value.findIndex(w => w.id === id)
-    if (index !== -1) {
-      warehouses.value[index] = { ...warehouses.value[index], ...updates }
-      return warehouses.value[index]
-    }
-    return null
+    if (index !== -1) warehouses.value[index] = updated
+    return updated
   }
 
-  function deleteWarehouse(id: string) {
-    const index = warehouses.value.findIndex(w => w.id === id)
-    if (index !== -1) {
-      warehouses.value.splice(index, 1)
-      return true
-    }
-    return false
+  async function deleteWarehouse(id: string) {
+    await inventoryService.deleteWarehouse(id)
+    warehouses.value = warehouses.value.filter(w => w.id !== id)
+    inventory.value = inventory.value.filter(i => i.warehouse_id !== id)
+    return true
   }
 
-  function updateInventory(productId: string, warehouseId: string, quantity: number) {
-    const index = inventory.value.findIndex(i => i.product_id === productId && i.warehouse_id === warehouseId)
-    if (index !== -1) {
-      inventory.value[index].quantity += quantity
-      inventory.value[index].updated_at = new Date().toISOString()
-      return inventory.value[index]
-    } else {
-      const newItem: InventoryItem = {
-        id: 'i' + Date.now(),
-        product_id: productId,
-        warehouse_id: warehouseId,
-        quantity,
-        updated_at: new Date().toISOString(),
+  async function stockIn(data: { product_id: string; warehouse_id: string; quantity: number; notes?: string }) {
+    let item: InventoryItem
+    try {
+      item = await inventoryService.stockIn(data)
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'stock-in', endpoint: '/stock-in', method: 'POST', payload: data })
+        throw new Error('Stock masuk disimpan offline dan akan disinkronkan saat online')
       }
-      inventory.value.push(newItem)
-      return newItem
+      throw error
     }
+    upsertInventoryItem(item)
+    return item
+  }
+
+  async function stockOut(data: { product_id: string; warehouse_id: string; quantity: number; notes?: string }) {
+    let item: InventoryItem
+    try {
+      item = await inventoryService.stockOut(data)
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'stock-out', endpoint: '/stock-out', method: 'POST', payload: data })
+        throw new Error('Stock keluar disimpan offline dan akan disinkronkan saat online')
+      }
+      throw error
+    }
+    upsertInventoryItem(item)
+    return item
+  }
+
+  async function stockTransfer(data: { product_id: string; warehouse_id: string; to_warehouse_id: string; quantity: number; notes?: string }) {
+    let result: unknown
+    try {
+      result = await inventoryService.stockTransfer(data)
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'stock-transfer', endpoint: '/stock-transfer', method: 'POST', payload: data })
+        throw new Error('Transfer stock disimpan offline dan akan disinkronkan saat online')
+      }
+      throw error
+    }
+    await loadInventory()
+    return result
+  }
+
+  async function updateInventory(productId: string, warehouseId: string, quantity: number) {
+    return quantity >= 0
+      ? stockIn({ product_id: productId, warehouse_id: warehouseId, quantity })
+      : stockOut({ product_id: productId, warehouse_id: warehouseId, quantity: Math.abs(quantity) })
   }
 
   function getLowStockProducts() {
     return productsWithInventory.value.filter(p => p.low_stock)
+  }
+
+  function reset() {
+    products.value = []
+    categories.value = []
+    warehouses.value = []
+    inventory.value = []
+    lastError.value = null
   }
 
   return {
@@ -244,9 +225,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     categories,
     warehouses,
     inventory,
+    isLoading,
+    lastError,
     totalProducts,
     totalWarehouses,
     productsWithInventory,
+    loadAll,
+    loadInventory,
     getProductById,
     getWarehouseById,
     getInventoryByProductAndWarehouse,
@@ -255,12 +240,16 @@ export const useInventoryStore = defineStore('inventory', () => {
     updateProduct,
     deleteProduct,
     addCategory,
-    updateCategory,
-    deleteCategory,
+    updateCategory: addCategory,
+    deleteCategory: async () => false,
     addWarehouse,
     updateWarehouse,
     deleteWarehouse,
+    stockIn,
+    stockOut,
+    stockTransfer,
     updateInventory,
     getLowStockProducts,
+    reset,
   }
 })

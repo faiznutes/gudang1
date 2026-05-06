@@ -29,9 +29,9 @@ function toggleDropdown(id: string) {
   activeDropdown.value = activeDropdown.value === id ? null : id
 }
 
-function deleteSupplier(id: string) {
+async function deleteSupplier(id: string) {
   if (confirm('Yakin hapus supplier ini?')) {
-    supplierStore.deleteSupplier(id)
+    await supplierStore.deleteSupplier(id)
   }
   activeDropdown.value = null
 }

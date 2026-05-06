@@ -1,35 +1,42 @@
 import { computed } from 'vue'
 import { usePlansStore } from '@/stores/plans'
 import { useTrialStore } from '@/stores/trial'
+import { useEntitlementsStore } from '@/stores/entitlements'
 
 export function useFeatureAccess() {
   const plansStore = usePlansStore()
   const trialStore = useTrialStore()
+  const entitlementsStore = useEntitlementsStore()
 
-  const isTrialActive = computed(() => trialStore.isTrial)
-  const currentPlanId = computed(() => plansStore.currentPlan)
+  const isTrialActive = computed(() => entitlementsStore.isTrial || trialStore.isTrial)
+  const currentPlanId = computed(() => entitlementsStore.currentPlan || plansStore.currentPlan)
 
   function canAccessStockInOut(): boolean {
+    if (entitlementsStore.entitlements) return entitlementsStore.canAccessFeature('stockInOut')
     if (trialStore.isTrial) return true
     return plansStore.currentPlanData.features.stockInOut
   }
 
   function canAccessMultiWarehouse(): boolean {
+    if (entitlementsStore.entitlements) return entitlementsStore.canAccessFeature('multiWarehouse')
     if (trialStore.isTrial) return true
     return plansStore.currentPlanData.features.multiWarehouse
   }
 
   function canAccessAnalytics(): boolean {
+    if (entitlementsStore.entitlements) return entitlementsStore.canAccessFeature('analytics')
     if (trialStore.isTrial) return true
     return plansStore.currentPlanData.features.analytics
   }
 
   function canExportPDF(): boolean {
+    if (entitlementsStore.entitlements) return entitlementsStore.canAccessFeature('exportPDF')
     if (trialStore.isTrial) return true
     return plansStore.currentPlanData.features.exportPDF
   }
 
   function canBatchImport(): boolean {
+    if (entitlementsStore.entitlements) return entitlementsStore.canAccessFeature('batchImport')
     if (trialStore.isTrial) return true
     return plansStore.currentPlanData.features.batchImport
   }

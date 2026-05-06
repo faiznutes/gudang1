@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import {
   LayoutDashboard,
   Package,
@@ -20,29 +22,33 @@ import {
 const route = useRoute()
 const router = useRouter()
 const showMoreMenu = ref(false)
+const featureAccess = useFeatureAccess()
 
 const leftItems = [
   { name: 'Home', icon: LayoutDashboard, route: '/app' },
   { name: 'Inventori', icon: Package, route: '/app/inventory' },
 ]
 
-const centerItem = { name: 'Tambah', icon: PlusCircle, route: '/app/stock-in', action: 'add' }
+const centerItem = computed(() => featureAccess.canAccessStockInOut()
+  ? { name: 'Tambah', icon: PlusCircle, route: '/app/stock-in', action: 'add' }
+  : { name: 'Tambah', icon: PlusCircle, route: '/app/inventory/new', action: 'add' }
+)
 
 const rightItems = [
   { name: 'Aktivitas', icon: Activity, route: '/app/activity' },
   { name: 'Lainnya', icon: MoreHorizontal, route: '', action: 'more' },
 ]
 
-const moreMenuItems = [
+const moreMenuItems = computed(() => [
   { name: 'Gudang', icon: Warehouse, route: '/app/warehouses', color: 'bg-blue-100 text-blue-600' },
-  { name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement', color: 'bg-purple-100 text-purple-600' },
+  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement', color: 'bg-purple-100 text-purple-600' }] : []),
   { name: 'Supplier', icon: Users, route: '/app/suppliers', color: 'bg-green-100 text-green-600' },
-  { name: 'Analitik', icon: BarChart3, route: '/app/analytics', color: 'bg-orange-100 text-orange-600' },
+  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Analitik', icon: BarChart3, route: '/app/analytics', color: 'bg-orange-100 text-orange-600' }] : []),
   { name: 'Billing', icon: CreditCard, route: '/app/billing', color: 'bg-pink-100 text-pink-600' },
   { name: 'Tutorial', icon: FileText, route: '/app/tutorial', color: 'bg-cyan-100 text-cyan-600' },
   { name: 'Bantuan', icon: HelpCircle, route: '/app/tutorial', color: 'bg-yellow-100 text-yellow-600' },
   { name: 'Pengaturan', icon: Settings, route: '/app/settings', color: 'bg-neutral-100 text-neutral-600' },
-]
+])
 
 function isActive(routePath: string) {
   return route.path.startsWith(routePath)
@@ -98,7 +104,7 @@ function handleMoreMenu(routePath: string) {
           @click="handleNav(centerItem)"
           class="w-16 h-16 bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 rounded-2xl flex items-center justify-center shadow-xl shadow-primary-400 hover:scale-110 active:scale-95 transition-all duration-200"
         >
-          <PlusCircle class="w-9 h-9 text-white" />
+          <component :is="centerItem.icon" class="w-9 h-9 text-white" />
         </button>
       </li>
       

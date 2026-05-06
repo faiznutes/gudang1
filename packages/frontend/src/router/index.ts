@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEntitlementsStore } from '@/stores/entitlements'
 
 const routes = [
   // Public routes
@@ -122,6 +123,44 @@ const routes = [
     name: 'tutorial',
     component: () => import('@/views/TutorialView.vue'),
   },
+  // Admin routes - dengan layout terpisah
+  {
+    path: '/admin',
+    component: () => import('@/components/layout/AdminLayout.vue'),
+    meta: { requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-dashboard',
+        component: () => import('@/views/admin/AdminDashboardView.vue'),
+      },
+      {
+        path: 'users',
+        name: 'admin-users',
+        component: () => import('@/views/admin/UserManagementView.vue'),
+      },
+      {
+        path: 'workspaces',
+        name: 'admin-workspaces',
+        component: () => import('@/views/admin/WorkspaceManagementView.vue'),
+      },
+      {
+        path: 'subscriptions',
+        name: 'admin-subscriptions',
+        component: () => import('@/views/admin/SubscriptionManagementView.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'admin-settings',
+        component: () => import('@/views/admin/SystemSettingsView.vue'),
+      },
+      {
+        path: 'audit-logs',
+        name: 'admin-audit-logs',
+        component: () => import('@/views/admin/AuditLogsView.vue'),
+      },
+    ],
+  },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
@@ -133,12 +172,14 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
-  authStore.initAuth()
+  const entitlementsStore = useEntitlementsStore()
+  await authStore.initAuth()
 
   const isGuestOnly = to.meta.guest === true
   const isAppRoute = to.path.startsWith('/app')
+  const isAdminRoute = to.path.startsWith('/admin')
 
   // Landing page selalu bisa diakses
   if (to.path === '/' || to.name === 'landing') {
@@ -155,6 +196,24 @@ router.beforeEach((to, _from, next) => {
   // App routes - require auth
   if (isAppRoute && !authStore.isAuthenticated) {
     next('/login')
+    return
+  }
+  
+  // Admin routes - require admin or super_admin
+  if (isAdminRoute && !authStore.isSuperAdmin) {
+    next('/app')
+    return
+  }
+
+  const requiredFeature =
+    to.path.startsWith('/app/stock-in') || to.path.startsWith('/app/stock-out') || to.path.startsWith('/app/stock-movement')
+      ? 'stockInOut'
+      : to.path.startsWith('/app/analytics')
+        ? 'analytics'
+        : undefined
+
+  if (isAppRoute && requiredFeature && !entitlementsStore.canAccessFeature(requiredFeature)) {
+    next({ name: 'billing', query: { locked: requiredFeature } })
     return
   }
   

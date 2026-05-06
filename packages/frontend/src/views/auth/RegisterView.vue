@@ -35,8 +35,7 @@ async function handleRegister() {
   error.value = ''
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 800))
-    authStore.register(name.value, email.value, password.value)
+    await authStore.register(name.value, email.value, password.value)
     router.push({ name: 'dashboard' })
   } catch (e) {
     error.value = 'Pendaftaran gagal'

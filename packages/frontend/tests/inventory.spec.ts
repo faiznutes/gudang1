@@ -6,7 +6,7 @@ test.describe('Inventory', () => {
     await page.getByPlaceholder('nama@email.com').fill('admin@example.com')
     await page.getByPlaceholder('••••••••').fill('password123')
     await page.getByRole('button', { name: 'Masuk' }).click()
-    await page.waitForURL('http://localhost:3000/')
+    await page.waitForURL('http://localhost:3000/app')
   })
 
   test('create product', async ({ page }) => {
@@ -19,12 +19,12 @@ test.describe('Inventory', () => {
     await page.getByLabel('Harga (Rp)').fill('50000')
     await page.getByRole('button', { name: 'Simpan' }).click()
 
-    await expect(page).toHaveURL('http://localhost:3000/inventory')
+    await expect(page).toHaveURL('http://localhost:3000/app/inventory')
     await expect(page.getByText('Produk Test')).toBeVisible()
   })
 
   test('view product detail', async ({ page }) => {
-    await page.goto('http://localhost:3000/inventory')
+    await page.goto('http://localhost:3000/app/inventory')
 
     await page.getByRole('button').nth(1).click()
     await page.getByRole('button', { name: 'Lihat' }).click()

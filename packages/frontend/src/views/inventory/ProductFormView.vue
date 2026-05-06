@@ -25,7 +25,10 @@ const isLoading = ref(false)
 
 const categories = computed(() => inventoryStore.categories)
 
-onMounted(() => {
+onMounted(async () => {
+  if (inventoryStore.products.length === 0 || inventoryStore.categories.length === 0) {
+    await inventoryStore.loadAll().catch(() => {})
+  }
   if (isEdit.value) {
     const product = inventoryStore.getProductById(productId.value)
     if (product) {
@@ -63,17 +66,15 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-
     if (isEdit.value) {
-      inventoryStore.updateProduct(productId.value, form.value)
+      await inventoryStore.updateProduct(productId.value, form.value)
     } else {
-      inventoryStore.addProduct(form.value)
+      await inventoryStore.addProduct(form.value)
     }
 
     router.push({ name: 'inventory' })
   } catch (e) {
-    errors.value.submit = 'Gagal menyimpan produk'
+    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan produk'
   } finally {
     isLoading.value = false
   }

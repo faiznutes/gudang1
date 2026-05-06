@@ -6,7 +6,7 @@ test.describe('Navigation', () => {
     await page.getByPlaceholder('nama@email.com').fill('admin@example.com')
     await page.getByPlaceholder('••••••••').fill('password123')
     await page.getByRole('button', { name: 'Masuk' }).click()
-    await page.waitForURL('http://localhost:3000/')
+    await page.waitForURL('http://localhost:3000/app')
   })
 
   test('desktop sidebar navigation', async ({ page }) => {
@@ -15,11 +15,11 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('button', { name: 'Mutasi' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Inventori' }).click()
-    await expect(page).toHaveURL('http://localhost:3000/inventory')
+    await expect(page).toHaveURL('http://localhost:3000/app/inventory')
     await expect(page.getByText('Kelola produk dan stok')).toBeVisible()
 
     await page.getByRole('button', { name: 'Gudang' }).click()
-    await expect(page).toHaveURL('http://localhost:3000/warehouses')
+    await expect(page).toHaveURL('http://localhost:3000/app/warehouses')
   })
 
   test('sidebar collapse', async ({ page }) => {

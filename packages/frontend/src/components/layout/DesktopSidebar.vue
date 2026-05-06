@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import {
   LayoutDashboard,
   Package,
@@ -29,15 +30,16 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const featureAccess = useFeatureAccess()
 
 const navItems = computed(() => [
   { name: 'Dashboard', icon: LayoutDashboard, route: '/app' },
   { name: 'Inventori', icon: Package, route: '/app/inventory' },
   { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
-  { name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement' },
+  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement' }] : []),
   { name: 'Supplier', icon: Users, route: '/app/suppliers' },
   { name: 'Aktivitas', icon: Activity, route: '/app/activity' },
-  { name: 'Analitik', icon: BarChart3, route: '/app/analytics' },
+  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Analitik', icon: BarChart3, route: '/app/analytics' }] : []),
 ])
 
 const bottomNavItems = computed(() => [
