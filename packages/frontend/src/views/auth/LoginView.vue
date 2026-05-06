@@ -24,7 +24,7 @@ async function handleLogin() {
 
   try {
     await authStore.login(email.value, password.value)
-    router.push('/app')
+    router.push(authStore.homeRoute)
   } catch (e) {
     error.value = 'Email atau password salah'
   } finally {

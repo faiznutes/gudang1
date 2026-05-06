@@ -58,11 +58,18 @@ export interface EntitlementResponse {
   }
 }
 
+export interface SessionPolicy {
+  timeout_minutes: number | null
+  lock_actions_after_expiry: boolean
+}
+
 export interface AuthResponse {
   user: User
   workspace: Workspace
   token: string
   entitlements: EntitlementResponse
+  activity_session_expires_at?: string | null
+  session_policy?: SessionPolicy
 }
 
 export const authService = {

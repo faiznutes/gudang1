@@ -2,12 +2,16 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
+import { useAuthStore } from '@/stores/auth'
+import importExportService from '@/services/api/importExport'
 import {
   Search,
   Plus,
   Filter,
   Package,
   AlertTriangle,
+  Download,
+  Upload,
   MoreVertical,
   Pencil,
   Trash2,
@@ -16,12 +20,15 @@ import {
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
+const authStore = useAuthStore()
 
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedWarehouse = ref('')
 const showFilter = ref(false)
 const activeDropdown = ref<string | null>(null)
+const importInput = ref<HTMLInputElement | null>(null)
+const importMessage = ref('')
 
 const products = computed(() => {
   let result = inventoryStore.productsWithInventory
@@ -69,10 +76,34 @@ function toggleDropdown(id: string) {
 }
 
 async function deleteProduct(id: string) {
+  if (authStore.isActivitySessionExpired) return
   if (confirm('Yakin hapus produk ini?')) {
     await inventoryStore.deleteProduct(id)
   }
   activeDropdown.value = null
+}
+
+async function exportProducts() {
+  await importExportService.exportData('products')
+}
+
+async function downloadTemplate() {
+  await importExportService.downloadTemplate('products')
+}
+
+function openImportPicker() {
+  if (authStore.isActivitySessionExpired) return
+  importInput.value?.click()
+}
+
+async function handleImport(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const result = await importExportService.importData('products', await file.text())
+  importMessage.value = `${result.imported} baris produk berhasil diimport`
+  input.value = ''
+  await inventoryStore.loadAll()
 }
 </script>
 
@@ -98,10 +129,32 @@ async function deleteProduct(id: string) {
           Filter
         </button>
       </div>
-      <router-link to="/app/inventory/new" class="btn-primary">
-        <Plus class="w-4 h-4" />
-        Tambah Produk
-      </router-link>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary" @click="downloadTemplate">
+          <Download class="w-4 h-4" />
+          Template
+        </button>
+        <button class="btn-secondary" @click="exportProducts">
+          <Download class="w-4 h-4" />
+          Export CSV
+        </button>
+        <button class="btn-secondary" :disabled="authStore.isActivitySessionExpired" @click="openImportPicker">
+          <Upload class="w-4 h-4" />
+          Import CSV
+        </button>
+        <input ref="importInput" class="hidden" type="file" accept=".csv,text/csv" @change="handleImport" />
+        <router-link v-if="!authStore.isActivitySessionExpired" to="/app/inventory/new" class="btn-primary">
+          <Plus class="w-4 h-4" />
+          Tambah Produk
+        </router-link>
+        <button v-else class="btn-secondary text-danger-600" disabled title="Sesi aktivitas sudah berakhir">
+          × Aksi terkunci
+        </button>
+      </div>
+    </div>
+
+    <div v-if="importMessage" class="rounded-lg border border-success-100 bg-success-50 p-3 text-sm text-success-700">
+      {{ importMessage }}
     </div>
 
     <!-- Filters -->
@@ -204,6 +257,7 @@ async function deleteProduct(id: string) {
                       </button>
                       <button
                         @click="router.push({ name: 'inventory-edit', params: { id: product.id } })"
+                        :disabled="authStore.isActivitySessionExpired"
                         class="w-full flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
                       >
                         <Pencil class="w-4 h-4" />
@@ -211,6 +265,7 @@ async function deleteProduct(id: string) {
                       </button>
                       <button
                         @click="deleteProduct(product.id)"
+                        :disabled="authStore.isActivitySessionExpired"
                         class="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
                       >
                         <Trash2 class="w-4 h-4" />
@@ -230,7 +285,7 @@ async function deleteProduct(id: string) {
         <Package class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
         <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada produk</h3>
         <p class="text-neutral-500 mb-4">Mulai tambahkan produk pertama kamu</p>
-        <router-link to="/app/inventory/new" class="btn-primary">
+        <router-link v-if="!authStore.isActivitySessionExpired" to="/app/inventory/new" class="btn-primary">
           <Plus class="w-4 h-4" />
           Tambah Produk
         </router-link>

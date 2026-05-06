@@ -145,6 +145,11 @@ const routes = [
         component: () => import('@/views/admin/WorkspaceManagementView.vue'),
       },
       {
+        path: 'client-warehouse',
+        name: 'admin-client-warehouse',
+        component: () => import('@/views/admin/ClientWarehouseManagementView.vue'),
+      },
+      {
         path: 'subscriptions',
         name: 'admin-subscriptions',
         component: () => import('@/views/admin/SubscriptionManagementView.vue'),
@@ -187,9 +192,23 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
   
-  // Guest only pages (login, register, trial-signup) - redirect to dashboard if already logged in
+  // Guest only pages (login, register, trial-signup) - redirect to the correct role home if already logged in
   if (isGuestOnly && authStore.isAuthenticated) {
-    next('/app')
+    next(authStore.homeRoute)
+    return
+  }
+
+  // Admin routes - only platform super admins can access the SaaS control plane
+  if (isAdminRoute) {
+    if (!authStore.isAuthenticated) {
+      next('/login')
+      return
+    }
+    if (!authStore.isSuperAdmin) {
+      next('/app')
+      return
+    }
+    next()
     return
   }
   
@@ -198,10 +217,21 @@ router.beforeEach(async (to, _from, next) => {
     next('/login')
     return
   }
-  
-  // Admin routes - require admin or super_admin
-  if (isAdminRoute && !authStore.isSuperAdmin) {
-    next('/app')
+
+  // Super admins use the platform admin dashboard, not tenant warehouse navigation.
+  if (isAppRoute && authStore.isSuperAdmin) {
+    next('/admin')
+    return
+  }
+
+  const isWriteRoute =
+    to.path.includes('/new') ||
+    to.path.includes('/edit') ||
+    to.path.startsWith('/app/stock-in') ||
+    to.path.startsWith('/app/stock-out')
+
+  if (isAppRoute && isWriteRoute && authStore.isActivitySessionExpired) {
+    next({ name: 'activity', query: { expired: '1' } })
     return
   }
 

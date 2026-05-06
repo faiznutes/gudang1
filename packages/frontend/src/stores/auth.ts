@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useTrialStore } from './trial'
-import { authService, type EntitlementResponse } from '@/services/api/auth'
+import { authService, type EntitlementResponse, type SessionPolicy } from '@/services/api/auth'
 import { billingService } from '@/services/api/billing'
 import { useEntitlementsStore } from './entitlements'
 
@@ -30,6 +30,10 @@ export const useAuthStore = defineStore('auth', () => {
   const workspace = ref<Workspace | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
   const initialized = ref(false)
+  const activitySessionExpiresAt = ref<string | null>(localStorage.getItem('activity_session_expires_at'))
+  const sessionPolicy = ref<SessionPolicy>({ timeout_minutes: null, lock_actions_after_expiry: true })
+  const sessionTick = ref(Date.now())
+  let countdownTimer: number | null = null
   const trialStore = useTrialStore()
   const entitlementsStore = useEntitlementsStore()
 
@@ -38,8 +42,43 @@ export const useAuthStore = defineStore('auth', () => {
   const isStaff = computed(() => user.value?.role === 'staff')
   const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
   const isTrial = computed(() => entitlementsStore.isTrial || trialStore.isTrial)
+  const homeRoute = computed(() => isSuperAdmin.value ? '/admin' : '/app')
+  const activitySessionRemainingMs = computed(() => {
+    if (!activitySessionExpiresAt.value) return null
+    return Math.max(0, new Date(activitySessionExpiresAt.value).getTime() - sessionTick.value)
+  })
+  const isActivitySessionExpired = computed(() => {
+    if (isSuperAdmin.value) return false
+    if (!sessionPolicy.value.lock_actions_after_expiry || activitySessionRemainingMs.value === null) return false
+    return activitySessionRemainingMs.value <= 0
+  })
+  const activitySessionCountdown = computed(() => {
+    const remaining = activitySessionRemainingMs.value
+    if (remaining === null) return ''
+    const totalSeconds = Math.max(0, Math.floor(remaining / 1000))
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) return `${hours}j ${minutes}m`
+    if (minutes > 0) return `${minutes}m ${seconds}d`
+    return `${seconds}d`
+  })
 
-  function applySession(data: { token?: string; user: User; workspace: Workspace; entitlements?: EntitlementResponse }) {
+  function startCountdown() {
+    if (countdownTimer !== null) return
+    countdownTimer = window.setInterval(() => {
+      sessionTick.value = Date.now()
+    }, 1000)
+  }
+
+  function stopCountdown() {
+    if (countdownTimer !== null) {
+      window.clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }
+
+  function applySession(data: { token?: string; user: User; workspace: Workspace; entitlements?: EntitlementResponse; activity_session_expires_at?: string | null; session_policy?: SessionPolicy }) {
     user.value = data.user
     workspace.value = data.workspace
     if (data.token) {
@@ -48,6 +87,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if (data.entitlements) {
       entitlementsStore.setEntitlements(data.entitlements)
+    }
+    activitySessionExpiresAt.value = data.activity_session_expires_at ?? activitySessionExpiresAt.value
+    sessionPolicy.value = data.session_policy ?? sessionPolicy.value
+    if (activitySessionExpiresAt.value) {
+      localStorage.setItem('activity_session_expires_at', activitySessionExpiresAt.value)
+      startCountdown()
     }
   }
 
@@ -121,8 +166,12 @@ export const useAuthStore = defineStore('auth', () => {
     workspace.value = null
     token.value = null
     initialized.value = false
+    activitySessionExpiresAt.value = null
+    sessionPolicy.value = { timeout_minutes: null, lock_actions_after_expiry: true }
+    stopCountdown()
     entitlementsStore.reset()
     localStorage.removeItem('token')
+    localStorage.removeItem('activity_session_expires_at')
   }
 
   return {
@@ -135,6 +184,12 @@ export const useAuthStore = defineStore('auth', () => {
     isStaff,
     isSuperAdmin,
     isTrial,
+    homeRoute,
+    activitySessionExpiresAt,
+    sessionPolicy,
+    activitySessionRemainingMs,
+    activitySessionCountdown,
+    isActivitySessionExpired,
     login,
     register,
     trialSignup,

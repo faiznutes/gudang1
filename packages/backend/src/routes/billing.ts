@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getEntitlements } from '../lib/plans.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth, requireRole } from '../middleware/auth.js'
 
 export async function billingRoutes(app: FastifyInstance) {
   app.post('/billing/change-plan', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     requireRole(ctx, ['super_admin', 'admin', 'trial'])
     const body = z.object({ plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']) }).parse(request.body)
     const now = new Date()

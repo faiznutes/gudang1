@@ -7,6 +7,8 @@ export interface AuthContext {
   userId: string
   workspaceId: string
   role: UserRole
+  platformRole: UserRole
+  sessionExpiresAt: Date | null
 }
 
 export async function requireAuth(app: FastifyInstance, request: FastifyRequest): Promise<AuthContext> {
@@ -15,9 +17,9 @@ export async function requireAuth(app: FastifyInstance, request: FastifyRequest)
     throw new AppError('unauthenticated', 'Sesi tidak ditemukan')
   }
 
-  let payload: { sub?: string; workspaceId?: string; role?: UserRole }
+  let payload: { sub?: string; workspaceId?: string; role?: UserRole; sessionExpiresAt?: string }
   try {
-    payload = app.jwt.verify(token) as { sub?: string; workspaceId?: string; role?: UserRole }
+    payload = app.jwt.verify(token) as { sub?: string; workspaceId?: string; role?: UserRole; sessionExpiresAt?: string }
   } catch {
     throw new AppError('unauthenticated', 'Sesi sudah tidak valid')
   }
@@ -31,23 +33,40 @@ export async function requireAuth(app: FastifyInstance, request: FastifyRequest)
       userId: payload.sub,
       ...(payload.workspaceId ? { workspaceId: payload.workspaceId } : {}),
     },
-    include: { workspace: true },
+    include: { user: true, workspace: true },
   })
 
-  if (!membership || membership.workspace.status === 'suspended') {
+  if (!membership || membership.user.disabledAt || membership.workspace.status === 'suspended') {
     throw new AppError('forbidden', 'Workspace tidak aktif atau akses ditolak')
   }
+
+  const sessionExpiresAt = payload.sessionExpiresAt ? new Date(payload.sessionExpiresAt) : null
 
   return {
     userId: membership.userId,
     workspaceId: membership.workspaceId,
     role: membership.role as UserRole,
+    platformRole: membership.user.role as UserRole,
+    sessionExpiresAt: sessionExpiresAt && Number.isFinite(sessionExpiresAt.getTime()) ? sessionExpiresAt : null,
   }
 }
 
 export function requireRole(ctx: AuthContext, roles: UserRole[]) {
   if (!roles.includes(ctx.role)) {
     throw new AppError('forbidden', 'Anda tidak memiliki akses ke halaman ini')
+  }
+}
+
+export function requirePlatformRole(ctx: AuthContext, roles: UserRole[]) {
+  if (!roles.includes(ctx.platformRole)) {
+    throw new AppError('forbidden', 'Anda tidak memiliki akses ke halaman ini')
+  }
+}
+
+export function requireActiveSession(ctx: AuthContext) {
+  if (ctx.platformRole === 'super_admin') return
+  if (ctx.sessionExpiresAt && ctx.sessionExpiresAt <= new Date()) {
+    throw new AppError('forbidden', 'Sesi aktivitas sudah berakhir. Anda masih bisa melihat laporan, tetapi tidak bisa mengubah data.')
   }
 }
 

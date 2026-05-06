@@ -15,6 +15,7 @@ export interface Product {
   category?: Category
   min_stock: number
   price: number
+  disabled_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -24,6 +25,7 @@ export interface Warehouse {
   name: string
   address?: string
   is_default: boolean
+  disabled_at?: string | null
   created_at: string
 }
 

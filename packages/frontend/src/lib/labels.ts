@@ -8,7 +8,7 @@ export const planLabels: Record<string, string> = {
 
 export const roleLabels: Record<string, string> = {
   super_admin: 'Super Admin',
-  admin: 'Admin Tenant',
+  admin: 'Admin Klien',
   staff: 'Staff',
   supplier: 'Supplier',
   trial: 'Trial',

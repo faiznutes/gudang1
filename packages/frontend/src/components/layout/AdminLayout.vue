@@ -7,12 +7,12 @@ import {
   UserCog,
   Building2,
   CreditCard,
+  Warehouse,
   Settings,
   FileText,
   ChevronLeft,
   ChevronRight,
   LogOut,
-  ArrowLeft,
   X,
   MoreHorizontal,
 } from 'lucide-vue-next'
@@ -56,6 +56,7 @@ const adminNavItems = [
   { name: 'Dashboard', icon: LayoutDashboard, route: '/admin' },
   { name: 'Users', icon: UserCog, route: '/admin/users' },
   { name: 'Workspaces', icon: Building2, route: '/admin/workspaces' },
+  { name: 'Client Warehouse', icon: Warehouse, route: '/admin/client-warehouse' },
   { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions' },
   { name: 'Logs', icon: FileText, route: '/admin/audit-logs' },
   { name: 'Settings', icon: Settings, route: '/admin/settings' },
@@ -66,7 +67,7 @@ const leftItems = [
   { name: 'Users', icon: UserCog, route: '/admin/users' },
 ]
 
-const centerItem = { name: 'Workspaces', icon: Building2, route: '/admin/workspaces', action: 'workspaces' }
+const centerItem = { name: 'Gudang Klien', icon: Warehouse, route: '/admin/client-warehouse', action: 'client-warehouse' }
 
 const rightItems = [
   { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions' },
@@ -77,6 +78,7 @@ const moreMenuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, route: '/admin', color: 'bg-primary-100 text-primary-600' },
   { name: 'Users', icon: UserCog, route: '/admin/users', color: 'bg-blue-100 text-blue-600' },
   { name: 'Workspaces', icon: Building2, route: '/admin/workspaces', color: 'bg-green-100 text-green-600' },
+  { name: 'Gudang Klien', icon: Warehouse, route: '/admin/client-warehouse', color: 'bg-primary-100 text-primary-600' },
   { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions', color: 'bg-purple-100 text-purple-600' },
   { name: 'Logs', icon: FileText, route: '/admin/audit-logs', color: 'bg-orange-100 text-orange-600' },
   { name: 'Settings', icon: Settings, route: '/admin/settings', color: 'bg-neutral-100 text-neutral-600' },
@@ -106,10 +108,6 @@ function handleNav(item: any) {
 function handleMoreMenu(routePath: string) {
   showMoreMenu.value = false
   router.push(routePath)
-}
-
-function goToApp() {
-  router.push('/app')
 }
 
 function handleLogout() {
@@ -183,14 +181,6 @@ function handleLogout() {
 
       <!-- Bottom Section -->
       <div class="border-t border-purple-800 py-4 px-3 space-y-2">
-        <button
-          @click="goToApp"
-          class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-purple-300 hover:bg-purple-800 hover:text-white"
-        >
-          <ArrowLeft class="w-5 h-5 flex-shrink-0" />
-          <span v-if="!collapsed" class="truncate">Kembali ke App</span>
-        </button>
-
         <div v-if="!collapsed" class="pt-2 border-t border-purple-800">
           <div class="flex items-center gap-3 px-3">
             <div class="w-8 h-8 bg-purple-700 rounded-full flex items-center justify-center">
@@ -249,14 +239,8 @@ function handleLogout() {
             </li>
           </ul>
         </nav>
-        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-purple-800">
-          <button
-            @click="goToApp"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-purple-300 hover:bg-purple-800 hover:text-white"
-          >
-            <ArrowLeft class="w-5 h-5" />
-            Kembali ke App
-          </button>
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-purple-800 text-xs text-purple-300">
+          Akses platform SaaS
         </div>
       </div>
     </div>

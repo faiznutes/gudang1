@@ -16,37 +16,57 @@ const entitlements = {
   usage: { warehouses: 2, products: 3, users: 2 },
 }
 
-async function mockSession(page: import('@playwright/test').Page, role: 'super_admin' | 'admin') {
-  await page.addInitScript(() => localStorage.setItem('token', 'test-token'))
-  await page.route(/https?:\/\/[^/]+\/api\/auth\/me$/, async route => {
-    await route.fulfill({
-      json: {
-        user: { id: 'user-1', name: role === 'super_admin' ? 'Admin User' : 'Tenant Admin', email: 'admin@example.com', role, created_at: '2026-05-01T00:00:00.000Z' },
-        workspace: { id: 'workspace-1', name: 'Tenant Test', plan: 'pro', status: 'active', created_at: '2026-05-01T00:00:00.000Z' },
-        entitlements,
-      },
-    })
-  })
-  await page.route(/https?:\/\/[^/]+\/api\/admin\/dashboard\/stats$/, async route => {
-    await route.fulfill({
-      json: {
-        total_workspaces: 2,
-        active_workspaces: 1,
-        trial_workspaces: 1,
-        total_users: 3,
-        total_revenue: 299000,
-        recent_signups: 1,
-        recent_users: [],
-        recent_workspaces: [],
-        plan_distribution: [{ plan: 'pro', count: 1 }],
-        system_health: [{ service: 'API', status: 'healthy', uptime: 'online' }],
-      },
-    })
-  })
+function sessionPayload(role: 'super_admin' | 'admin') {
+  return {
+    user: {
+      id: 'user-1',
+      name: role === 'super_admin' ? 'Admin User' : 'Tenant Admin',
+      email: 'admin@example.com',
+      role,
+      created_at: '2026-05-01T00:00:00.000Z',
+    },
+    workspace: {
+      id: role === 'super_admin' ? 'platform-workspace' : 'tenant-workspace',
+      name: role === 'super_admin' ? 'StockPilot Platform' : 'Tenant Test',
+      plan: 'pro',
+      status: 'active',
+      created_at: '2026-05-01T00:00:00.000Z',
+    },
+    entitlements,
+  }
+}
+
+function dashboardStatsPayload() {
+  return {
+    total_workspaces: 2,
+    active_workspaces: 1,
+    trial_workspaces: 1,
+    total_users: 3,
+    total_revenue: 299000,
+    recent_signups: 1,
+    recent_users: [],
+    recent_workspaces: [],
+    plan_distribution: [{ plan: 'pro', count: 1 }],
+    system_health: [{ service: 'API', status: 'healthy', uptime: 'online' }],
+  }
+}
+
+async function mockSession(page: import('@playwright/test').Page, role: 'super_admin' | 'admin', options: { authenticated?: boolean } = {}) {
+  if (options.authenticated !== false) {
+    await page.addInitScript(() => localStorage.setItem('token', 'test-token'))
+  }
   await page.route(/https?:\/\/[^/]+\/api\/.*/, async route => {
     const url = route.request().url()
-    if (url.includes('/api/auth/me') || url.includes('/api/admin/dashboard/stats')) {
-      await route.fallback()
+    if (url.includes('/api/auth/me')) {
+      await route.fulfill({ json: sessionPayload(role) })
+      return
+    }
+    if (url.includes('/api/auth/login')) {
+      await route.fulfill({ json: { token: 'test-token', ...sessionPayload(role) } })
+      return
+    }
+    if (url.includes('/api/admin/dashboard/stats')) {
+      await route.fulfill({ json: dashboardStatsPayload() })
       return
     }
     if (route.request().method() === 'GET') {
@@ -61,6 +81,23 @@ test.describe('Super admin routes', () => {
   test('super admin can access the platform admin dashboard', async ({ page }) => {
     await mockSession(page, 'super_admin')
     await page.goto('/admin')
+    await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible()
+  })
+
+  test('super admin is sent directly to platform admin after login', async ({ page }) => {
+    await mockSession(page, 'super_admin', { authenticated: false })
+    await page.goto('/login')
+    await page.getByPlaceholder('nama@email.com').fill('admin@example.com')
+    await page.locator('input[type="password"]').fill('password123')
+    await page.getByRole('button', { name: 'Masuk' }).click()
+    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible()
+  })
+
+  test('super admin cannot be routed into tenant warehouse dashboard', async ({ page }) => {
+    await mockSession(page, 'super_admin')
+    await page.goto('/app')
+    await expect(page).toHaveURL(/\/admin$/)
     await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible()
   })
 

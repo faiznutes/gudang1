@@ -8,6 +8,7 @@ import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
 import { getEntitlements } from '../lib/plans.js'
 import { requireAuth } from '../middleware/auth.js'
+import { getPlatformSettings, getSessionPolicy } from '../lib/settings.js'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -48,7 +49,7 @@ function verifyRefreshToken(token: string) {
     throw new Error('Invalid token')
   }
 
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { exp?: number; sub?: string; workspaceId?: string; role?: string }
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { exp?: number; sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string }
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) {
     throw new Error('Expired token')
   }
@@ -67,8 +68,18 @@ function setRefreshCookie(_app: FastifyInstance, reply: any, payload: object) {
   })
 }
 
-function signAccessToken(app: FastifyInstance, payload: { sub: string; workspaceId: string; role: string }) {
-  return app.jwt.sign(payload, { expiresIn: '15m' })
+function sessionDto(policy: Awaited<ReturnType<typeof getSessionPolicy>>) {
+  return {
+    activity_session_expires_at: policy.expiresAt.toISOString(),
+    session_policy: {
+      timeout_minutes: policy.timeoutMinutes,
+      lock_actions_after_expiry: policy.lockActionsAfterExpiry,
+    },
+  }
+}
+
+function signAccessToken(app: FastifyInstance, payload: { sub: string; workspaceId: string; role: string; sessionExpiresAt: string }) {
+  return app.jwt.sign(payload, { expiresIn: '8h' })
 }
 
 async function createStarterWorkspaceData(tx: Prisma.TransactionClient, workspaceId: string) {
@@ -101,29 +112,36 @@ export async function authRoutes(app: FastifyInstance) {
         memberships: {
           include: { workspace: true },
           orderBy: { createdAt: 'asc' },
-          take: 1,
         },
       },
     })
 
-    if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
+    if (!user || user.disabledAt || !(await bcrypt.compare(body.password, user.passwordHash))) {
       throw new AppError('unauthenticated', 'Email atau password salah')
     }
 
-    const membership = user.memberships[0]
-    if (!membership || membership.workspace.status === 'suspended') {
+    const activeMemberships = user.memberships.filter(member => member.workspace.status !== 'suspended')
+    const membership =
+      user.role === 'super_admin'
+        ? activeMemberships.find(member => member.role === 'super_admin') ?? activeMemberships[0]
+        : activeMemberships[0]
+
+    if (!membership) {
       throw new AppError('forbidden', 'Workspace tidak aktif')
     }
 
+    const sessionPolicy = await getSessionPolicy(app)
     const token = signAccessToken(app, {
       sub: user.id,
       workspaceId: membership.workspaceId,
       role: membership.role,
+      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
     })
     setRefreshCookie(app, reply, {
       sub: user.id,
       workspaceId: membership.workspaceId,
       role: membership.role,
+      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
     })
 
     return {
@@ -131,6 +149,7 @@ export async function authRoutes(app: FastifyInstance) {
       user: userDto(user),
       workspace: workspaceDto(membership.workspace),
       entitlements: await getEntitlements(app, membership.workspaceId),
+      ...sessionDto(sessionPolicy),
     }
   })
 
@@ -200,15 +219,18 @@ export async function authRoutes(app: FastifyInstance) {
       return { user, workspace, member }
     })
 
+    const sessionPolicy = await getSessionPolicy(app)
     const token = signAccessToken(app, {
       sub: result.user.id,
       workspaceId: result.workspace.id,
       role: result.member.role,
+      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
     })
     setRefreshCookie(app, reply, {
       sub: result.user.id,
       workspaceId: result.workspace.id,
       role: result.member.role,
+      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
     })
 
     return {
@@ -216,6 +238,7 @@ export async function authRoutes(app: FastifyInstance) {
       user: userDto(result.user),
       workspace: workspaceDto(result.workspace),
       entitlements: await getEntitlements(app, result.workspace.id),
+      ...sessionDto(sessionPolicy),
     }
   })
 
@@ -226,6 +249,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.get('/me', async (request) => {
     const ctx = await requireAuth(app, request)
+    const settings = await getPlatformSettings(app)
     const member = await app.prisma.workspaceMember.findUniqueOrThrow({
       where: { userId_workspaceId: { userId: ctx.userId, workspaceId: ctx.workspaceId } },
       include: { user: true, workspace: true },
@@ -235,6 +259,11 @@ export async function authRoutes(app: FastifyInstance) {
       user: userDto(member.user),
       workspace: workspaceDto(member.workspace),
       entitlements: await getEntitlements(app, ctx.workspaceId),
+      activity_session_expires_at: ctx.sessionExpiresAt?.toISOString() ?? null,
+      session_policy: {
+        timeout_minutes: settings.sessionTimeoutMinutes,
+        lock_actions_after_expiry: settings.lockActionsAfterSessionExpiry,
+      },
     }
   })
 
@@ -244,7 +273,7 @@ export async function authRoutes(app: FastifyInstance) {
       throw new AppError('unauthenticated', 'Refresh token tidak ditemukan')
     }
 
-    let payload: { sub?: string; workspaceId?: string; role?: string }
+    let payload: { sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string }
     try {
       payload = verifyRefreshToken(refreshToken)
     } catch {
@@ -259,6 +288,7 @@ export async function authRoutes(app: FastifyInstance) {
       sub: payload.sub,
       workspaceId: payload.workspaceId,
       role: payload.role,
+      sessionExpiresAt: payload.sessionExpiresAt ?? new Date().toISOString(),
     })
     setRefreshCookie(app, reply, payload)
     return { token }

@@ -103,6 +103,27 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' })
   }
+
+  async download(endpoint: string): Promise<Blob> {
+    const token = this.getToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'GET',
+      headers,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Download gagal' }))
+      const apiError = new Error(error.message || `HTTP ${response.status}`)
+      ;(apiError as any).code = error.code
+      throw apiError
+    }
+
+    return response.blob()
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL)

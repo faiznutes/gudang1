@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { supplierDto } from '../lib/mappers.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth } from '../middleware/auth.js'
 import { runIdempotent } from '../lib/idempotency.js'
+import { writeAuditLog } from '../lib/audit.js'
 
 const supplierSchema = z.object({
   name: z.string().min(1),
@@ -23,7 +24,7 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.get('/suppliers', async (request) => {
     const ctx = await requireAuth(app, request)
     const suppliers = await app.prisma.supplier.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      where: { workspaceId: ctx.workspaceId, disabledAt: null },
       orderBy: { createdAt: 'desc' },
     })
     return suppliers.map(supplierDto)
@@ -32,13 +33,14 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.get('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const supplier = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId } })
+    const supplier = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
     if (!supplier) throw new AppError('not_found', 'Supplier tidak ditemukan')
     return supplierDto(supplier)
   })
 
   app.post('/suppliers', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const body = supplierSchema.parse(request.body)
     return runIdempotent(app, ctx, idempotencyKey(request), 'supplier.create', body, async () => {
       const supplier = await app.prisma.supplier.create({
@@ -52,15 +54,22 @@ export async function supplierRoutes(app: FastifyInstance) {
           notes: body.notes,
         },
       })
+      await writeAuditLog(app, ctx, request, {
+        action: 'supplier.created',
+        entityType: 'supplier',
+        entityId: supplier.id,
+        metadata: body,
+      })
       return supplierDto(supplier)
     })
   })
 
   app.put('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = supplierSchema.partial().parse(request.body)
-    const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId } })
+    const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
     if (!current) throw new AppError('not_found', 'Supplier tidak ditemukan')
     const supplier = await app.prisma.supplier.update({
       where: { id: params.id },
@@ -73,15 +82,27 @@ export async function supplierRoutes(app: FastifyInstance) {
         notes: body.notes,
       },
     })
+    await writeAuditLog(app, ctx, request, {
+      action: 'supplier.updated',
+      entityType: 'supplier',
+      entityId: supplier.id,
+      metadata: body,
+    })
     return supplierDto(supplier)
   })
 
   app.delete('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId } })
+    const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
     if (!current) throw new AppError('not_found', 'Supplier tidak ditemukan')
-    await app.prisma.supplier.delete({ where: { id: params.id } })
+    await app.prisma.supplier.update({ where: { id: params.id }, data: { disabledAt: new Date() } })
+    await writeAuditLog(app, ctx, request, {
+      action: 'supplier.disabled',
+      entityType: 'supplier',
+      entityId: params.id,
+    })
     return { ok: true }
   })
 }

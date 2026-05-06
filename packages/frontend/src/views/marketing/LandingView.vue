@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router'
 import { ref } from 'vue'
 import { 
   Package, Warehouse, BarChart3, ArrowRight, Check, Star, Mail, Phone, 
-  MessageCircle, Zap, Shield, ScanBarcode, Bell, FileText, Truck, Menu, X
+  MessageCircle, Zap, Shield, ScanBarcode, Bell, FileText, Truck, Menu, X, Sparkle
 } from 'lucide-vue-next'
 
 const router = useRouter()

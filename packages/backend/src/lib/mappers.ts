@@ -1,12 +1,13 @@
 import type { Prisma } from '@prisma/client'
 
-export function userDto(user: { id: string; name: string; email: string; role: string; avatar?: string | null; createdAt: Date }) {
+export function userDto(user: { id: string; name: string; email: string; role: string; avatar?: string | null; disabledAt?: Date | null; createdAt: Date }) {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
     avatar: user.avatar ?? undefined,
+    disabled_at: user.disabledAt?.toISOString() ?? null,
     created_at: user.createdAt.toISOString(),
   }
 }
@@ -43,17 +44,19 @@ export function productDto(product: Prisma.ProductGetPayload<{ include: { catego
     category: product.category ? categoryDto(product.category) : undefined,
     min_stock: product.minStock,
     price: product.price,
+    disabled_at: product.disabledAt?.toISOString() ?? null,
     created_at: product.createdAt.toISOString(),
     updated_at: product.updatedAt.toISOString(),
   }
 }
 
-export function warehouseDto(warehouse: { id: string; name: string; address?: string | null; isDefault: boolean; createdAt: Date; updatedAt?: Date }) {
+export function warehouseDto(warehouse: { id: string; name: string; address?: string | null; isDefault: boolean; disabledAt?: Date | null; createdAt: Date; updatedAt?: Date }) {
   return {
     id: warehouse.id,
     name: warehouse.name,
     address: warehouse.address ?? undefined,
     is_default: warehouse.isDefault,
+    disabled_at: warehouse.disabledAt?.toISOString() ?? null,
     created_at: warehouse.createdAt.toISOString(),
     updated_at: warehouse.updatedAt?.toISOString(),
   }
@@ -90,7 +93,7 @@ export function stockMovementDto(move: Prisma.StockMovementGetPayload<{ include:
   }
 }
 
-export function supplierDto(supplier: { id: string; name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null; notes?: string | null; createdAt: Date; updatedAt?: Date }) {
+export function supplierDto(supplier: { id: string; name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null; notes?: string | null; disabledAt?: Date | null; createdAt: Date; updatedAt?: Date }) {
   return {
     id: supplier.id,
     name: supplier.name,
@@ -99,6 +102,7 @@ export function supplierDto(supplier: { id: string; name: string; contactPerson?
     email: supplier.email ?? undefined,
     address: supplier.address ?? undefined,
     notes: supplier.notes ?? undefined,
+    disabled_at: supplier.disabledAt?.toISOString() ?? null,
     created_at: supplier.createdAt.toISOString(),
     updated_at: supplier.updatedAt?.toISOString(),
   }

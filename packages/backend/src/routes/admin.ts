@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requirePlatformRole } from '../middleware/auth.js'
 
 const pageSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -114,7 +114,7 @@ function pickOwner(members: Array<{ role: string; user: { id: string; name: stri
 
 async function requirePlatformAdmin(app: FastifyInstance, request: any) {
   const ctx = await requireAuth(app, request)
-  requireRole(ctx, ['super_admin'])
+  requirePlatformRole(ctx, ['super_admin'])
   return ctx
 }
 
@@ -193,8 +193,10 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/users', async (request) => {
     await requirePlatformAdmin(app, request)
     const query = pageSchema.parse(request.query)
+    const roleFilter = query.role && query.role !== 'all' ? query.role : undefined
     const where: any = {
-      ...(query.role && query.role !== 'all' ? { role: query.role } : {}),
+      ...(roleFilter && roleFilter !== 'super_admin' ? { role: roleFilter } : {}),
+      ...(roleFilter === 'super_admin' ? { user: { role: 'super_admin' } } : {}),
       ...(query.workspace_id ? { workspaceId: query.workspace_id } : {}),
       ...(query.status && query.status !== 'all' ? { workspace: { status: query.status } } : {}),
       ...(query.q
@@ -423,7 +425,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.put('/workspaces/:workspaceId/users/:userId', async (request) => {
     await requirePlatformAdmin(app, request)
     const params = z.object({ workspaceId: z.string(), userId: z.string() }).parse(request.params)
-    const body = z.object({ role: z.enum(['super_admin', 'admin', 'staff', 'supplier', 'trial']) }).parse(request.body)
+    const body = z.object({ role: z.enum(['admin', 'staff', 'supplier', 'trial']) }).parse(request.body)
     const member = await app.prisma.workspaceMember.update({
       where: { userId_workspaceId: { userId: params.userId, workspaceId: params.workspaceId } },
       data: { role: body.role },

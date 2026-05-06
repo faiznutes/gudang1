@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import adminService from '@/services/api/admin'
 import {
   Settings,
   Mail,
@@ -13,6 +14,8 @@ import {
   Zap,
   AlertTriangle,
   CheckCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-vue-next'
 
 const activeSection = ref('general')
@@ -56,6 +59,7 @@ const emailSettings = ref({
 const securitySettings = ref({
   twoFactorRequired: false,
   sessionTimeout: '30',
+  lockActionsAfterSessionExpiry: true,
   passwordMinLength: '8',
   maxLoginAttempts: '5',
   ipWhitelistEnabled: false,
@@ -75,6 +79,9 @@ const notificationSettings = ref({
   slackNotifications: false,
   slackWebhook: '',
   criticalAlerts: true,
+  lowStockAlerts: true,
+  subscriptionReminders: true,
+  subscriptionReminderDays: '7',
   weeklyReports: true,
 })
 
@@ -89,18 +96,43 @@ const systemStatus = ref([
 const saving = ref(false)
 const saveMessage = ref('')
 
-function saveSettings() {
+function settingValue(settings: Array<{ key: string; value: string }>, key: string, fallback: string) {
+  return settings.find(item => item.key === key)?.value ?? fallback
+}
+
+async function loadSettings() {
+  const settings = await adminService.getSystemSettings()
+  securitySettings.value.sessionTimeout = settingValue(settings, 'session_timeout_minutes', securitySettings.value.sessionTimeout)
+  securitySettings.value.lockActionsAfterSessionExpiry = settingValue(settings, 'lock_actions_after_session_expiry', 'true') === 'true'
+  notificationSettings.value.lowStockAlerts = settingValue(settings, 'low_stock_alerts_enabled', 'true') === 'true'
+  notificationSettings.value.subscriptionReminders = settingValue(settings, 'subscription_reminders_enabled', 'true') === 'true'
+  notificationSettings.value.subscriptionReminderDays = settingValue(settings, 'subscription_reminder_days', '7')
+}
+
+async function saveSettings() {
   saving.value = true
-  setTimeout(() => {
-    saving.value = false
-    saveMessage.value = 'Settings saved successfully!'
+  try {
+    await Promise.all([
+      adminService.updateSystemSetting('session_timeout_minutes', securitySettings.value.sessionTimeout),
+      adminService.updateSystemSetting('lock_actions_after_session_expiry', String(securitySettings.value.lockActionsAfterSessionExpiry)),
+      adminService.updateSystemSetting('low_stock_alerts_enabled', String(notificationSettings.value.lowStockAlerts)),
+      adminService.updateSystemSetting('subscription_reminders_enabled', String(notificationSettings.value.subscriptionReminders)),
+      adminService.updateSystemSetting('subscription_reminder_days', notificationSettings.value.subscriptionReminderDays),
+    ])
+    saveMessage.value = 'Pengaturan tersimpan'
     setTimeout(() => { saveMessage.value = '' }, 3000)
-  }, 1000)
+  } finally {
+    saving.value = false
+  }
 }
 
 function toggleApiKey() {
   apiSettings.value.showApiKey = !apiSettings.value.showApiKey
 }
+
+onMounted(() => {
+  loadSettings().catch(() => {})
+})
 </script>
 
 <template>
@@ -337,6 +369,13 @@ function toggleApiKey() {
                 <input v-model="securitySettings.sessionTimeout" type="number" class="input w-full" />
               </div>
               <div>
+                <label class="label">Lock Actions After Expiry</label>
+                <select v-model="securitySettings.lockActionsAfterSessionExpiry" class="input w-full">
+                  <option :value="true">Ya, hanya laporan</option>
+                  <option :value="false">Tidak</option>
+                </select>
+              </div>
+              <div>
                 <label class="label">Min Password Length</label>
                 <input v-model="securitySettings.passwordMinLength" type="number" class="input w-full" />
               </div>
@@ -422,12 +461,12 @@ function toggleApiKey() {
               <div class="flex items-center gap-3">
                 <AlertTriangle class="w-5 h-5 text-neutral-500" />
                 <div>
-                  <p class="text-sm font-medium text-neutral-900">Critical Alerts</p>
-                  <p class="text-xs text-neutral-500">Get notified for critical system issues</p>
+                  <p class="text-sm font-medium text-neutral-900">Alert Stok Menipis</p>
+                  <p class="text-xs text-neutral-500">Notifikasi saat stok mencapai batas minimum</p>
                 </div>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
-                <input v-model="notificationSettings.criticalAlerts" type="checkbox" class="sr-only peer" />
+                <input v-model="notificationSettings.lowStockAlerts" type="checkbox" class="sr-only peer" />
                 <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
               </label>
             </div>
@@ -436,14 +475,19 @@ function toggleApiKey() {
               <div class="flex items-center gap-3">
                 <Server class="w-5 h-5 text-neutral-500" />
                 <div>
-                  <p class="text-sm font-medium text-neutral-900">Weekly Reports</p>
-                  <p class="text-xs text-neutral-500">Receive weekly system reports</p>
+                  <p class="text-sm font-medium text-neutral-900">Reminder Renewal</p>
+                  <p class="text-xs text-neutral-500">Mulai hitung mundur sebelum subscription berakhir</p>
                 </div>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
-                <input v-model="notificationSettings.weeklyReports" type="checkbox" class="sr-only peer" />
+                <input v-model="notificationSettings.subscriptionReminders" type="checkbox" class="sr-only peer" />
                 <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
               </label>
+            </div>
+
+            <div>
+              <label class="label">Reminder mulai H-</label>
+              <input v-model="notificationSettings.subscriptionReminderDays" type="number" min="1" max="30" class="input w-full" />
             </div>
           </div>
         </div>

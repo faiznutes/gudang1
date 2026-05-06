@@ -285,6 +285,47 @@ async function main() {
     },
   })
 
+  const platformSettings = [
+    {
+      key: 'session_timeout_minutes',
+      value: '30',
+      description: 'Batas waktu sesi aktivitas sebelum aksi ubah data dikunci',
+    },
+    {
+      key: 'lock_actions_after_session_expiry',
+      value: 'true',
+      description: 'Kunci aksi ubah data saat sesi aktivitas berakhir',
+    },
+    {
+      key: 'low_stock_alerts_enabled',
+      value: 'true',
+      description: 'Aktifkan notifikasi stok menipis',
+    },
+    {
+      key: 'subscription_reminders_enabled',
+      value: 'true',
+      description: 'Aktifkan pengingat langganan akan berakhir',
+    },
+    {
+      key: 'subscription_reminder_days',
+      value: '7',
+      description: 'Jumlah hari sebelum langganan berakhir untuk mulai mengirim pengingat harian',
+    },
+  ]
+
+  for (const setting of platformSettings) {
+    await prisma.systemSetting.upsert({
+      where: { workspaceId_key: { workspaceId: superWorkspace.id, key: setting.key } },
+      update: { value: setting.value, description: setting.description },
+      create: {
+        workspaceId: superWorkspace.id,
+        key: setting.key,
+        value: setting.value,
+        description: setting.description,
+      },
+    })
+  }
+
   await seedTenant({
     id: 'demo-workspace',
     name: 'Toko Saya',

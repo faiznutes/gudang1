@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useInventoryStore } from '@/stores/inventory'
 import { useSupplierStore } from '@/stores/supplier'
 import { useActivityStore } from '@/stores/activity'
+import { useNotificationsStore } from '@/stores/notifications'
 import DesktopSidebar from '@/components/layout/DesktopSidebar.vue'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -17,6 +18,7 @@ const authStore = useAuthStore()
 const inventoryStore = useInventoryStore()
 const supplierStore = useSupplierStore()
 const activityStore = useActivityStore()
+const notificationsStore = useNotificationsStore()
 
 const sidebarCollapsed = ref(false)
 
@@ -39,6 +41,7 @@ onMounted(async () => {
     inventoryStore.loadAll(),
     supplierStore.loadSuppliers(),
     activityStore.loadActivities(),
+    notificationsStore.loadNotifications(),
   ])
 })
 
@@ -64,6 +67,22 @@ function toggleSidebar() {
       ]"
     >
       <TrialBanner />
+      <div
+        v-if="authStore.activitySessionExpiresAt"
+        :class="[
+          'border-b px-4 py-2 text-sm lg:px-8',
+          authStore.isActivitySessionExpired
+            ? 'border-danger-100 bg-danger-50 text-danger-700'
+            : 'border-warning-100 bg-warning-50 text-warning-800'
+        ]"
+      >
+        <span v-if="authStore.isActivitySessionExpired">
+          Sesi aktivitas berakhir. Aksi ubah data dinonaktifkan, laporan tetap bisa dibuka.
+        </span>
+        <span v-else>
+          Sesi aktivitas tersisa {{ authStore.activitySessionCountdown }}.
+        </span>
+      </div>
       <AppHeader />
 
       <main class="flex-1 pb-20 lg:pb-8">

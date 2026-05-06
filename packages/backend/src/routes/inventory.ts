@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { categoryDto, inventoryDto, productDto, stockMovementDto, warehouseDto } from '../lib/mappers.js'
 import { getEntitlements } from '../lib/plans.js'
-import { requireAuth, requireFeature } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth, requireFeature } from '../middleware/auth.js'
 import { runIdempotent } from '../lib/idempotency.js'
+import { writeAuditLog } from '../lib/audit.js'
 
 const productSchema = z.object({
   sku: z.string().min(1),
@@ -45,13 +46,13 @@ function idempotencyKey(request: any) {
 }
 
 async function ensureWorkspaceProduct(app: FastifyInstance, workspaceId: string, productId: string) {
-  const product = await app.prisma.product.findFirst({ where: { id: productId, workspaceId } })
+  const product = await app.prisma.product.findFirst({ where: { id: productId, workspaceId, disabledAt: null } })
   if (!product) throw new AppError('not_found', 'Produk tidak ditemukan')
   return product
 }
 
 async function ensureWorkspaceWarehouse(app: FastifyInstance, workspaceId: string, warehouseId: string) {
-  const warehouse = await app.prisma.warehouse.findFirst({ where: { id: warehouseId, workspaceId } })
+  const warehouse = await app.prisma.warehouse.findFirst({ where: { id: warehouseId, workspaceId, disabledAt: null } })
   if (!warehouse) throw new AppError('not_found', 'Gudang tidak ditemukan')
   return warehouse
 }
@@ -60,7 +61,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.get('/products', async (request) => {
     const ctx = await requireAuth(app, request)
     const products = await app.prisma.product.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      where: { workspaceId: ctx.workspaceId, disabledAt: null },
       include: { category: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -70,7 +71,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.get('/products/low-stock', async (request) => {
     const ctx = await requireAuth(app, request)
     const products = await app.prisma.product.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      where: { workspaceId: ctx.workspaceId, disabledAt: null },
       include: { category: true, inventoryItems: true },
     })
     return products
@@ -82,7 +83,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     const ctx = await requireAuth(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
     const product = await app.prisma.product.findFirst({
-      where: { id: params.id, workspaceId: ctx.workspaceId },
+      where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null },
       include: { category: true },
     })
     if (!product) throw new AppError('not_found', 'Produk tidak ditemukan')
@@ -91,6 +92,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/products', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const body = productSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
     if (entitlements.usage.products >= entitlements.limits.products) {
@@ -113,12 +115,19 @@ export async function inventoryRoutes(app: FastifyInstance) {
         },
         include: { category: true },
       })
+      await writeAuditLog(app, ctx, request, {
+        action: 'product.created',
+        entityType: 'product',
+        entityId: product.id,
+        metadata: body,
+      })
       return productDto(product)
     })
   })
 
   app.put('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = productUpdateSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
@@ -139,19 +148,32 @@ export async function inventoryRoutes(app: FastifyInstance) {
       },
       include: { category: true },
     })
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.updated',
+      entityType: 'product',
+      entityId: product.id,
+      metadata: body,
+    })
     return productDto(product)
   })
 
   app.delete('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
-    await app.prisma.product.delete({ where: { id: params.id } })
+    await app.prisma.product.update({ where: { id: params.id }, data: { disabledAt: new Date() } })
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.disabled',
+      entityType: 'product',
+      entityId: params.id,
+    })
     return { ok: true }
   })
 
   app.get('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const categories = await app.prisma.category.findMany({
       where: { workspaceId: ctx.workspaceId },
       orderBy: { name: 'asc' },
@@ -165,13 +187,19 @@ export async function inventoryRoutes(app: FastifyInstance) {
     const category = await app.prisma.category.create({
       data: { workspaceId: ctx.workspaceId, name: body.name, description: body.description },
     })
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.created',
+      entityType: 'category',
+      entityId: category.id,
+      metadata: body,
+    })
     return categoryDto(category)
   })
 
   app.get('/warehouses', async (request) => {
     const ctx = await requireAuth(app, request)
     const warehouses = await app.prisma.warehouse.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      where: { workspaceId: ctx.workspaceId, disabledAt: null },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     })
     return warehouses.map(warehouseDto)
@@ -180,13 +208,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.get('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const warehouse = await app.prisma.warehouse.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId } })
+    const warehouse = await app.prisma.warehouse.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
     if (!warehouse) throw new AppError('not_found', 'Gudang tidak ditemukan')
     return warehouseDto(warehouse)
   })
 
   app.post('/warehouses', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const body = warehouseSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
     if (entitlements.usage.warehouses >= entitlements.limits.warehouses) {
@@ -209,12 +238,19 @@ export async function inventoryRoutes(app: FastifyInstance) {
           isDefault: body.is_default ?? count === 0,
         },
       })
+      await writeAuditLog(app, ctx, request, {
+        action: 'warehouse.created',
+        entityType: 'warehouse',
+        entityId: warehouse.id,
+        metadata: body,
+      })
       return warehouseDto(warehouse)
     })
   })
 
   app.put('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = warehouseSchema.partial().parse(request.body)
     await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
@@ -225,17 +261,29 @@ export async function inventoryRoutes(app: FastifyInstance) {
       where: { id: params.id },
       data: { name: body.name, address: body.address, isDefault: body.is_default },
     })
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.updated',
+      entityType: 'warehouse',
+      entityId: warehouse.id,
+      metadata: body,
+    })
     return warehouseDto(warehouse)
   })
 
   app.delete('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const warehouse = await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
     if (warehouse.isDefault) {
       throw new AppError('conflict', 'Gudang utama tidak bisa dihapus')
     }
-    await app.prisma.warehouse.delete({ where: { id: params.id } })
+    await app.prisma.warehouse.update({ where: { id: params.id }, data: { disabledAt: new Date() } })
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.disabled',
+      entityType: 'warehouse',
+      entityId: params.id,
+    })
     return { ok: true }
   })
 
@@ -243,7 +291,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     const ctx = await requireAuth(app, request)
     const query = z.object({ warehouse_id: z.string().optional() }).parse(request.query)
     const items = await app.prisma.inventoryItem.findMany({
-      where: { workspaceId: ctx.workspaceId, ...(query.warehouse_id ? { warehouseId: query.warehouse_id } : {}) },
+      where: { workspaceId: ctx.workspaceId, ...(query.warehouse_id ? { warehouseId: query.warehouse_id } : {}), product: { disabledAt: null }, warehouse: { disabledAt: null } },
       include: { product: { include: { category: true } }, warehouse: true },
       orderBy: { updatedAt: 'desc' },
     })
@@ -252,6 +300,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-in', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, body.product_id)
@@ -302,6 +351,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-out', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, body.product_id)
@@ -359,6 +409,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-transfer', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     await requireFeature(app, ctx, 'multiWarehouse')
     const body = transferSchema.parse(request.body)

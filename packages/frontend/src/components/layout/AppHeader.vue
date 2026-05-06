@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
 import { Search, Bell, ChevronDown, User, LogOut, Settings, HelpCircle } from 'lucide-vue-next'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
+const notificationsStore = useNotificationsStore()
 const showUserMenu = ref(false)
+const showNotifications = ref(false)
 
 const pageTitle = () => {
   const titles: Record<string, string> = {
@@ -45,11 +49,27 @@ const pageSubtitle = () => {
 
 function toggleUserMenu() {
   showUserMenu.value = !showUserMenu.value
+  showNotifications.value = false
+}
+
+async function toggleNotifications() {
+  showNotifications.value = !showNotifications.value
+  showUserMenu.value = false
+  if (showNotifications.value) {
+    await notificationsStore.loadNotifications()
+  }
+}
+
+function navigateTo(routeTarget: string) {
+  showUserMenu.value = false
+  showNotifications.value = false
+  router.push(routeTarget)
 }
 
 function handleLogout() {
   authStore.logout()
   showUserMenu.value = false
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -82,10 +102,57 @@ function handleLogout() {
           </div>
 
           <!-- Notifications -->
-          <button class="relative p-2 rounded-lg hover:bg-neutral-100 text-neutral-500 transition-colors">
-            <Bell class="w-5 h-5" />
-            <span class="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full"></span>
-          </button>
+          <div class="relative">
+            <button
+              class="relative p-2 rounded-lg hover:bg-neutral-100 text-neutral-500 transition-colors"
+              aria-label="Buka notifikasi"
+              @click="toggleNotifications"
+            >
+              <Bell class="w-5 h-5" />
+              <span v-if="notificationsStore.unreadCount > 0" class="absolute top-1 right-1 min-w-4 h-4 px-1 bg-danger-500 rounded-full text-[10px] leading-4 text-white text-center">
+                {{ Math.min(notificationsStore.unreadCount, 9) }}
+              </span>
+            </button>
+
+            <transition
+              enter-active-class="transition ease-out duration-100"
+              enter-from-class="transform opacity-0 scale-95"
+              enter-to-class="transform opacity-100 scale-100"
+              leave-active-class="transition ease-in duration-75"
+              leave-from-class="transform opacity-100 scale-100"
+              leave-to-class="transform opacity-0 scale-95"
+            >
+              <div v-if="showNotifications" class="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-dropdown border border-neutral-100 py-2 z-50">
+                <div class="px-4 pb-2 border-b border-neutral-100">
+                  <p class="text-sm font-semibold text-neutral-900">Notifikasi</p>
+                  <p class="text-xs text-neutral-500">{{ notificationsStore.unreadCount }} perlu perhatian</p>
+                </div>
+                <div v-if="notificationsStore.isLoading" class="p-4 text-sm text-neutral-500">Memuat notifikasi...</div>
+                <div v-else-if="notificationsStore.items.length === 0" class="p-4 text-sm text-neutral-500">Belum ada notifikasi baru.</div>
+                <div v-else class="max-h-80 overflow-y-auto divide-y divide-neutral-100">
+                  <button
+                    v-for="item in notificationsStore.items"
+                    :key="item.id"
+                    class="w-full px-4 py-3 text-left hover:bg-neutral-50"
+                    @click="item.action_url ? navigateTo(item.action_url) : null"
+                  >
+                    <div class="flex items-start gap-3">
+                      <span
+                        :class="[
+                          'mt-1 h-2 w-2 rounded-full flex-shrink-0',
+                          item.severity === 'critical' ? 'bg-danger-500' : item.severity === 'warning' ? 'bg-warning-500' : 'bg-primary-500'
+                        ]"
+                      ></span>
+                      <div class="min-w-0">
+                        <p class="text-sm font-medium text-neutral-900">{{ item.title }}</p>
+                        <p class="text-xs text-neutral-500">{{ item.message }}</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </transition>
+          </div>
 
           <!-- User Menu -->
           <div class="relative">
@@ -119,15 +186,15 @@ function handleLogout() {
                   <p class="text-xs text-neutral-500">{{ authStore.user?.email }}</p>
                 </div>
                 <div class="py-1">
-                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/settings')">
                     <User class="w-4 h-4" />
                     Profil
                   </button>
-                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/settings')">
                     <Settings class="w-4 h-4" />
                     Pengaturan
                   </button>
-                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/tutorial')">
                     <HelpCircle class="w-4 h-4" />
                     Bantuan
                   </button>
