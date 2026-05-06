@@ -10,6 +10,8 @@ services:
         condition: service_healthy
     expose:
       - 80
+    ports:
+      - 127.0.0.1:19091:80
     networks:
       - coolify
       - stockpilot-internal
@@ -47,6 +49,8 @@ services:
         condition: service_healthy
     expose:
       - 4000
+    ports:
+      - 127.0.0.1:19092:4000
     labels:
       - traefik.enable=true
       - traefik.http.routers.stockpilot-api-http.entryPoints=http

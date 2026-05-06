@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stockpilot-shell-v2'
+const CACHE_NAME = 'stockpilot-shell-v3'
 const API_CACHE = 'stockpilot-api-v1'
 const SHELL_ASSETS = [
   '/',
@@ -71,10 +71,32 @@ async function shellFallback(request) {
   }
 }
 
+async function navigationFallback(request) {
+  const cache = await caches.open(CACHE_NAME)
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      cache.put(request, response.clone())
+      cache.put('/index.html', response.clone())
+    }
+    return response
+  } catch {
+    const cached = await cache.match(request)
+    if (cached) return cached
+    const fallback = await caches.match('/index.html')
+    if (fallback) return fallback
+    return new Response('Offline', { status: 503 })
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (isCacheableApi(request)) {
     event.respondWith(networkFirst(request))
+    return
+  }
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationFallback(request))
     return
   }
   if (request.method === 'GET') {
