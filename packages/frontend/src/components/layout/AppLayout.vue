@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useResponsiveNav } from '@/composables/useResponsiveNav'
 import { useAuthStore } from '@/stores/auth'
@@ -20,14 +20,9 @@ const activityStore = useActivityStore()
 
 const sidebarCollapsed = ref(false)
 
-const hideOnRoutes = ['login', 'register', 'trial-signup', 'landing', 'admin-dashboard', 'admin-users', 'admin-workspaces', 'admin-subscriptions', 'admin-settings', 'admin-audit-logs']
-const shouldShowLayout = () => {
-  const routeName = route.name as string
-  if (hideOnRoutes.includes(routeName)) return false
-  // Also hide for any /admin path
-  if (route.path.startsWith('/admin')) return false
-  return true
-}
+const isAppRoute = computed(() => route.path.startsWith('/app'))
+const shouldShowLayout = computed(() => isAppRoute.value && authStore.isAuthenticated)
+const shouldRenderPlainRoute = computed(() => !isAppRoute.value)
 
 watch(
   () => route.name,
@@ -53,7 +48,7 @@ function toggleSidebar() {
 </script>
 
 <template>
-  <div v-if="shouldShowLayout()" class="min-h-screen bg-neutral-50">
+  <div v-if="shouldShowLayout" class="min-h-screen bg-neutral-50">
     <!-- Desktop Sidebar -->
     <DesktopSidebar
       v-if="showSidebar"
@@ -85,7 +80,9 @@ function toggleSidebar() {
   </div>
 
   <!-- Auth pages without layout -->
-  <router-view v-else />
+  <router-view v-else-if="shouldRenderPlainRoute" />
+
+  <div v-else class="min-h-screen bg-neutral-50" aria-busy="true" aria-live="polite" />
 </template>
 
 <style scoped>
