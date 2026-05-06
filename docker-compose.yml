@@ -24,7 +24,7 @@ services:
     image: ghcr.io/faiznutes/gudang1-backend:latest
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://stockpilot:stockpilot@stockpilot-postgres:5432/stockpilot?schema=public
+      DATABASE_URL: postgresql://stockpilot:${POSTGRES_PASSWORD:-stockpilot}@stockpilot-postgres:5432/stockpilot?schema=public
       JWT_SECRET: ${JWT_SECRET:-replace-with-production-access-secret}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-replace-with-production-refresh-secret}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://gudang.faiznute.site}
