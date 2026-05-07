@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache openssl
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/backend/package.json packages/backend/
@@ -13,7 +13,7 @@ RUN cd packages/backend && DATABASE_URL="postgresql://stockpilot:stockpilot@post
 FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache openssl
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY --from=builder /app /app
 ENV NODE_ENV=production
 EXPOSE 4000
