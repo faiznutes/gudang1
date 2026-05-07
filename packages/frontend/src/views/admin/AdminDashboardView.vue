@@ -130,8 +130,39 @@ const riskSignals = computed(() => {
 const quickActions = [
   { label: 'Tambah tenant', caption: 'Setup workspace, owner, gudang, staff', icon: Building2, path: '/admin/workspaces' },
   { label: 'Atur paket & durasi', caption: 'Naik, turun, atau perpanjang subscription', icon: CreditCard, path: '/admin/subscriptions' },
-  { label: 'Gudang klien', caption: 'Kelola produk, warehouse, supplier tenant', icon: Warehouse, path: '/admin/client-warehouse' },
+  { label: 'Data klien', caption: 'Kelola produk, stok, dan supplier tenant', icon: Warehouse, path: '/admin/client-warehouse' },
   { label: 'Audit aktivitas', caption: 'Lihat riwayat perubahan lintas tenant', icon: FileText, path: '/admin/audit-logs' },
+]
+
+const governanceCards = [
+  {
+    label: 'Super admin',
+    value: 'Akses penuh',
+    description: 'Masuk langsung ke control plane tanpa izin gudang tenant.',
+    icon: ShieldCheck,
+    tone: 'border-sky-100 bg-sky-50 text-sky-800',
+  },
+  {
+    label: 'Admin klien',
+    value: 'Tenant scoped',
+    description: 'Hanya mengelola data workspace miliknya sendiri.',
+    icon: UserCog,
+    tone: 'border-violet-100 bg-violet-50 text-violet-800',
+  },
+  {
+    label: 'Entitlement',
+    value: 'Backend enforced',
+    description: 'Paket, trial, dan fitur terkunci divalidasi di API.',
+    icon: ClipboardCheck,
+    tone: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+  },
+  {
+    label: 'Audit trail',
+    value: 'Tercatat',
+    description: 'Aksi tenant, user, subscription, dan sistem mudah ditelusuri.',
+    icon: FileText,
+    tone: 'border-amber-100 bg-amber-50 text-amber-800',
+  },
 ]
 
 async function loadDashboard() {
@@ -194,10 +225,10 @@ onMounted(loadDashboard)
 <template>
   <div class="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#f5f7fb_42%,#ffffff_100%)] p-4 lg:p-8">
     <div class="mx-auto max-w-7xl space-y-6">
-      <section class="overflow-hidden rounded-3xl border border-white/80 bg-white/90 shadow-xl shadow-sky-900/5">
+      <section class="overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-xl shadow-sky-900/5">
         <div class="grid gap-6 p-5 lg:grid-cols-[1.25fr_0.75fr] lg:p-7">
           <div>
-            <div class="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary-700">
+            <div class="inline-flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-black uppercase text-primary-700">
               <ShieldCheck class="h-4 w-4" />
               Super admin control plane
             </div>
@@ -205,7 +236,7 @@ onMounted(loadDashboard)
               <span class="sr-only">Admin Dashboard - </span>Platform Command Center
             </h2>
             <p class="mt-3 max-w-3xl text-base leading-7 text-neutral-600">
-              Pantau tenant, paket, approval, gudang klien, audit, dan risiko operasional dari satu halaman kerja yang siap dipakai tim bisnis.
+              Pantau tenant, paket, approval, data operasional klien, audit, dan risiko platform dari satu halaman kerja yang siap dipakai tim bisnis.
             </p>
             <div class="mt-6 flex flex-wrap gap-3">
               <button class="btn-primary" @click="navigateTo('/admin/workspaces')">
@@ -279,7 +310,7 @@ onMounted(loadDashboard)
                 <p class="mt-1 text-sm text-neutral-500">Ringkasan data yang mendukung gudang, supplier, produk, dan mutasi.</p>
               </div>
               <button class="text-sm font-black text-primary-700 transition hover:text-primary-900" @click="navigateTo('/admin/client-warehouse')">
-                Kelola gudang klien
+                Kelola data klien
               </button>
             </div>
 
@@ -389,6 +420,28 @@ onMounted(loadDashboard)
           </section>
         </div>
 
+        <section class="rounded-2xl border border-white bg-white p-5 shadow-sm lg:p-6">
+          <div class="flex flex-col gap-3 border-b border-neutral-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-xl font-black text-neutral-950">Role, permission, dan governance</h3>
+              <p class="mt-1 text-sm text-neutral-500">Kontrol akses dipisah jelas antara platform dan tenant agar operasional SaaS tetap aman.</p>
+            </div>
+            <button class="text-sm font-black text-primary-700 transition hover:text-primary-900" @click="navigateTo('/admin/users')">
+              Kelola role
+            </button>
+          </div>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <article v-for="item in governanceCards" :key="item.label" :class="['rounded-lg border p-4', item.tone]">
+              <div class="flex items-center justify-between gap-3">
+                <component :is="item.icon" class="h-5 w-5" />
+                <span class="rounded-full bg-white/70 px-2.5 py-1 text-xs font-black">{{ item.label }}</span>
+              </div>
+              <p class="mt-4 text-lg font-black">{{ item.value }}</p>
+              <p class="mt-2 text-sm leading-5 opacity-80">{{ item.description }}</p>
+            </article>
+          </div>
+        </section>
+
         <div class="grid gap-6 xl:grid-cols-2">
           <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
             <div class="flex items-center justify-between border-b border-neutral-100 pb-5">
@@ -449,7 +502,7 @@ onMounted(loadDashboard)
           </section>
         </div>
 
-        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
+        <section class="rounded-2xl border border-white bg-white p-5 shadow-sm lg:p-6">
           <div class="flex items-center gap-3 border-b border-neutral-100 pb-5">
             <Layers3 class="h-5 w-5 text-primary-700" />
             <div>

@@ -6,20 +6,57 @@ import { getEntitlements } from '../lib/plans.js'
 export interface AuthContext {
   userId: string
   workspaceId: string
+  tokenWorkspaceId: string
+  tenantSource: 'token' | 'header'
   role: UserRole
   platformRole: UserRole
   sessionExpiresAt: Date | null
 }
 
-export async function requireAuth(app: FastifyInstance, request: FastifyRequest): Promise<AuthContext> {
+type AccessTokenPayload = {
+  sub?: string
+  workspaceId?: string
+  role?: UserRole
+  sessionExpiresAt?: string
+}
+
+export interface RequireAuthOptions {
+  tenantHeaderMode?: 'allow' | 'ignore'
+}
+
+function headerValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+export function resolveTenantWorkspaceId(headers: FastifyRequest['headers'], tokenWorkspaceId?: string) {
+  const workspaceHeader = headerValue(headers['x-workspace-id'])
+  const tenantHeader = headerValue(headers['x-tenant-id'])
+
+  if (workspaceHeader && tenantHeader && workspaceHeader !== tenantHeader) {
+    throw new AppError('forbidden', 'Header tenant tidak konsisten')
+  }
+
+  const requestedWorkspaceId = workspaceHeader ?? tenantHeader ?? tokenWorkspaceId
+  if (!requestedWorkspaceId) {
+    throw new AppError('unauthenticated', 'Tenant aktif tidak ditemukan')
+  }
+
+  return {
+    workspaceId: requestedWorkspaceId,
+    source: workspaceHeader || tenantHeader ? 'header' as const : 'token' as const,
+  }
+}
+
+export async function requireAuth(app: FastifyInstance, request: FastifyRequest, options: RequireAuthOptions = {}): Promise<AuthContext> {
   const token = request.headers.authorization?.replace(/^Bearer\s+/i, '')
   if (!token) {
     throw new AppError('unauthenticated', 'Sesi tidak ditemukan')
   }
 
-  let payload: { sub?: string; workspaceId?: string; role?: UserRole; sessionExpiresAt?: string }
+  let payload: AccessTokenPayload
   try {
-    payload = app.jwt.verify(token) as { sub?: string; workspaceId?: string; role?: UserRole; sessionExpiresAt?: string }
+    payload = app.jwt.verify(token) as AccessTokenPayload
   } catch {
     throw new AppError('unauthenticated', 'Sesi sudah tidak valid')
   }
@@ -28,16 +65,23 @@ export async function requireAuth(app: FastifyInstance, request: FastifyRequest)
     throw new AppError('unauthenticated', 'Sesi sudah tidak valid')
   }
 
-  const membership = await app.prisma.workspaceMember.findFirst({
+  const requestedTenant =
+    options.tenantHeaderMode === 'ignore'
+      ? resolveTenantWorkspaceId({}, payload.workspaceId)
+      : resolveTenantWorkspaceId(request.headers, payload.workspaceId)
+
+  const membership = await app.prisma.workspaceMember.findUnique({
     where: {
-      userId: payload.sub,
-      ...(payload.workspaceId ? { workspaceId: payload.workspaceId } : {}),
+      userId_workspaceId: {
+        userId: payload.sub,
+        workspaceId: requestedTenant.workspaceId,
+      },
     },
     include: { user: true, workspace: true },
   })
 
   if (!membership || membership.user.disabledAt || membership.workspace.status === 'suspended') {
-    throw new AppError('forbidden', 'Workspace tidak aktif atau akses ditolak')
+    throw new AppError('forbidden', 'Tenant tidak aktif atau akses ditolak')
   }
 
   const sessionExpiresAt = payload.sessionExpiresAt ? new Date(payload.sessionExpiresAt) : null
@@ -45,6 +89,8 @@ export async function requireAuth(app: FastifyInstance, request: FastifyRequest)
   return {
     userId: membership.userId,
     workspaceId: membership.workspaceId,
+    tokenWorkspaceId: payload.workspaceId ?? membership.workspaceId,
+    tenantSource: requestedTenant.source,
     role: membership.role as UserRole,
     platformRole: membership.user.role as UserRole,
     sessionExpiresAt: sessionExpiresAt && Number.isFinite(sessionExpiresAt.getTime()) ? sessionExpiresAt : null,

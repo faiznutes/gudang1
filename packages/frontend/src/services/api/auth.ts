@@ -74,6 +74,16 @@ export interface AuthResponse {
   session_policy?: SessionPolicy
 }
 
+export interface WorkspaceMembership {
+  role: User['role']
+  workspace: Workspace
+}
+
+export interface WorkspaceMembershipResponse {
+  current_workspace_id: string
+  data: WorkspaceMembership[]
+}
+
 export const authService = {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     return api.post<AuthResponse>('/auth/login', credentials)
@@ -85,6 +95,14 @@ export const authService = {
 
   async logout(): Promise<void> {
     return api.post<void>('/auth/logout', {})
+  },
+
+  async getWorkspaces(): Promise<WorkspaceMembershipResponse> {
+    return api.get<WorkspaceMembershipResponse>('/auth/workspaces')
+  },
+
+  async switchWorkspace(workspaceId: string): Promise<AuthResponse> {
+    return api.post<AuthResponse>('/auth/switch-workspace', { workspace_id: workspaceId })
   },
 
   async getCurrentUser(): Promise<User> {

@@ -164,7 +164,7 @@ async function ensureTenantUserAvailable(tx: any, email: string, workspaceId: st
 }
 
 async function requirePlatformAdmin(app: FastifyInstance, request: any) {
-  const ctx = await requireAuth(app, request)
+  const ctx = await requireAuth(app, request, { tenantHeaderMode: 'ignore' })
   requirePlatformRole(ctx, ['super_admin'])
   return ctx
 }

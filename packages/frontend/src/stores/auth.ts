@@ -8,6 +8,7 @@ import { useEntitlementsStore } from './entitlements'
 export type UserRole = 'admin' | 'staff' | 'supplier' | 'super_admin' | 'trial'
 export type PlanType = 'free' | 'starter' | 'growth' | 'pro' | 'custom'
 const OFFLINE_SESSION_KEY = 'stockpilot:last-session'
+const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
 
 export interface User {
   id: string
@@ -121,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = data.token
       localStorage.setItem('token', data.token)
     }
+    localStorage.setItem(ACTIVE_WORKSPACE_KEY, data.workspace.id)
     if (data.entitlements) {
       entitlementsStore.setEntitlements(data.entitlements)
     }
@@ -189,6 +191,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function switchWorkspace(workspaceId: string) {
+    const session = await authService.switchWorkspace(workspaceId)
+    applySession(session)
+  }
+
   async function initAuth() {
     if (initialized.value) return
     initialized.value = true
@@ -217,6 +224,7 @@ export const useAuthStore = defineStore('auth', () => {
     stopCountdown()
     entitlementsStore.reset()
     localStorage.removeItem('token')
+    localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
     localStorage.removeItem('activity_session_expires_at')
     localStorage.removeItem(OFFLINE_SESSION_KEY)
   }
@@ -242,6 +250,7 @@ export const useAuthStore = defineStore('auth', () => {
     trialSignup,
     upgradePlan,
     refreshSession,
+    switchWorkspace,
     setToken,
     logout,
     initAuth,

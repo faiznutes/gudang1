@@ -322,8 +322,8 @@ watch(
   <div class="p-4 lg:p-8 space-y-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 class="text-2xl font-bold text-neutral-900">Gudang Klien</h2>
-        <p class="text-neutral-600">Super admin dapat masuk ke data warehouse klien dan mengelola item operasional.</p>
+        <h2 class="text-2xl font-bold text-neutral-900">Data Klien</h2>
+        <p class="text-neutral-600">Super admin dapat meninjau dan membantu pengelolaan data operasional tenant tanpa membutuhkan permission gudang.</p>
       </div>
       <button class="btn-secondary" :disabled="loading" @click="loadClientData">
         <RefreshCw :class="['h-4 w-4', loading ? 'animate-spin' : '']" />

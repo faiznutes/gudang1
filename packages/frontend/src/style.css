@@ -10,6 +10,21 @@
   
   body {
     @apply min-h-screen;
+    user-select: text;
+  }
+
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  td,
+  th,
+  label {
+    user-select: text;
   }
 
   * {

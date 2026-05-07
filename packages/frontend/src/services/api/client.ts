@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -16,6 +17,21 @@ class ApiClient {
 
   private getToken(): string | null {
     return localStorage.getItem('token')
+  }
+
+  private getActiveWorkspaceId(): string | null {
+    return localStorage.getItem(ACTIVE_WORKSPACE_KEY)
+  }
+
+  private shouldAttachWorkspaceHeader(endpoint: string): boolean {
+    if (endpoint.startsWith('/admin')) return false
+    return ![
+      '/auth/login',
+      '/auth/logout',
+      '/auth/refresh',
+      '/auth/switch-workspace',
+      '/auth/workspaces',
+    ].some((publicAuthEndpoint) => endpoint.startsWith(publicAuthEndpoint))
   }
 
   private async refreshToken(): Promise<boolean> {
@@ -45,6 +61,11 @@ class ApiClient {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const activeWorkspaceId = this.getActiveWorkspaceId()
+    if (activeWorkspaceId && this.shouldAttachWorkspaceHeader(endpoint)) {
+      headers['X-Workspace-Id'] = activeWorkspaceId
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -108,6 +129,10 @@ class ApiClient {
     const token = this.getToken()
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
+    const activeWorkspaceId = this.getActiveWorkspaceId()
+    if (activeWorkspaceId && this.shouldAttachWorkspaceHeader(endpoint)) {
+      headers['X-Workspace-Id'] = activeWorkspaceId
+    }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'GET',
