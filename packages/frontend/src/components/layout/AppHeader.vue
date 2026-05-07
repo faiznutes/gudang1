@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
+import SyncStatusIndicator from '@/components/layout/SyncStatusIndicator.vue'
 import { Search, Bell, ChevronDown, User, LogOut, Settings, HelpCircle } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -89,6 +90,8 @@ function handleLogout() {
 
         <!-- Right Actions -->
         <div class="flex items-center gap-2">
+          <SyncStatusIndicator class="flex-shrink-0" />
+
           <!-- Search (Desktop) -->
           <div class="hidden md:block">
             <div class="relative">

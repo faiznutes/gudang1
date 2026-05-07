@@ -106,6 +106,7 @@ test.describe('Super admin routes', () => {
     await mockSession(page, 'super_admin')
     await page.goto('/admin')
 
+    await expect(page.getByTestId('sync-status-indicator')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Buka menu akun admin' })).toBeVisible()
     await page.getByRole('button', { name: 'Buka menu akun admin' }).click()
     await expect(page.getByRole('button', { name: 'Keluar' })).toBeVisible()
