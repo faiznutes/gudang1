@@ -192,6 +192,14 @@ export interface DashboardStats {
   trial_workspaces: number
   total_users: number
   total_revenue: number
+  active_subscriptions?: number
+  pending_approvals?: number
+  expiring_subscriptions?: number
+  low_stock_items?: number
+  total_products?: number
+  total_warehouses?: number
+  total_suppliers?: number
+  stock_movements_7d?: number
   recent_signups: number
   recent_users: Array<{
     id: string
@@ -205,6 +213,7 @@ export interface DashboardStats {
   }>
   recent_workspaces: Workspace[]
   plan_distribution: Array<{ plan: AdminPlan; count: number }>
+  recent_audit_logs?: AuditLog[]
   system_health: Array<{ service: string; status: string; uptime: string }>
 }
 

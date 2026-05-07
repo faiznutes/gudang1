@@ -29,18 +29,18 @@ const router = useRouter()
 const mobileMenuOpen = ref(false)
 
 const socialProofStats = [
-  { value: '500+', label: 'sesi konsultasi terstruktur' },
-  { value: '30+', label: 'jenis alur operasional' },
-  { value: 'Enterprise-ready', label: 'role, approval, reporting' },
+  { value: '500+', label: 'alur operasional dipetakan' },
+  { value: '30+', label: 'kebutuhan industri didukung' },
+  { value: 'Multi-tier', label: 'role, approval, reporting' },
 ]
 
-const trustedClients = [
-  'Enterprise Client',
-  'Tech Company',
-  'Logistics Partner',
-  'Retail Group',
-  'Finance Office',
-  'Corporate HQ',
+const operatingSegments = [
+  'Ritel multi-cabang',
+  'Distribusi regional',
+  'Logistik gudang',
+  'Procurement kantor',
+  'Finance & audit',
+  'Operasional pusat',
 ]
 
 const painPoints = [
@@ -68,48 +68,48 @@ const painPoints = [
 
 const consultationPlans = [
   {
-    name: 'Starter Consultation',
+    name: 'Paket Starter',
     eyebrow: 'Untuk bisnis yang mulai menata operasional',
     price: 'Rp250.000',
     period: '/bulan',
     highlight: false,
     suitedFor: 'Cocok untuk toko, gudang kecil, atau tim awal yang butuh struktur stok yang lebih disiplin.',
-    benefits: ['Mapping kebutuhan gudang utama', 'Setup user dasar dan alur stok', 'Arahan laporan inventori inti'],
-    outputs: ['Rekomendasi paket Starter', 'Struktur gudang awal', 'Checklist operasional harian'],
+    benefits: ['Mapping kebutuhan gudang utama', 'Setup user dasar dan alur stok', 'Kontrol laporan inventori inti'],
+    outputs: ['Struktur admin awal lebih tertata', 'Gudang utama siap dipakai tim', 'Checklist stok harian terdokumentasi'],
     cta: 'Konsultasikan Starter',
   },
   {
-    name: 'Business Consultation',
+    name: 'Paket Growth',
     eyebrow: 'Untuk bisnis multi-lokasi dan tim berkembang',
     price: 'Rp300.000',
     originalPrice: 'Rp500.000',
     period: '/bulan',
     highlight: true,
     suitedFor: 'Cocok untuk bisnis dengan beberapa gudang, staff lintas role, dan kebutuhan monitoring yang mulai meningkat.',
-    benefits: ['Desain struktur multi-gudang', 'Role dan permission per tim', 'Rekomendasi analytics operasional'],
-    outputs: ['Rekomendasi paket Growth', 'Mapping cabang dan divisi', 'Rencana aktivasi bertahap'],
+    benefits: ['Desain struktur multi-gudang', 'Role dan permission per tim', 'Analytics operasional untuk manajemen'],
+    outputs: ['Monitoring cabang lebih terpusat', 'Approval lebih cepat dan terdokumentasi', 'Rencana aktivasi bertahap per unit'],
     cta: 'Lihat Rekomendasi Growth',
   },
   {
-    name: 'Enterprise Consultation',
+    name: 'Paket Pro',
     eyebrow: 'Untuk organisasi besar dan kontrol menyeluruh',
     price: 'Rp500.000',
     period: '/bulan',
     highlight: false,
     suitedFor: 'Cocok untuk kantor pusat, banyak cabang, dan kebutuhan audit, import/export, serta governance lebih kuat.',
     benefits: ['Audit trail dan reporting lengkap', 'Batch import dan export workflow', 'Kontrol paket, durasi, dan add-on'],
-    outputs: ['Rekomendasi paket Pro', 'Matrix akses enterprise', 'Roadmap governance platform'],
+    outputs: ['Matrix akses enterprise siap digunakan', 'Riwayat keputusan mudah diaudit', 'Laporan operasional lebih mudah dipantau'],
     cta: 'Jadwalkan Diskusi Pro',
   },
   {
-    name: 'Custom Corporate Package',
+    name: 'Paket Custom',
     eyebrow: 'Untuk kebutuhan khusus dan rollout enterprise',
-    price: 'By discussion',
+    price: 'Konsultasi khusus',
     period: '',
     highlight: false,
     suitedFor: 'Cocok untuk perusahaan dengan approval khusus, integrasi, skema tenant kompleks, atau kebutuhan custom workflow.',
     benefits: ['Sesi discovery lebih dalam', 'Custom role dan approval path', 'Rencana integrasi dan rollout'],
-    outputs: ['Proposal struktur corporate', 'Scope implementasi', 'Estimasi timeline dan prioritas'],
+    outputs: ['Setup sesuai kebutuhan organisasi', 'Workflow scalable untuk rollout besar', 'Scope implementasi dan prioritas jelas'],
     cta: 'Konsultasikan Corporate',
   },
 ]
@@ -166,29 +166,29 @@ const workflow = [
 ]
 
 const enterpriseBenefits = [
-  'Fleksibel untuk banyak cabang dan tenant',
-  'Role dan permission management yang jelas',
-  'Konsultasi paket sesuai kebutuhan bisnis',
-  'Laporan dan monitoring untuk manajemen',
-  'Scalable untuk tim besar dan multi-divisi',
-  'Siap integrasi atau custom workflow',
+  'Operasional lebih rapi untuk banyak cabang dan tenant',
+  'Role dan permission lebih aman untuk tiap level tim',
+  'Paket lebih mudah disesuaikan dengan kebutuhan bisnis',
+  'Laporan dan monitoring lebih mudah dipakai manajemen',
+  'Workflow lebih mudah di-scale untuk tim besar',
+  'Siap dikembangkan untuk integrasi atau alur custom',
 ]
 
 const testimonials = [
   {
-    quote: 'Tim kami akhirnya bisa memilih struktur paket yang sesuai untuk beberapa cabang tanpa proses manual yang berulang.',
+    quote: 'Struktur cabang dan gudang jadi lebih mudah dibaca. Tim pusat bisa memantau tanpa menunggu rekap manual dari tiap lokasi.',
     person: 'Operations Lead',
-    company: 'Retail Group',
+    company: 'Tim operasional ritel multi-cabang',
   },
   {
-    quote: 'Yang paling membantu adalah mapping role. Kantor pusat tetap punya kontrol, cabang tetap bisa bergerak cepat.',
+    quote: 'Mapping role membuat admin cabang tetap lincah, sementara kantor pusat punya kontrol atas paket, audit, dan laporan.',
     person: 'Business Admin',
-    company: 'Enterprise Client',
+    company: 'Unit distribusi regional',
   },
   {
-    quote: 'Konsultasinya membuat keputusan paket lebih mudah dijelaskan ke finance dan tim operasional.',
+    quote: 'Keputusan paket lebih mudah dijelaskan ke finance karena fitur, limit, dan output operasionalnya tertulis jelas.',
     person: 'Project Coordinator',
-    company: 'Logistics Partner',
+    company: 'Tim procurement dan finance',
   },
 ]
 
@@ -249,12 +249,12 @@ function closeMobileMenu() {
           </div>
           <div>
             <span class="block text-lg font-black tracking-tight text-neutral-950">StockPilot</span>
-            <span class="hidden text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400 sm:block">Consulting Desk</span>
+            <span class="hidden text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400 sm:block">Operations Platform</span>
           </div>
         </router-link>
 
         <div class="hidden items-center gap-7 lg:flex">
-          <a href="#trusted" class="text-sm font-semibold text-neutral-600 transition hover:text-primary-700">Trusted by</a>
+          <a href="#trusted" class="text-sm font-semibold text-neutral-600 transition hover:text-primary-700">Sektor</a>
           <a href="#problems" class="text-sm font-semibold text-neutral-600 transition hover:text-primary-700">Masalah</a>
           <a href="#plans" class="text-sm font-semibold text-neutral-600 transition hover:text-primary-700">Paket</a>
           <a href="#admin" class="text-sm font-semibold text-neutral-600 transition hover:text-primary-700">Multi-tier</a>
@@ -279,7 +279,7 @@ function closeMobileMenu() {
 
       <div v-if="mobileMenuOpen" class="border-t border-neutral-100 bg-white px-4 py-4 md:hidden">
         <div class="grid gap-2">
-          <a href="#trusted" class="rounded-xl px-3 py-3 font-semibold text-neutral-700 hover:bg-neutral-50" @click="closeMobileMenu">Trusted by</a>
+          <a href="#trusted" class="rounded-xl px-3 py-3 font-semibold text-neutral-700 hover:bg-neutral-50" @click="closeMobileMenu">Sektor bisnis</a>
           <a href="#problems" class="rounded-xl px-3 py-3 font-semibold text-neutral-700 hover:bg-neutral-50" @click="closeMobileMenu">Masalah</a>
           <a href="#plans" class="rounded-xl px-3 py-3 font-semibold text-neutral-700 hover:bg-neutral-50" @click="closeMobileMenu">Paket Konsultasi</a>
           <a href="#admin" class="rounded-xl px-3 py-3 font-semibold text-neutral-700 hover:bg-neutral-50" @click="closeMobileMenu">Multi-tier Admin</a>
@@ -330,11 +330,11 @@ function closeMobileMenu() {
             <div class="rounded-[1.45rem] border border-neutral-100 bg-white">
               <div class="flex items-center justify-between border-b border-neutral-100 p-5">
                 <div>
-                  <p class="text-xs font-bold uppercase tracking-[0.22em] text-primary-600">Consultation Preview</p>
-                  <h2 class="mt-1 text-xl font-black text-neutral-950">Paket & Admin Blueprint</h2>
+                  <p class="text-xs font-bold uppercase tracking-[0.22em] text-primary-600">Operations Preview</p>
+                  <h2 class="mt-1 text-xl font-black text-neutral-950">Blueprint Paket & Admin</h2>
                 </div>
                 <div class="rounded-full bg-success-50 px-3 py-1 text-xs font-bold text-success-700">
-                  Ready
+                  Terkonfigurasi
                 </div>
               </div>
 
@@ -352,7 +352,7 @@ function closeMobileMenu() {
                   </div>
                   <div class="rounded-2xl bg-amber-50 p-4">
                     <LineChart class="h-5 w-5 text-amber-700" />
-                    <p class="mt-3 text-xs font-semibold text-neutral-500">Report</p>
+                    <p class="mt-3 text-xs font-semibold text-neutral-500">Laporan</p>
                     <p class="text-2xl font-black text-neutral-950">Live</p>
                   </div>
                 </div>
@@ -413,12 +413,12 @@ function closeMobileMenu() {
         <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div class="max-w-md">
-              <p class="text-sm font-black uppercase tracking-[0.22em] text-neutral-400">Trusted by teams like</p>
-              <p class="mt-2 text-lg font-bold text-neutral-900">Area logo placeholder untuk brand enterprise, corporate office, dan partner nasional.</p>
+              <p class="text-sm font-black uppercase tracking-[0.22em] text-neutral-400">Dipakai lintas fungsi bisnis</p>
+              <p class="mt-2 text-lg font-bold text-neutral-900">Mendukung kebutuhan operasional, HR, procurement, finance, dan manajemen di bisnis multi-cabang.</p>
             </div>
             <div class="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <div v-for="client in trustedClients" :key="client" class="flex min-h-20 items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-50 px-4 text-center text-xs font-black uppercase tracking-[0.16em] text-neutral-400 grayscale transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-600 hover:shadow-soft">
-                {{ client }}
+              <div v-for="segment in operatingSegments" :key="segment" class="flex min-h-20 items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-50 px-4 text-center text-xs font-black uppercase tracking-[0.12em] text-neutral-500 transition hover:-translate-y-0.5 hover:bg-white hover:text-primary-700 hover:shadow-soft">
+                {{ segment }}
               </div>
             </div>
           </div>
@@ -451,13 +451,13 @@ function closeMobileMenu() {
           <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-3xl">
               <p class="text-sm font-black uppercase tracking-[0.22em] text-primary-700">Paket konsultasi</p>
-              <h2 class="mt-3 text-3xl font-black tracking-tight text-neutral-950 sm:text-4xl">Pilih engagement konsultasi, bukan sekadar tabel harga.</h2>
+              <h2 class="mt-3 text-3xl font-black tracking-tight text-neutral-950 sm:text-4xl">Pilih paket yang mengikuti struktur bisnis, bukan sekadar tabel harga.</h2>
               <p class="mt-4 text-lg leading-8 text-neutral-600">
-                Setiap paket menjelaskan siapa yang cocok, benefit konsultasi, dan output yang diterima sebelum aktivasi tenant.
+                Setiap paket menjelaskan siapa yang cocok, fitur aktif, dukungan cabang, dan hasil operasional yang diterima setelah tenant diaktifkan.
               </p>
             </div>
             <button class="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary-200 bg-white px-5 py-3 font-bold text-primary-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-700 hover:text-white" @click="goToTrial">
-              Request assessment paket
+              Minta assessment paket
               <ArrowRight class="h-5 w-5" />
             </button>
           </div>
@@ -625,10 +625,10 @@ function closeMobileMenu() {
       <section class="mx-auto max-w-7xl px-4 py-18 sm:px-6 lg:px-8">
         <div class="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
           <div>
-            <p class="text-sm font-black uppercase tracking-[0.22em] text-primary-700">Case-style feedback</p>
-            <h2 class="mt-3 text-3xl font-black tracking-tight text-neutral-950 sm:text-4xl">Testimonial placeholder yang bisa diganti dengan studi kasus resmi.</h2>
+            <p class="text-sm font-black uppercase tracking-[0.22em] text-primary-700">Use case operasional</p>
+            <h2 class="mt-3 text-3xl font-black tracking-tight text-neutral-950 sm:text-4xl">Cerita implementasi dari kebutuhan bisnis yang realistis.</h2>
             <p class="mt-4 text-lg leading-8 text-neutral-600">
-              Copy dibuat netral dan tidak menggunakan brand asli tanpa izin, tapi tetap terasa seperti konteks perusahaan nyata.
+              Contoh skenario disusun dari pola kebutuhan ritel, distribusi, procurement, dan kantor pusat tanpa memakai klaim brand tanpa izin.
             </p>
           </div>
           <div class="grid gap-4">
@@ -697,7 +697,7 @@ function closeMobileMenu() {
             </div>
             <div>
               <span class="block text-xl font-black text-neutral-950">StockPilot</span>
-              <span class="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400">Consulting Desk</span>
+              <span class="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400">Operations Platform</span>
             </div>
           </div>
           <p class="mt-4 max-w-md text-sm leading-6 text-neutral-600">

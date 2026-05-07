@@ -60,35 +60,35 @@ function closeMobileAccountMenu() {
 }
 
 const adminNavItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, route: '/admin' },
-  { name: 'Users', icon: UserCog, route: '/admin/users' },
-  { name: 'Workspaces', icon: Building2, route: '/admin/workspaces' },
-  { name: 'Client Warehouse', icon: Warehouse, route: '/admin/client-warehouse' },
-  { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions' },
-  { name: 'Logs', icon: FileText, route: '/admin/audit-logs' },
-  { name: 'Settings', icon: Settings, route: '/admin/settings' },
+  { name: 'Command Center', icon: LayoutDashboard, route: '/admin' },
+  { name: 'Tim & Akses', icon: UserCog, route: '/admin/users' },
+  { name: 'Tenant', icon: Building2, route: '/admin/workspaces' },
+  { name: 'Gudang Klien', icon: Warehouse, route: '/admin/client-warehouse' },
+  { name: 'Paket & Billing', icon: CreditCard, route: '/admin/subscriptions' },
+  { name: 'Audit', icon: FileText, route: '/admin/audit-logs' },
+  { name: 'Pengaturan', icon: Settings, route: '/admin/settings' },
 ]
 
 const leftItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, route: '/admin' },
-  { name: 'Users', icon: UserCog, route: '/admin/users' },
+  { name: 'Center', icon: LayoutDashboard, route: '/admin' },
+  { name: 'Akses', icon: UserCog, route: '/admin/users' },
 ]
 
 const centerItem = { name: 'Gudang Klien', icon: Warehouse, route: '/admin/client-warehouse', action: 'client-warehouse' }
 
 const rightItems = [
-  { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions' },
+  { name: 'Paket', icon: CreditCard, route: '/admin/subscriptions' },
   { name: 'Lainnya', icon: MoreHorizontal, route: '', action: 'more' },
 ]
 
 const moreMenuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, route: '/admin', color: 'bg-primary-100 text-primary-600' },
-  { name: 'Users', icon: UserCog, route: '/admin/users', color: 'bg-blue-100 text-blue-600' },
-  { name: 'Workspaces', icon: Building2, route: '/admin/workspaces', color: 'bg-green-100 text-green-600' },
+  { name: 'Command', icon: LayoutDashboard, route: '/admin', color: 'bg-primary-100 text-primary-600' },
+  { name: 'Akses', icon: UserCog, route: '/admin/users', color: 'bg-blue-100 text-blue-600' },
+  { name: 'Tenant', icon: Building2, route: '/admin/workspaces', color: 'bg-green-100 text-green-600' },
   { name: 'Gudang Klien', icon: Warehouse, route: '/admin/client-warehouse', color: 'bg-primary-100 text-primary-600' },
-  { name: 'Billing', icon: CreditCard, route: '/admin/subscriptions', color: 'bg-purple-100 text-purple-600' },
-  { name: 'Logs', icon: FileText, route: '/admin/audit-logs', color: 'bg-orange-100 text-orange-600' },
-  { name: 'Settings', icon: Settings, route: '/admin/settings', color: 'bg-neutral-100 text-neutral-600' },
+  { name: 'Paket', icon: CreditCard, route: '/admin/subscriptions', color: 'bg-purple-100 text-purple-600' },
+  { name: 'Audit', icon: FileText, route: '/admin/audit-logs', color: 'bg-orange-100 text-orange-600' },
+  { name: 'Pengaturan', icon: Settings, route: '/admin/settings', color: 'bg-neutral-100 text-neutral-600' },
 ]
 
 function isActive(routePath: string) {
@@ -137,7 +137,7 @@ function handleLogout() {
           <Settings class="w-4 h-4 text-white" />
         </div>
         <div class="min-w-0">
-          <p class="text-sm font-bold leading-tight truncate">Admin Panel</p>
+          <p class="text-sm font-bold leading-tight truncate">Platform Admin</p>
           <p class="text-[11px] text-purple-200 leading-tight truncate">Super Admin</p>
         </div>
       </div>
@@ -208,7 +208,7 @@ function handleLogout() {
             <Settings class="w-5 h-5 text-white" />
           </div>
           <span v-if="!collapsed" class="font-bold text-lg whitespace-nowrap">
-            Admin Panel
+            Platform Admin
           </span>
         </div>
         <button
@@ -286,7 +286,7 @@ function handleLogout() {
     >
       <div class="absolute left-0 top-0 bottom-0 w-64 bg-purple-900 text-white" @click.stop>
         <div class="h-14 flex items-center justify-between px-4 border-b border-purple-800">
-          <span class="font-bold">Admin Panel</span>
+          <span class="font-bold">Platform Admin</span>
           <button @click="closeMobileMenu" class="p-2 hover:bg-purple-800 rounded-lg">
             <X class="w-5 h-5" />
           </button>
@@ -310,7 +310,7 @@ function handleLogout() {
           </ul>
         </nav>
         <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-purple-800 text-xs text-purple-300">
-          Akses platform SaaS
+          Kontrol tenant, paket, dan audit
         </div>
       </div>
     </div>
@@ -422,7 +422,7 @@ function handleLogout() {
                   <div class="w-10 h-1 bg-neutral-300 rounded-full"></div>
                 </div>
                 <h3 class="text-lg font-bold text-neutral-900 mb-1">Menu Lengkap</h3>
-                <p class="text-sm text-neutral-500 mb-6">Akses semua fitur Admin</p>
+                <p class="text-sm text-neutral-500 mb-6">Akses semua fungsi platform</p>
                 <div class="grid grid-cols-4 gap-3">
                   <button
                     v-for="item in moreMenuItems"

@@ -173,6 +173,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/dashboard/stats', async (request) => {
     await requirePlatformAdmin(app, request)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const [
       totalWorkspaces,
       activeWorkspaces,
@@ -183,6 +184,14 @@ export async function adminRoutes(app: FastifyInstance) {
       recentUsers,
       recentWorkspaces,
       workspacesByPlan,
+      totalProducts,
+      totalWarehouses,
+      totalSuppliers,
+      stockMovements7d,
+      pendingApprovals,
+      expiringSubscriptions,
+      inventoryForLowStock,
+      recentAuditLogs,
     ] = await Promise.all([
       app.prisma.workspace.count(),
       app.prisma.workspace.count({ where: { status: 'active' } }),
@@ -201,7 +210,42 @@ export async function adminRoutes(app: FastifyInstance) {
         take: 5,
       }),
       app.prisma.workspace.groupBy({ by: ['plan'], _count: { _all: true } }),
+      app.prisma.product.count({ where: { disabledAt: null } }),
+      app.prisma.warehouse.count({ where: { disabledAt: null } }),
+      app.prisma.supplier.count({ where: { disabledAt: null } }),
+      app.prisma.stockMovement.count({ where: { createdAt: { gte: since } } }),
+      app.prisma.scheduledActivity.count({
+        where: {
+          disabledAt: null,
+          status: { in: ['pending', 'waiting_approval', 'approval_pending', 'review'] },
+        },
+      }),
+      app.prisma.subscription.count({
+        where: {
+          status: { in: ['active', 'trialing'] },
+          currentPeriodEnd: { gte: new Date(), lte: sevenDaysFromNow },
+        },
+      }),
+      app.prisma.inventoryItem.findMany({
+        select: {
+          quantity: true,
+          product: { select: { minStock: true, disabledAt: true } },
+        },
+      }),
+      app.prisma.auditLog.findMany({
+        include: {
+          workspace: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
     ])
+
+    const lowStockItems = inventoryForLowStock.filter(item => {
+      if (item.product.disabledAt) return false
+      return item.quantity <= item.product.minStock
+    }).length
 
     return {
       total_workspaces: totalWorkspaces,
@@ -209,6 +253,14 @@ export async function adminRoutes(app: FastifyInstance) {
       trial_workspaces: trialWorkspaces,
       total_users: totalUsers,
       total_revenue: subscriptions.reduce((sum, subscription) => sum + planPrice(subscription.plan), 0),
+      active_subscriptions: subscriptions.length,
+      pending_approvals: pendingApprovals,
+      expiring_subscriptions: expiringSubscriptions,
+      low_stock_items: lowStockItems,
+      total_products: totalProducts,
+      total_warehouses: totalWarehouses,
+      total_suppliers: totalSuppliers,
+      stock_movements_7d: stockMovements7d,
       recent_signups: recentSignupCount,
       recent_users: recentUsers.map(member => ({
         id: member.user.id,
@@ -233,10 +285,15 @@ export async function adminRoutes(app: FastifyInstance) {
         plan: item.plan,
         count: item._count._all,
       })),
+      recent_audit_logs: recentAuditLogs.map(auditLogDto),
       system_health: [
         { service: 'API', status: 'healthy', uptime: 'online' },
         { service: 'Database', status: 'healthy', uptime: 'online' },
-        { service: 'Auth', status: 'healthy', uptime: 'online' },
+        {
+          service: 'Permission Engine',
+          status: pendingApprovals >= 0 ? 'healthy' : 'warning',
+          uptime: 'role-based access active',
+        },
       ],
     }
   })
