@@ -32,7 +32,7 @@ const workspace = {
   products: 1,
   warehouses: 2,
   suppliers: 1,
-  mrr: 299000,
+  mrr: 300000,
   trial_ends_at: null,
   created_at: '2026-05-01T00:00:00.000Z',
 }
@@ -43,7 +43,7 @@ const subscription = {
   workspace,
   plan: 'growth',
   status: 'active',
-  amount: 299000,
+  amount: 300000,
   billing_cycle: 'monthly',
   current_period_start: '2026-05-01T00:00:00.000Z',
   current_period_end: '2026-06-01T00:00:00.000Z',
@@ -104,7 +104,7 @@ async function mockAdminApi(page: Page, captures: Record<string, unknown> = {}) 
           active_workspaces: 1,
           trial_workspaces: 0,
           total_users: 2,
-          total_revenue: 299000,
+          total_revenue: 300000,
           recent_signups: 0,
           recent_users: [],
           recent_workspaces: [workspace],
@@ -212,7 +212,7 @@ test.describe('Super admin tenant management', () => {
     await page.getByRole('button', { name: /Tambah Tenant/ }).click()
 
     const modal = page.locator('form').filter({ hasText: 'Tambah Tenant Baru' })
-    await modal.getByPlaceholder('Contoh: Gudang Maju Bersama').fill('Tenant Baru')
+    await modal.getByPlaceholder('Nama tenant atau perusahaan').fill('Tenant Baru')
     await modal.getByRole('button', { name: 'Lanjut' }).click()
     await modal.getByPlaceholder('Nama tenant admin').fill('Owner Baru')
     await modal.getByPlaceholder('owner@email.com').fill('owner-baru@test.local')

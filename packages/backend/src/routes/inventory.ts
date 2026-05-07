@@ -183,6 +183,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
     const body = categorySchema.parse(request.body)
     const category = await app.prisma.category.create({
       data: { workspaceId: ctx.workspaceId, name: body.name, description: body.description },

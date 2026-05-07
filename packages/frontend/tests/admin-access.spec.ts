@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+test.use({ serviceWorkers: 'block' })
+
 const entitlements = {
   plan: 'pro',
   subscriptionStatus: 'active',
@@ -42,7 +44,7 @@ function dashboardStatsPayload() {
     active_workspaces: 1,
     trial_workspaces: 1,
     total_users: 3,
-    total_revenue: 299000,
+    total_revenue: 500000,
     recent_signups: 1,
     recent_users: [],
     recent_workspaces: [],

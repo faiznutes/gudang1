@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import {
-  HelpCircle,
+  ArrowDownToLine,
+  ArrowLeftRight,
+  ArrowUpFromLine,
   BookOpen,
   ChevronDown,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ArrowLeftRight,
-  Users,
-  MessageCircle,
+  HelpCircle,
   Mail,
+  MessageCircle,
+  Users,
 } from 'lucide-vue-next'
 
 const activeSection = ref<string | null>('getting-started')
@@ -20,9 +20,9 @@ const sections = [
     title: 'Memulai',
     icon: BookOpen,
     articles: [
-      { title: 'Cara daftar akun baru', content: 'Klik tombol "Daftar" di halaman login, isi nama lengkap, email, dan password. Setelah itu, kamu akan langsung masuk ke dashboard.' },
-      { title: 'Setup gudang pertama', content: 'Pergi ke menu Gudang > Tambah Gudang. Isi nama dan alamat gudang. Gudang pertama akan otomatis设为 gudang utama.' },
-      { title: 'Tambah produk pertama', content: 'Pergi ke Inventori > Tambah Produk. Isi nama, SKU, kategori, harga, dan stok minimum. Produk siap digunakan!' },
+      { title: 'Cara request akun baru', content: 'Buka halaman request trial, isi nama, WhatsApp, dan email. Super admin akan menyiapkan tenant, paket, dan durasi langganan yang sesuai.' },
+      { title: 'Setup gudang pertama', content: 'Pergi ke menu Gudang > Tambah Gudang. Isi nama dan alamat gudang. Gudang pertama akan otomatis menjadi gudang utama.' },
+      { title: 'Tambah produk pertama', content: 'Pergi ke Inventori > Tambah Produk. Isi nama, SKU, kategori, harga, dan stok minimum. Produk siap digunakan.' },
     ],
   },
   {
@@ -30,7 +30,7 @@ const sections = [
     title: 'Stock Masuk',
     icon: ArrowDownToLine,
     articles: [
-      { title: 'Cara mencatat stock masuk', content: '1. Klik tombol "Stock Masuk" di dashboard atau menu.\n2. Pilih produk yang masuk.\n3. Pilih gudang tujuan.\n4. Masukkan jumlah.\n5. Tambahkan catatan (opsional).\n6. Klik Simpan.' },
+      { title: 'Cara mencatat stock masuk', content: '1. Klik tombol Stock Masuk di dashboard atau menu.\n2. Pilih produk yang masuk.\n3. Pilih gudang tujuan.\n4. Masukkan jumlah.\n5. Tambahkan catatan bila perlu.\n6. Klik Simpan.' },
       { title: 'Apa itu stock masuk?', content: 'Stock masuk adalah pencatatan barang yang masuk ke gudang, baik dari pembelian supplier, return customer, atau transfer dari gudang lain.' },
     ],
   },
@@ -39,8 +39,8 @@ const sections = [
     title: 'Stock Keluar',
     icon: ArrowUpFromLine,
     articles: [
-      { title: 'Cara mencatat stock keluar', content: '1. Klik tombol "Stock Keluar" di dashboard atau menu.\n2. Pilih produk yang keluar.\n3. Pilih gudang asal.\n4. Masukkan jumlah (sistem akan mencegah jika stok tidak cukup).\n5. Tambahkan catatan (opsional).\n6. Klik Simpan.' },
-      { title: 'Apa itu low stock alert?', content: 'Low stock alert adalah notifikasi yang muncul ketika stok suatu produk mencapai atau di bawah batas minimum yang kamu設定kan.' },
+      { title: 'Cara mencatat stock keluar', content: '1. Klik tombol Stock Keluar di dashboard atau menu.\n2. Pilih produk yang keluar.\n3. Pilih gudang asal.\n4. Masukkan jumlah. Sistem akan mencegah transaksi jika stok tidak cukup.\n5. Tambahkan catatan bila perlu.\n6. Klik Simpan.' },
+      { title: 'Apa itu low stock alert?', content: 'Low stock alert adalah notifikasi yang muncul ketika stok suatu produk mencapai atau di bawah batas minimum yang kamu tentukan.' },
     ],
   },
   {
@@ -48,8 +48,8 @@ const sections = [
     title: 'Transfer Antar Gudang',
     icon: ArrowLeftRight,
     articles: [
-      { title: 'Cara transfer stok', content: 'Fitur transfer antar gudang memungkinkan pemindahan stok dari satu gudang ke gudang lain. Fitur ini tersedia di menu Mutasi Stok.' },
-      { title: 'Kapan harus menggunakan transfer?', content: 'Gunakan transfer ketika kamu perlu memindahkan stok antar lokasi gudang, misalnya untuk menyeimbangkan stok atau mengirim ke customer dari gudang berbeda.' },
+      { title: 'Cara transfer stok', content: 'Transfer antar gudang tersedia mulai paket Growth. Gunakan menu Mutasi untuk memindahkan stok dari satu gudang ke gudang lain.' },
+      { title: 'Kapan harus menggunakan transfer?', content: 'Gunakan transfer ketika kamu perlu menyeimbangkan stok antar lokasi atau mengirim pesanan dari gudang berbeda.' },
     ],
   },
   {
@@ -57,8 +57,8 @@ const sections = [
     title: 'Peran Pengguna',
     icon: Users,
     articles: [
-      { title: 'Apa itu peran pengguna?', content: 'Peran pengguna menentukan tingkat akses di StockPilot. Admin memiliki akses penuh, Staff gudang dapat mencatat stock, dan Supplier hanya melihat pesanan.' },
-      { title: 'Cara menambah user', content: 'Fitur menambah user akan tersedia di paket Growth ke atas. Kamu bisa mengundang anggota tim dengan email mereka.' },
+      { title: 'Apa itu peran pengguna?', content: 'Peran pengguna menentukan tingkat akses di StockPilot. Admin mengelola tenant, staff mengelola operasional gudang, dan supplier hanya melihat area yang relevan.' },
+      { title: 'Cara menambah user', content: 'Jumlah user mengikuti batas paket aktif. Starter mendukung 2 user, Growth mendukung 10 user, dan Pro mendukung kebutuhan tim besar.' },
     ],
   },
   {
@@ -66,9 +66,9 @@ const sections = [
     title: 'FAQ',
     icon: HelpCircle,
     articles: [
-      { title: 'Apakah data saya aman?', content: 'Ya, kami menggunakan enkripsi tingkat bank dan backup harian untuk menjaga keamanan data kamu.' },
-      { title: 'Bisakah saya import data dari Excel?', content: 'Fitur import CSV tersedia di paket Pro. Kamu bisa import produk dalam jumlah banyak sekaligus.' },
-      { title: 'Bagaimana cara取消 langganan?', content: 'Kamu bisa取消 langganan kapan saja dari halaman Billing. Data akan tetap tersimpan selama 30 hari.' },
+      { title: 'Apakah data antar tenant terpisah?', content: 'Ya. Produk, gudang, supplier, staff, dan aktivitas setiap tenant terisolasi dari tenant lain.' },
+      { title: 'Bisakah saya import data dari Excel?', content: 'Fitur batch import CSV tersedia di paket Pro. Export laporan juga mengikuti izin paket yang aktif.' },
+      { title: 'Bagaimana cara mengubah langganan?', content: 'Perubahan paket dan masa aktif dikelola oleh super admin agar hak akses tenant tetap sesuai paket yang aktif.' },
     ],
   },
 ]
@@ -85,7 +85,6 @@ function toggleSection(id: string) {
       <p class="text-neutral-600">Temukan jawaban untuk pertanyaanmu</p>
     </div>
 
-    <!-- Quick Links -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <a href="#getting-started" class="card-hover p-4 flex items-center gap-4 group">
         <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center group-hover:bg-primary-200 transition-colors">
@@ -116,17 +115,16 @@ function toggleSection(id: string) {
       </a>
     </div>
 
-    <!-- Help Sections -->
     <div class="space-y-4">
       <div
         v-for="section in sections"
-        :key="section.id"
         :id="section.id"
+        :key="section.id"
         class="card overflow-hidden"
       >
         <button
-          @click="toggleSection(section.id)"
           class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors"
+          @click="toggleSection(section.id)"
         >
           <div class="flex items-center gap-3">
             <component :is="section.icon" class="w-5 h-5 text-neutral-500" />
@@ -159,17 +157,16 @@ function toggleSection(id: string) {
       </div>
     </div>
 
-    <!-- Contact Support -->
     <div class="card p-6 bg-neutral-50">
       <div class="flex flex-col sm:flex-row sm:items-center gap-4">
         <div class="flex-1">
           <h3 class="font-semibold text-neutral-900">Masih butuh bantuan?</h3>
-          <p class="text-sm text-neutral-600">Tim support kami siap membantu kamu</p>
+          <p class="text-sm text-neutral-600">Hubungi tim support untuk bantuan operasional.</p>
         </div>
         <div class="flex gap-3">
           <button class="btn-secondary btn-sm">
             <MessageCircle class="w-4 h-4" />
-            Live Chat
+            WhatsApp
           </button>
           <button class="btn-primary btn-sm">
             <Mail class="w-4 h-4" />

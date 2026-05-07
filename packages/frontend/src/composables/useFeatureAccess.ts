@@ -52,12 +52,13 @@ export function useFeatureAccess() {
 
     const featureName = featureNames[feature] || feature
     const planName = currentPlanId.value === 'free' ? 'Free' : currentPlanId.value.charAt(0).toUpperCase() + currentPlanId.value.slice(1)
+    const requiredPlan = feature === 'stockInOut' ? 'Starter' : feature === 'multiWarehouse' || feature === 'analytics' ? 'Growth' : 'Pro'
 
     return {
       title: `Akses ${featureName} Terkunci`,
-      message: `Upgrade ke paket Starter atau lebih tinggi untuk mengakses fitur ${featureName}.`,
+      message: `Upgrade ke paket ${requiredPlan} untuk mengakses fitur ${featureName}.`,
       currentPlan: planName,
-      requiredPlan: feature === 'stockInOut' ? 'Starter' : feature === 'multiWarehouse' || feature === 'analytics' ? 'Growth' : 'Pro',
+      requiredPlan,
     }
   }
 

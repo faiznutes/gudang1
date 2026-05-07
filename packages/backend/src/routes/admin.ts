@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
 import { requireAuth, requirePlatformRole } from '../middleware/auth.js'
-import { PLAN_CATALOG } from '../lib/plans.js'
+import { PLAN_CATALOG, planPrice } from '../lib/plans.js'
 
 const pageSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -63,17 +63,6 @@ function paginate<T>(data: T[], page: number, perPage: number, total: number) {
       total_pages: Math.max(1, Math.ceil(total / perPage)),
     },
   }
-}
-
-function planPrice(plan: string) {
-  const prices: Record<string, number> = {
-    free: 0,
-    starter: 49000,
-    growth: 149000,
-    pro: 299000,
-    custom: 0,
-  }
-  return prices[plan] ?? 0
 }
 
 function subscriptionDto(subscription: {

@@ -12,6 +12,18 @@ export interface PlanDefinition {
   }
 }
 
+export const PLAN_PRICES: Record<PlanType, { monthly: number; originalMonthly?: number }> = {
+  free: { monthly: 0 },
+  starter: { monthly: 250000 },
+  growth: { monthly: 300000, originalMonthly: 500000 },
+  pro: { monthly: 500000 },
+  custom: { monthly: 0 },
+}
+
+export function planPrice(plan: string) {
+  return PLAN_PRICES[plan as PlanType]?.monthly ?? 0
+}
+
 export const PLAN_CATALOG: Record<PlanType, PlanDefinition> = {
   free: {
     id: 'free',

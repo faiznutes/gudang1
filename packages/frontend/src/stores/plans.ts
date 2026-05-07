@@ -7,6 +7,7 @@ export interface Plan {
   id: PlanType
   name: string
   price: number | null
+  originalPrice?: number | null
   period: string
   description: string
   warehouses: number
@@ -44,7 +45,7 @@ export const PLANS: Plan[] = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 49000,
+    price: 250000,
     period: 'bulan',
     description: 'Untuk bisnis rumahan & toko kecil',
     warehouses: 1,
@@ -62,7 +63,8 @@ export const PLANS: Plan[] = [
   {
     id: 'growth',
     name: 'Growth',
-    price: 149000,
+    price: 300000,
+    originalPrice: 500000,
     period: 'bulan',
     description: 'Untuk bisnis yang berkembang',
     warehouses: 5,
@@ -80,7 +82,7 @@ export const PLANS: Plan[] = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 299000,
+    price: 500000,
     period: 'bulan',
     description: 'Untuk bisnis skala besar',
     warehouses: 999,

@@ -43,6 +43,10 @@ function formatPrice(price: number | null): string {
   return 'Rp ' + price.toLocaleString('id-ID')
 }
 
+function hasPromo(plan: Plan): boolean {
+  return !!plan.originalPrice && !!plan.price && plan.originalPrice > plan.price
+}
+
 function getFeatureValue(plan: Plan, feature: string): boolean {
   return (plan.features as any)[feature] || false
 }
@@ -74,7 +78,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
     <SubscriptionCountdownCard />
 
     <!-- Plans Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:plan-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <div
         v-for="plan in PLANS"
         :key="plan.id"
@@ -85,7 +89,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
         ]"
       >
         <div v-if="plan.id === 'growth'" class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded-full">
-          Popular
+          Promo
         </div>
 
         <div v-if="isActive(plan.id)" class="absolute top-4 right-4">
@@ -98,10 +102,31 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
 
         <h3 class="text-lg font-semibold text-neutral-900">{{ plan.name }}</h3>
         <div class="mt-2 mb-4">
+          <div v-if="hasPromo(plan)" class="text-sm font-medium text-neutral-400 line-through">
+            {{ formatPrice(plan.originalPrice || 0) }}
+          </div>
           <span class="text-3xl font-bold text-neutral-900">{{ formatPrice(plan.price) }}</span>
           <span v-if="plan.period" class="text-neutral-500">/{{ plan.period }}</span>
+          <p v-if="hasPromo(plan)" class="mt-1 text-xs font-medium text-success-700">
+            Diskon dari {{ formatPrice(plan.originalPrice || 0) }}/bulan
+          </p>
         </div>
         <p class="text-sm text-neutral-600 mb-6">{{ plan.description }}</p>
+
+        <div class="mb-6 grid grid-cols-3 gap-2 text-center text-xs">
+          <div class="rounded-lg bg-neutral-50 p-2">
+            <p class="font-bold text-neutral-900">{{ plan.warehouses >= 999 ? 'Unlimited' : plan.warehouses }}</p>
+            <p class="text-neutral-500">Gudang</p>
+          </div>
+          <div class="rounded-lg bg-neutral-50 p-2">
+            <p class="font-bold text-neutral-900">{{ plan.products >= 99999 ? 'Unlimited' : plan.products.toLocaleString('id-ID') }}</p>
+            <p class="text-neutral-500">Produk</p>
+          </div>
+          <div class="rounded-lg bg-neutral-50 p-2">
+            <p class="font-bold text-neutral-900">{{ plan.users >= 999 ? 'Unlimited' : plan.users }}</p>
+            <p class="text-neutral-500">User</p>
+          </div>
+        </div>
 
         <ul class="space-y-3 mb-6">
           <li
@@ -179,11 +204,11 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
             Belum yakin dengan paket?
           </h3>
           <p class="text-sm text-primary-700 mt-1">
-            Coba semua fitur Pro gratis selama 7 hari. Tidak perlu kartu kredit!
+            Kirim request trial lewat WhatsApp agar super admin bisa menyiapkan paket dan durasi yang sesuai.
           </p>
         </div>
         <button @click="goToTrial" class="btn-primary">
-          Coba Trial Gratis
+          Request Trial
         </button>
       </div>
     </div>

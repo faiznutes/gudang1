@@ -87,19 +87,28 @@ const capabilities = [
 const plans = [
   {
     name: 'Starter',
+    price: 'Rp250.000',
+    originalPrice: null,
+    period: '/bulan',
     description: 'Untuk toko kecil yang mulai merapikan stok.',
     features: ['1 gudang utama', 'Produk dan supplier dasar', 'Stock masuk dan keluar', 'Laporan inventori inti'],
   },
   {
     name: 'Growth',
+    price: 'Rp300.000',
+    originalPrice: 'Rp500.000',
+    period: '/bulan',
     description: 'Untuk bisnis yang punya beberapa lokasi atau tim.',
-    features: ['Multi gudang', 'Staff dan permission per role', 'Import/export CSV', 'Alert stok menipis'],
+    features: ['Multi gudang', 'Staff dan permission per role', 'Analytics operasional', 'Alert stok menipis'],
     popular: true,
   },
   {
     name: 'Pro',
+    price: 'Rp500.000',
+    originalPrice: null,
+    period: '/bulan',
     description: 'Untuk operasional yang butuh kontrol dan audit lebih lengkap.',
-    features: ['Audit trail lengkap', 'Analytics lanjutan', 'Prioritas konfigurasi', 'Add-on sesuai kebutuhan'],
+    features: ['Audit trail lengkap', 'Export dan batch import', 'Analytics lanjutan', 'Add-on sesuai kebutuhan'],
   },
 ]
 
@@ -365,7 +374,19 @@ function closeMobileMenu() {
                   <h3 class="text-xl font-bold text-neutral-900">{{ plan.name }}</h3>
                   <p class="mt-2 text-sm leading-6 text-neutral-600">{{ plan.description }}</p>
                 </div>
-                <span v-if="plan.popular" class="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700">Populer</span>
+                <span v-if="plan.popular" class="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700">Promo</span>
+              </div>
+              <div class="mt-5">
+                <p v-if="plan.originalPrice" class="text-sm font-semibold text-neutral-400 line-through">
+                  {{ plan.originalPrice }}
+                </p>
+                <p class="text-3xl font-bold text-neutral-900">
+                  {{ plan.price }}
+                  <span class="text-base font-medium text-neutral-500">{{ plan.period }}</span>
+                </p>
+                <p v-if="plan.originalPrice" class="mt-1 text-xs font-semibold text-success-700">
+                  Diskon dari {{ plan.originalPrice }}/bulan
+                </p>
               </div>
               <ul class="mt-6 space-y-3">
                 <li v-for="item in plan.features" :key="item" class="flex items-start gap-3 text-sm text-neutral-700">
