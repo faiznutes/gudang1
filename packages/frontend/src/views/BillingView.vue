@@ -144,18 +144,18 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
         </ul>
 
         <button
-          v-if="plan.id === 'free'"
-          class="btn-secondary w-full"
-          disabled
-        >
-          Current Plan
-        </button>
-        <button
-          v-else-if="isActive(plan.id)"
+          v-if="isActive(plan.id)"
           class="btn-secondary w-full"
           disabled
         >
           Paket Aktif
+        </button>
+        <button
+          v-else-if="plan.id === 'free'"
+          class="btn-secondary w-full"
+          disabled
+        >
+          Paket Dasar
         </button>
         <button
           v-else
