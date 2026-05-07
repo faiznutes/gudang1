@@ -175,7 +175,7 @@ function goToBilling() {
 
       <!-- Form -->
       <div class="card p-6">
-        <form @submit.prevent="handleSubmit" class="space-y-6">
+        <form @submit.prevent="handleSubmit" class="space-y-6" novalidate>
           <!-- Product -->
           <div>
             <label class="label">Produk</label>

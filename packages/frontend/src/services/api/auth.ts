@@ -67,6 +67,8 @@ export interface SessionPolicy {
 
 export interface AuthResponse {
   user: User
+  platform_role: User['role']
+  workspace_role: User['role']
   workspace: Workspace
   token: string
   entitlements: EntitlementResponse

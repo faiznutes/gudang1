@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { supplierDto } from '../lib/mappers.js'
-import { requireActiveSession, requireAuth } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth, requireTenantRole } from '../middleware/auth.js'
 import { runIdempotent } from '../lib/idempotency.js'
 import { writeAuditLog } from '../lib/audit.js'
 
@@ -40,6 +40,7 @@ export async function supplierRoutes(app: FastifyInstance) {
 
   app.post('/suppliers', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const body = supplierSchema.parse(request.body)
     return runIdempotent(app, ctx, idempotencyKey(request), 'supplier.create', body, async () => {
@@ -66,6 +67,7 @@ export async function supplierRoutes(app: FastifyInstance) {
 
   app.put('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = supplierSchema.partial().parse(request.body)
@@ -93,6 +95,7 @@ export async function supplierRoutes(app: FastifyInstance) {
 
   app.delete('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })

@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify'
-import { requireFeature, requireAuth } from '../middleware/auth.js'
+import { requireFeature, requireAuth, requireTenantRole } from '../middleware/auth.js'
 
 export async function analyticsRoutes(app: FastifyInstance) {
   app.get('/analytics/summary', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     await requireFeature(app, ctx, 'analytics')
 
     const startOfMonth = new Date()

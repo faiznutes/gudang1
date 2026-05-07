@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
-import { requireActiveSession, requireAuth, requireFeature } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth, requireFeature, requireTenantRole } from '../middleware/auth.js'
 import { writeAuditLog } from '../lib/audit.js'
 
 const DATA_TYPES = ['products', 'warehouses', 'suppliers', 'inventory', 'stock_movements', 'audit_logs'] as const
@@ -220,6 +220,7 @@ export async function importExportRoutes(app: FastifyInstance) {
 
   app.get('/export/:type', async (request, reply) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     const params = z.object({ type: z.enum(DATA_TYPES) }).parse(request.params)
     if (params.type !== 'audit_logs') {
       await requireFeature(app, ctx, 'exportPDF')
@@ -235,6 +236,7 @@ export async function importExportRoutes(app: FastifyInstance) {
 
   app.post('/import/:type', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     await requireFeature(app, ctx, 'batchImport')
     const params = z.object({ type: z.enum(DATA_TYPES) }).parse(request.params)

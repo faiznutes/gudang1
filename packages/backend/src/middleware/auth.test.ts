@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AppError } from '../lib/errors.js'
-import { requireActiveSession, requireAuth, requirePlatformRole, requireRole, resolveTenantWorkspaceId, type AuthContext } from './auth.js'
+import { requireActiveSession, requireAuth, requirePlatformRole, requireRole, requireTenantRole, resolveTenantWorkspaceId, type AuthContext } from './auth.js'
 
 function context(role: AuthContext['role'], platformRole: AuthContext['platformRole'] = role): AuthContext {
   return {
@@ -140,6 +140,18 @@ describe('requirePlatformRole', () => {
 
   it('denies client admin from platform admin scope', () => {
     expect(() => requirePlatformRole(context('admin', 'admin'), ['super_admin'])).toThrow(AppError)
+  })
+})
+
+describe('requireTenantRole', () => {
+  it('allows tenant operators for warehouse mutations', () => {
+    expect(() => requireTenantRole(context('admin'), ['admin', 'staff', 'trial'])).not.toThrow()
+    expect(() => requireTenantRole(context('staff'), ['admin', 'staff', 'trial'])).not.toThrow()
+    expect(() => requireTenantRole(context('trial'), ['admin', 'staff', 'trial'])).not.toThrow()
+  })
+
+  it('keeps supplier users read-only until a supplier workflow exists', () => {
+    expect(() => requireTenantRole(context('supplier'), ['admin', 'staff', 'trial'])).toThrow(AppError)
   })
 })
 

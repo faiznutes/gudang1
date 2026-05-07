@@ -74,6 +74,8 @@ async function mockAdminApi(page: Page, captures: Record<string, unknown> = {}) 
       await route.fulfill({
         json: {
           user: { id: 'admin-1', name: 'Super Admin', email: 'admin@test.local', role: 'super_admin', created_at: '2026-05-01T00:00:00.000Z' },
+          platform_role: 'super_admin',
+          workspace_role: 'super_admin',
           workspace: { id: 'platform', name: 'Platform', plan: 'pro', status: 'active', created_at: '2026-05-01T00:00:00.000Z' },
           entitlements,
         },
@@ -242,7 +244,7 @@ test.describe('Super admin tenant management', () => {
     await mockAdminApi(page, captures)
 
     await page.goto('/admin/client-warehouse')
-    await expect(page.getByRole('heading', { name: 'Gudang Klien' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Data Klien', level: 1 })).toBeVisible()
     await page.getByRole('button', { name: /Supplier/ }).click()
     await expect(page.getByText('Supplier Nusantara')).toBeVisible()
     await page.getByRole('button', { name: /Total Stok/ }).click()

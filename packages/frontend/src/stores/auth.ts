@@ -4,6 +4,7 @@ import { useTrialStore } from './trial'
 import { authService, type EntitlementResponse, type SessionPolicy } from '@/services/api/auth'
 import { billingService } from '@/services/api/billing'
 import { useEntitlementsStore } from './entitlements'
+import { clearApiCache } from '@/services/offlineQueue'
 
 export type UserRole = 'admin' | 'staff' | 'supplier' | 'super_admin' | 'trial'
 export type PlanType = 'free' | 'starter' | 'growth' | 'pro' | 'custom'
@@ -30,6 +31,8 @@ export interface Workspace {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const workspace = ref<Workspace | null>(null)
+  const platformRole = ref<UserRole | null>((localStorage.getItem('platform_role') as UserRole | null) ?? null)
+  const workspaceRole = ref<UserRole | null>((localStorage.getItem('workspace_role') as UserRole | null) ?? null)
   const token = ref<string | null>(localStorage.getItem('token'))
   const initialized = ref(false)
   const activitySessionExpiresAt = ref<string | null>(localStorage.getItem('activity_session_expires_at'))
@@ -41,6 +44,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   type SessionSnapshot = {
     user: User
+    platform_role?: UserRole
+    workspace_role?: UserRole
     workspace: Workspace
     entitlements?: EntitlementResponse
     activity_session_expires_at?: string | null
@@ -48,9 +53,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
-  const isStaff = computed(() => user.value?.role === 'staff')
-  const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
+  const isAdmin = computed(() => (workspaceRole.value ?? user.value?.role) === 'admin')
+  const isStaff = computed(() => (workspaceRole.value ?? user.value?.role) === 'staff')
+  const isSuperAdmin = computed(() => (platformRole.value ?? user.value?.role) === 'super_admin')
   const isTrial = computed(() => entitlementsStore.isTrial)
   const homeRoute = computed(() => isSuperAdmin.value ? '/admin' : '/app')
   const activitySessionRemainingMs = computed(() => {
@@ -91,6 +96,8 @@ export const useAuthStore = defineStore('auth', () => {
   function cacheSession(data: SessionSnapshot) {
     localStorage.setItem(OFFLINE_SESSION_KEY, JSON.stringify({
       user: data.user,
+      platform_role: data.platform_role,
+      workspace_role: data.workspace_role,
       workspace: data.workspace,
       entitlements: data.entitlements,
       activity_session_expires_at: data.activity_session_expires_at,
@@ -115,14 +122,18 @@ export const useAuthStore = defineStore('auth', () => {
     return error instanceof TypeError
   }
 
-  function applySession(data: { token?: string; user: User; workspace: Workspace; entitlements?: EntitlementResponse; activity_session_expires_at?: string | null; session_policy?: SessionPolicy }) {
+  function applySession(data: { token?: string; user: User; platform_role?: UserRole; workspace_role?: UserRole; workspace: Workspace; entitlements?: EntitlementResponse; activity_session_expires_at?: string | null; session_policy?: SessionPolicy }) {
     user.value = data.user
     workspace.value = data.workspace
+    platformRole.value = data.platform_role ?? data.user.role
+    workspaceRole.value = data.workspace_role ?? data.user.role
     if (data.token) {
       token.value = data.token
       localStorage.setItem('token', data.token)
     }
     localStorage.setItem(ACTIVE_WORKSPACE_KEY, data.workspace.id)
+    if (platformRole.value) localStorage.setItem('platform_role', platformRole.value)
+    if (workspaceRole.value) localStorage.setItem('workspace_role', workspaceRole.value)
     if (data.entitlements) {
       entitlementsStore.setEntitlements(data.entitlements)
       if (data.entitlements.subscriptionStatus === 'trialing') {
@@ -142,6 +153,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(email: string, password: string) {
     const session = await authService.login({ email, password })
+    await clearApiCache().catch(() => {})
     applySession(session)
   }
 
@@ -153,6 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
       password_confirmation: password,
       trial: true,
     })
+    await clearApiCache().catch(() => {})
     applySession(session)
     trialStore.startTrial()
   }
@@ -165,6 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
       password_confirmation: password,
       plan,
     })
+    await clearApiCache().catch(() => {})
     applySession(session)
   }
 
@@ -198,6 +212,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function switchWorkspace(workspaceId: string) {
     const session = await authService.switchWorkspace(workspaceId)
+    await clearApiCache().catch(() => {})
     applySession(session)
   }
 
@@ -222,6 +237,8 @@ export const useAuthStore = defineStore('auth', () => {
     authService.logout().catch(() => {})
     user.value = null
     workspace.value = null
+    platformRole.value = null
+    workspaceRole.value = null
     token.value = null
     initialized.value = false
     activitySessionExpiresAt.value = null
@@ -230,13 +247,18 @@ export const useAuthStore = defineStore('auth', () => {
     entitlementsStore.reset()
     localStorage.removeItem('token')
     localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
+    localStorage.removeItem('platform_role')
+    localStorage.removeItem('workspace_role')
     localStorage.removeItem('activity_session_expires_at')
     localStorage.removeItem(OFFLINE_SESSION_KEY)
+    clearApiCache().catch(() => {})
   }
 
   return {
     user,
     workspace,
+    platformRole,
+    workspaceRole,
     token,
     initialized,
     isAuthenticated,

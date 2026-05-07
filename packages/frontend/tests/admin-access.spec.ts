@@ -27,6 +27,8 @@ function sessionPayload(role: 'super_admin' | 'admin') {
       role,
       created_at: '2026-05-01T00:00:00.000Z',
     },
+    platform_role: role,
+    workspace_role: role,
     workspace: {
       id: role === 'super_admin' ? 'platform-workspace' : 'tenant-workspace',
       name: role === 'super_admin' ? 'StockPilot Platform' : 'Tenant Test',
@@ -121,5 +123,28 @@ test.describe('Super admin routes', () => {
     await mockSession(page, 'admin')
     await page.goto('/admin')
     await expect(page).toHaveURL(/\/app$/)
+  })
+
+  test('tenant cache refresh never calls platform admin APIs', async ({ page }) => {
+    const adminRequests: string[] = []
+    await mockSession(page, 'admin', { authenticated: false })
+    await page.route(/https?:\/\/[^/]+\/api\/admin\/.*/, async route => {
+      adminRequests.push(route.request().url())
+      await route.fulfill({ status: 403, json: { code: 'forbidden', message: 'Forbidden' } })
+    })
+
+    await page.goto('/login')
+    await page.getByPlaceholder('nama@email.com').fill('tenant@example.com')
+    await page.locator('input[type="password"]').fill('password123')
+    await page.getByRole('button', { name: 'Masuk' }).click()
+    await expect(page).toHaveURL(/\/app$/)
+
+    await page.evaluate(() => {
+      localStorage.removeItem('stockpilot:last-cache-refresh-at')
+      window.dispatchEvent(new Event('focus'))
+    })
+    await page.waitForTimeout(250)
+
+    expect(adminRequests).toEqual([])
   })
 })

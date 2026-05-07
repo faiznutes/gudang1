@@ -42,6 +42,11 @@ export interface EntitlementResponse {
   usage: EntitlementUsage
 }
 
+export interface SessionRoleContext {
+  platform_role: UserRole
+  workspace_role: UserRole
+}
+
 export interface ApiErrorResponse {
   code: 'unauthenticated' | 'forbidden' | 'feature_locked' | 'conflict' | 'validation_error' | 'not_found' | 'internal_error'
   message: string

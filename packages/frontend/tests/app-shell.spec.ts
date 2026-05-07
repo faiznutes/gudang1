@@ -26,7 +26,7 @@ test.describe('App shell boot', () => {
     const appSidebar = page.locator('aside.fixed.top-0.left-0')
 
     await expect(appSidebar).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: /Kelola Gudang/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Solusi konsultasi paket/ })).toBeVisible()
     await expect(appSidebar).toHaveCount(0)
   })
 })

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { categoryDto, inventoryDto, productDto, stockMovementDto, warehouseDto } from '../lib/mappers.js'
 import { getEntitlements } from '../lib/plans.js'
-import { requireActiveSession, requireAuth, requireFeature } from '../middleware/auth.js'
+import { requireActiveSession, requireAuth, requireFeature, requireTenantRole } from '../middleware/auth.js'
 import { runIdempotent } from '../lib/idempotency.js'
 import { writeAuditLog } from '../lib/audit.js'
 
@@ -92,6 +92,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/products', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const body = productSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
@@ -127,6 +128,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.put('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = productUpdateSchema.parse(request.body)
@@ -159,6 +161,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.delete('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
@@ -173,7 +176,6 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.get('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
-    requireActiveSession(ctx)
     const categories = await app.prisma.category.findMany({
       where: { workspaceId: ctx.workspaceId },
       orderBy: { name: 'asc' },
@@ -183,6 +185,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const body = categorySchema.parse(request.body)
     const category = await app.prisma.category.create({
@@ -216,6 +219,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/warehouses', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const body = warehouseSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
@@ -251,6 +255,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.put('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = warehouseSchema.partial().parse(request.body)
@@ -273,6 +278,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.delete('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const warehouse = await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
@@ -301,6 +307,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-in', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
@@ -352,6 +359,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-out', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
@@ -410,6 +418,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.post('/stock-transfer', async (request) => {
     const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     requireActiveSession(ctx)
     await requireFeature(app, ctx, 'stockInOut')
     await requireFeature(app, ctx, 'multiWarehouse')

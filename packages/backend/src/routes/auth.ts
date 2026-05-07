@@ -106,6 +106,8 @@ async function issueSession(
   return {
     token,
     user: userDto(membership.user),
+    platform_role: membership.user.role,
+    workspace_role: membership.role,
     workspace: workspaceDto(membership.workspace),
     entitlements: await getEntitlements(app, membership.workspaceId),
     ...sessionDto(sessionPolicy),
@@ -166,6 +168,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     return {
       user: userDto(member.user),
+      platform_role: member.user.role,
+      workspace_role: member.role,
       workspace: workspaceDto(member.workspace),
       entitlements: await getEntitlements(app, ctx.workspaceId),
       activity_session_expires_at: ctx.sessionExpiresAt?.toISOString() ?? null,

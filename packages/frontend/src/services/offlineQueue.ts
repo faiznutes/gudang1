@@ -26,22 +26,25 @@ export interface OfflineOperation {
 const DB_NAME = 'stockpilot-offline'
 const DB_VERSION = 1
 const STORE_NAME = 'queue'
+const API_CACHE_NAME = 'stockpilot-api-v3'
 const POPUP_DISMISSED_KEY = 'stockpilot:pwa-popup-dismissed-date'
 const LAST_CACHE_REFRESH_KEY = 'stockpilot:last-cache-refresh-at'
+const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
 const DAILY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 export const OFFLINE_QUEUE_CHANGED_EVENT = 'stockpilot:offline-queue-changed'
 export const OFFLINE_SYNC_COMPLETE_EVENT = 'stockpilot:offline-sync-complete'
 let syncInFlight: Promise<void> | null = null
 
-export const CACHE_REFRESH_ENDPOINTS = [
-  '/auth/me',
-  '/me/entitlements',
+export const TENANT_CACHE_REFRESH_ENDPOINTS = [
   '/products',
   '/categories',
   '/warehouses',
   '/inventory',
   '/suppliers',
   '/activities',
+]
+
+export const SUPER_ADMIN_CACHE_REFRESH_ENDPOINTS = [
   '/admin/dashboard/stats',
 ]
 
@@ -155,6 +158,24 @@ function postServiceWorkerMessage(message: Record<string, unknown>) {
   if (controller) controller.postMessage(message)
 }
 
+export async function clearApiCache() {
+  postServiceWorkerMessage({ type: 'CLEAR_API_CACHE' })
+  if ('caches' in window) {
+    await caches.delete(API_CACHE_NAME)
+    await caches.delete('stockpilot-api-v2')
+  }
+}
+
+function getCacheRefreshEndpointsForCurrentSession() {
+  return localStorage.getItem('platform_role') === 'super_admin'
+    ? SUPER_ADMIN_CACHE_REFRESH_ENDPOINTS
+    : TENANT_CACHE_REFRESH_ENDPOINTS
+}
+
+function shouldAttachWorkspaceHeader(endpoint: string) {
+  return !endpoint.startsWith('/admin') && !endpoint.startsWith('/auth')
+}
+
 function notifyOfflineQueueChanged() {
   window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT))
 }
@@ -179,7 +200,7 @@ export async function requestOfflineSync() {
   }
 }
 
-export async function refreshDailyCache(endpoints = CACHE_REFRESH_ENDPOINTS) {
+export async function refreshDailyCache(endpoints = getCacheRefreshEndpointsForCurrentSession()) {
   if (!navigator.onLine) {
     throw new Error('Cache belum bisa diperbarui saat offline')
   }
@@ -187,11 +208,18 @@ export async function refreshDailyCache(endpoints = CACHE_REFRESH_ENDPOINTS) {
   postServiceWorkerMessage({ type: 'REFRESH_DAILY_CACHE', endpoints: endpoints.map(endpoint => `/api${endpoint}`) })
 
   const token = localStorage.getItem('token')
+  const activeWorkspaceId = localStorage.getItem(ACTIVE_WORKSPACE_KEY)
   const results = await Promise.allSettled(
     endpoints.map(async (endpoint) => {
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+      if (activeWorkspaceId && shouldAttachWorkspaceHeader(endpoint)) {
+        headers['X-Workspace-Id'] = activeWorkspaceId
+      }
+
       const response = await fetch(`/api${endpoint}`, {
         method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers,
         credentials: 'include',
         cache: 'reload',
       })

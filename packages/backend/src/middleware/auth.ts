@@ -103,6 +103,12 @@ export function requireRole(ctx: AuthContext, roles: UserRole[]) {
   }
 }
 
+export function requireTenantRole(ctx: AuthContext, roles: UserRole[]) {
+  if (!roles.includes(ctx.role)) {
+    throw new AppError('forbidden', 'Role tenant Anda tidak memiliki akses ke aksi ini')
+  }
+}
+
 export function requirePlatformRole(ctx: AuthContext, roles: UserRole[]) {
   if (!roles.includes(ctx.platformRole)) {
     throw new AppError('forbidden', 'Anda tidak memiliki akses ke halaman ini')

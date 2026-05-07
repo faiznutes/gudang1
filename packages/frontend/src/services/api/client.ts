@@ -1,3 +1,5 @@
+import { clearApiCache } from '@/services/offlineQueue'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
 
@@ -40,14 +42,19 @@ class ApiClient {
         method: 'POST',
         credentials: 'include',
       })
-      if (!response.ok) return false
+      if (!response.ok) {
+        await clearApiCache().catch(() => {})
+        return false
+      }
       const data = await response.json()
       if (data.token) {
         localStorage.setItem('token', data.token)
         return true
       }
+      await clearApiCache().catch(() => {})
       return false
     } catch {
+      await clearApiCache().catch(() => {})
       return false
     }
   }

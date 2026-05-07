@@ -1,5 +1,5 @@
-const CACHE_NAME = 'stockpilot-shell-v4'
-const API_CACHE = 'stockpilot-api-v2'
+const CACHE_NAME = 'stockpilot-shell-v5'
+const API_CACHE = 'stockpilot-api-v3'
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -10,15 +10,12 @@ const SHELL_ASSETS = [
 ]
 
 const CACHEABLE_API_PATTERNS = [
-  /\/api\/auth\/me/,
-  /\/api\/me\/entitlements/,
   /\/api\/products/,
   /\/api\/categories/,
   /\/api\/warehouses/,
   /\/api\/inventory/,
   /\/api\/suppliers/,
   /\/api\/activities/,
-  /\/api\/admin\/dashboard\/stats/,
 ]
 
 self.addEventListener('install', (event) => {
@@ -46,17 +43,28 @@ function isCacheableApi(request) {
 
 async function networkFirst(request) {
   const cache = await caches.open(API_CACHE)
+  const cacheKey = cacheKeyForRequest(request)
   try {
     const response = await fetch(request)
     if (response.ok) {
-      cache.put(request, response.clone())
+      cache.put(cacheKey, response.clone())
     }
     return response
   } catch {
-    const cached = await cache.match(request)
+    const cached = await cache.match(cacheKey)
     if (cached) return cached
-    throw new Error('No cached response')
+    return new Response(JSON.stringify({ code: 'offline', message: 'Data belum tersedia offline' }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    })
   }
+}
+
+function cacheKeyForRequest(request) {
+  const url = new URL(request.url)
+  const workspaceId = request.headers.get('x-workspace-id') || request.headers.get('x-tenant-id') || 'workspace'
+  url.searchParams.set('__workspace_cache_key', workspaceId)
+  return new Request(url.toString(), { method: 'GET' })
 }
 
 async function shellFallback(request) {
@@ -68,7 +76,7 @@ async function shellFallback(request) {
     if (request.mode === 'navigate') {
       return caches.match('/index.html')
     }
-    throw new Error('Network unavailable')
+    return new Response('', { status: 503, statusText: 'Network unavailable' })
   }
 }
 
@@ -141,5 +149,10 @@ self.addEventListener('message', (event) => {
       type: 'CACHE_REFRESHED',
       refreshedAt: event.data?.refreshedAt || new Date().toISOString(),
     }))
+    return
+  }
+
+  if (type === 'CLEAR_API_CACHE') {
+    event.waitUntil(caches.delete(API_CACHE))
   }
 })
