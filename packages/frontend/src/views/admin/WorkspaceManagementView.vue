@@ -8,9 +8,11 @@ import {
   ChevronRight,
   Eye,
   Package,
+  Plus,
   RefreshCw,
   Save,
   Search,
+  Trash2,
   Users,
   Warehouse,
 } from 'lucide-vue-next'
@@ -31,11 +33,25 @@ const saving = ref(false)
 const errorMessage = ref('')
 const showDetailModal = ref(false)
 const showEditModal = ref(false)
+const showCreateModal = ref(false)
 const selectedWorkspace = ref<Workspace | null>(null)
 const formData = ref<{ name: string; plan: AdminPlan; status: WorkspaceStatus }>({
   name: '',
   plan: 'free',
   status: 'active',
+})
+const createStep = ref(1)
+const tenantForm = ref({
+  name: '',
+  plan: 'starter' as AdminPlan,
+  status: 'active' as WorkspaceStatus,
+  subscription_status: 'active' as 'active' | 'trialing',
+  current_period_start: formatDateTimeLocal(new Date()),
+  current_period_end: formatDateTimeLocal(addMonths(new Date(), 1)),
+  owner: { name: '', email: '', password: 'password123' },
+  warehouse: { name: 'Gudang Utama', address: '' },
+  staff: [] as Array<{ name: string; email: string; password: string; role: 'admin' | 'staff' | 'supplier' }>,
+  suppliers: [] as Array<{ name: string; contact_person: string; phone: string; email: string; address: string; notes: string }>,
 })
 const itemsPerPage = 10
 
@@ -91,6 +107,75 @@ function openEditModal(workspace: Workspace) {
     status: workspace.status,
   }
   showEditModal.value = true
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+
+function formatDateTimeLocal(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function openCreateModal() {
+  createStep.value = 1
+  tenantForm.value = {
+    name: '',
+    plan: 'starter',
+    status: 'active',
+    subscription_status: 'active',
+    current_period_start: formatDateTimeLocal(new Date()),
+    current_period_end: formatDateTimeLocal(addMonths(new Date(), 1)),
+    owner: { name: '', email: '', password: 'password123' },
+    warehouse: { name: 'Gudang Utama', address: '' },
+    staff: [],
+    suppliers: [],
+  }
+  showCreateModal.value = true
+}
+
+function addStaffRow() {
+  tenantForm.value.staff.push({ name: '', email: '', password: 'password123', role: 'staff' })
+}
+
+function removeStaffRow(index: number) {
+  tenantForm.value.staff.splice(index, 1)
+}
+
+function addSupplierRow() {
+  tenantForm.value.suppliers.push({ name: '', contact_person: '', phone: '', email: '', address: '', notes: '' })
+}
+
+function removeSupplierRow(index: number) {
+  tenantForm.value.suppliers.splice(index, 1)
+}
+
+async function createTenant() {
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await adminService.createWorkspace({
+      name: tenantForm.value.name,
+      plan: tenantForm.value.plan,
+      status: tenantForm.value.status,
+      subscription_status: tenantForm.value.subscription_status,
+      current_period_start: new Date(tenantForm.value.current_period_start).toISOString(),
+      current_period_end: new Date(tenantForm.value.current_period_end).toISOString(),
+      owner: tenantForm.value.owner,
+      warehouse: tenantForm.value.warehouse,
+      staff: tenantForm.value.staff,
+      suppliers: tenantForm.value.suppliers.filter(supplier => supplier.name.trim()),
+    })
+    showCreateModal.value = false
+    await loadWorkspaces(1)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Tenant gagal dibuat'
+  } finally {
+    saving.value = false
+  }
 }
 
 async function saveWorkspace() {
@@ -171,10 +256,16 @@ onMounted(() => loadWorkspaces(1))
         <h2 class="text-2xl font-bold text-neutral-900">Kelola Tenant</h2>
         <p class="text-neutral-600">Pantau tenant, pemilik, pemakaian, dan status operasional</p>
       </div>
-      <button class="btn-secondary" :disabled="loading" @click="loadWorkspaces()">
-        <RefreshCw :class="['h-4 w-4', loading ? 'animate-spin' : '']" />
-        Refresh
-      </button>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button class="btn-primary" @click="openCreateModal">
+          <Plus class="h-4 w-4" />
+          Tambah Tenant
+        </button>
+        <button class="btn-secondary" :disabled="loading" @click="loadWorkspaces()">
+          <RefreshCw :class="['h-4 w-4', loading ? 'animate-spin' : '']" />
+          Refresh
+        </button>
+      </div>
     </div>
 
     <div v-if="errorMessage" class="rounded-lg border border-danger-100 bg-danger-50 p-4 text-sm text-danger-700">
@@ -407,6 +498,195 @@ onMounted(() => loadWorkspaces(1))
           </section>
         </div>
       </div>
+    </div>
+
+    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+      <form class="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl bg-white shadow-xl sm:rounded-2xl" @submit.prevent="createTenant">
+        <div class="sticky top-0 z-10 border-b border-neutral-100 bg-white/95 p-4 backdrop-blur">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-semibold text-neutral-900">Tambah Tenant Baru</h3>
+              <p class="text-sm text-neutral-500">Setup tenant, owner, paket, gudang, staff, dan supplier awal.</p>
+            </div>
+            <button type="button" class="rounded-lg p-2 hover:bg-neutral-100" @click="showCreateModal = false">x</button>
+          </div>
+          <div class="mt-4 grid grid-cols-4 gap-2">
+            <button
+              v-for="step in [
+                [1, 'Tenant'],
+                [2, 'Owner'],
+                [3, 'Gudang'],
+                [4, 'Review'],
+              ]"
+              :key="step[0]"
+              type="button"
+              :class="['rounded-xl px-3 py-2 text-sm font-medium', createStep === step[0] ? 'bg-primary-600 text-white' : 'bg-neutral-100 text-neutral-600']"
+              @click="createStep = Number(step[0])"
+            >
+              {{ step[1] }}
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-5 p-4 lg:p-6">
+          <section v-if="createStep === 1" class="grid gap-4 lg:grid-cols-2">
+            <div>
+              <label class="label">Nama Tenant</label>
+              <input v-model="tenantForm.name" class="input w-full" required placeholder="Contoh: Gudang Maju Bersama" />
+            </div>
+            <div>
+              <label class="label">Paket</label>
+              <select v-model="tenantForm.plan" class="input w-full">
+                <option value="free">Gratis</option>
+                <option value="starter">Starter</option>
+                <option value="growth">Growth</option>
+                <option value="pro">Pro</option>
+                <option value="custom">Kustom</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Status Tenant</label>
+              <select v-model="tenantForm.status" class="input w-full">
+                <option value="active">Aktif</option>
+                <option value="trial">Trial</option>
+                <option value="suspended">Ditangguhkan</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Status Subscription</label>
+              <select v-model="tenantForm.subscription_status" class="input w-full">
+                <option value="active">Aktif</option>
+                <option value="trialing">Trial</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Mulai Subscription</label>
+              <input v-model="tenantForm.current_period_start" type="datetime-local" class="input w-full" required />
+            </div>
+            <div>
+              <label class="label">Berakhir Subscription</label>
+              <input v-model="tenantForm.current_period_end" type="datetime-local" class="input w-full" required />
+            </div>
+          </section>
+
+          <section v-if="createStep === 2" class="space-y-5">
+            <div class="grid gap-4 lg:grid-cols-3">
+              <div>
+                <label class="label">Nama Owner</label>
+                <input v-model="tenantForm.owner.name" class="input w-full" required placeholder="Nama tenant admin" />
+              </div>
+              <div>
+                <label class="label">Email Owner</label>
+                <input v-model="tenantForm.owner.email" class="input w-full" type="email" required placeholder="owner@email.com" />
+              </div>
+              <div>
+                <label class="label">Password Awal</label>
+                <input v-model="tenantForm.owner.password" class="input w-full" type="text" required />
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-neutral-100 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h4 class="font-semibold text-neutral-900">Staff Tenant</h4>
+                  <p class="text-sm text-neutral-500">Staff hanya masuk ke tenant ini, tidak dibagikan ke tenant lain.</p>
+                </div>
+                <button type="button" class="btn-secondary btn-sm" @click="addStaffRow">
+                  <Plus class="h-4 w-4" />
+                  Tambah Staff
+                </button>
+              </div>
+              <div class="mt-4 space-y-3">
+                <div v-for="(staff, index) in tenantForm.staff" :key="index" class="grid gap-3 rounded-xl bg-neutral-50 p-3 lg:grid-cols-[1fr_1fr_120px_44px]">
+                  <input v-model="staff.name" class="input" placeholder="Nama staff" required />
+                  <input v-model="staff.email" class="input" type="email" placeholder="staff@email.com" required />
+                  <select v-model="staff.role" class="input">
+                    <option value="staff">Staff</option>
+                    <option value="supplier">Supplier</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button type="button" class="rounded-lg p-2 text-danger-600 hover:bg-danger-50" @click="removeStaffRow(index)">
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
+                <p v-if="tenantForm.staff.length === 0" class="text-sm text-neutral-500">Belum ada staff tambahan.</p>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="createStep === 3" class="space-y-5">
+            <div class="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label class="label">Gudang Default</label>
+                <input v-model="tenantForm.warehouse.name" class="input w-full" required />
+              </div>
+              <div>
+                <label class="label">Alamat Gudang</label>
+                <input v-model="tenantForm.warehouse.address" class="input w-full" placeholder="Alamat gudang utama" />
+              </div>
+            </div>
+            <div class="rounded-2xl border border-neutral-100 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h4 class="font-semibold text-neutral-900">Supplier Awal</h4>
+                  <p class="text-sm text-neutral-500">Supplier akan tersimpan hanya untuk tenant ini.</p>
+                </div>
+                <button type="button" class="btn-secondary btn-sm" @click="addSupplierRow">
+                  <Plus class="h-4 w-4" />
+                  Tambah Supplier
+                </button>
+              </div>
+              <div class="mt-4 space-y-3">
+                <div v-for="(supplier, index) in tenantForm.suppliers" :key="index" class="grid gap-3 rounded-xl bg-neutral-50 p-3 lg:grid-cols-[1fr_1fr_1fr_44px]">
+                  <input v-model="supplier.name" class="input" placeholder="Nama supplier" required />
+                  <input v-model="supplier.contact_person" class="input" placeholder="PIC" />
+                  <input v-model="supplier.phone" class="input" placeholder="Telepon" />
+                  <button type="button" class="rounded-lg p-2 text-danger-600 hover:bg-danger-50" @click="removeSupplierRow(index)">
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                  <input v-model="supplier.email" class="input lg:col-span-2" type="email" placeholder="email@supplier.com" />
+                  <input v-model="supplier.address" class="input lg:col-span-2" placeholder="Alamat supplier" />
+                </div>
+                <p v-if="tenantForm.suppliers.length === 0" class="text-sm text-neutral-500">Belum ada supplier awal.</p>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="createStep === 4" class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl bg-primary-50 p-4">
+              <p class="text-sm text-primary-700">Tenant</p>
+              <p class="text-xl font-bold text-primary-950">{{ tenantForm.name || 'Nama tenant belum diisi' }}</p>
+              <p class="mt-2 text-sm text-primary-700">{{ labelFrom(planLabels, tenantForm.plan) }} - {{ tenantForm.subscription_status }}</p>
+            </div>
+            <div class="rounded-2xl bg-neutral-50 p-4">
+              <p class="text-sm text-neutral-500">Owner</p>
+              <p class="text-lg font-semibold text-neutral-900">{{ tenantForm.owner.name || '-' }}</p>
+              <p class="text-sm text-neutral-600">{{ tenantForm.owner.email || '-' }}</p>
+            </div>
+            <div class="rounded-2xl bg-neutral-50 p-4">
+              <p class="text-sm text-neutral-500">Gudang</p>
+              <p class="text-lg font-semibold text-neutral-900">{{ tenantForm.warehouse.name }}</p>
+              <p class="text-sm text-neutral-600">{{ tenantForm.warehouse.address || '-' }}</p>
+            </div>
+            <div class="rounded-2xl bg-neutral-50 p-4">
+              <p class="text-sm text-neutral-500">Setup Awal</p>
+              <p class="text-lg font-semibold text-neutral-900">{{ tenantForm.staff.length }} staff, {{ tenantForm.suppliers.length }} supplier</p>
+              <p class="text-sm text-neutral-600">{{ formatDate(tenantForm.current_period_start) }} - {{ formatDate(tenantForm.current_period_end) }}</p>
+            </div>
+          </section>
+        </div>
+
+        <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-100 bg-white p-4">
+          <button type="button" class="btn-secondary" :disabled="createStep === 1" @click="createStep = Math.max(1, createStep - 1)">Kembali</button>
+          <div class="flex gap-2">
+            <button v-if="createStep < 4" type="button" class="btn-primary" @click="createStep = Math.min(4, createStep + 1)">Lanjut</button>
+            <button v-else type="submit" class="btn-primary" :disabled="saving">
+              <Save class="h-4 w-4" />
+              Buat Tenant
+            </button>
+          </div>
+        </div>
+      </form>
     </div>
 
     <div v-if="showEditModal && selectedWorkspace" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

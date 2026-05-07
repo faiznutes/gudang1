@@ -7,6 +7,8 @@ const defaultEntitlements: EntitlementResponse = {
   plan: 'free',
   subscriptionStatus: 'none',
   trialEndsAt: null,
+  subscriptionStartsAt: null,
+  subscriptionEndsAt: null,
   features: {
     stockInOut: false,
     multiWarehouse: false,

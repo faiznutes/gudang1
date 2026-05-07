@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Ban, CheckCircle2, Package, Plus, RefreshCw, Save, Trash2, Warehouse, ClipboardList } from 'lucide-vue-next'
-import adminService, { type ManagedProduct, type ManagedWarehouse, type ScheduledActivity, type Workspace } from '@/services/api/admin'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ArrowDownToLine, ArrowUpFromLine, Ban, CheckCircle2, ClipboardList, Package, Pencil, Plus, RefreshCw, Save, Trash2, Truck, Warehouse } from 'lucide-vue-next'
+import adminService, { type ManagedProduct, type ManagedSupplier, type ManagedWarehouse, type ScheduledActivity, type Workspace, type WorkspaceInventorySummary } from '@/services/api/admin'
 
 const workspaces = ref<Workspace[]>([])
 const selectedWorkspaceId = ref('')
 const products = ref<ManagedProduct[]>([])
 const warehouses = ref<ManagedWarehouse[]>([])
+const suppliers = ref<ManagedSupplier[]>([])
 const activities = ref<ScheduledActivity[]>([])
-const activeTab = ref<'products' | 'warehouses' | 'activities'>('products')
+const inventorySummary = ref<WorkspaceInventorySummary | null>(null)
+const activeTab = ref<'products' | 'warehouses' | 'suppliers' | 'stock' | 'activities'>('products')
 const loading = ref(true)
 const saving = ref(false)
 const errorMessage = ref('')
@@ -16,9 +18,22 @@ const successMessage = ref('')
 
 const productForm = ref({ id: '', sku: '', name: '', category: 'Umum', description: '', min_stock: 0, price: 0 })
 const warehouseForm = ref({ id: '', name: '', address: '', is_default: false })
+const supplierForm = ref({ id: '', name: '', contact_person: '', phone: '', email: '', address: '', notes: '' })
 const activityForm = ref({ id: '', title: '', type: 'task', status: 'pending', description: '', due_at: '' })
+const stockForm = ref({ product_id: '', warehouse_id: '', to_warehouse_id: '', quantity: 1, notes: '', type: 'in' as 'in' | 'out' | 'transfer' })
 
 const selectedWorkspace = computed(() => workspaces.value.find(workspace => workspace.id === selectedWorkspaceId.value))
+
+function nextTransferWarehouseId(sourceId = stockForm.value.warehouse_id) {
+  return warehouses.value.find(warehouse => !warehouse.disabled_at && warehouse.id !== sourceId)?.id ?? ''
+}
+
+function syncTransferDestination() {
+  const destination = warehouses.value.find(warehouse => warehouse.id === stockForm.value.to_warehouse_id)
+  if (stockForm.value.type === 'transfer' && (!destination || destination.disabled_at || destination.id === stockForm.value.warehouse_id)) {
+    stockForm.value.to_warehouse_id = nextTransferWarehouseId()
+  }
+}
 
 async function loadWorkspaces() {
   const response = await adminService.getWorkspaces(1, {})
@@ -38,13 +53,93 @@ async function loadClientData() {
       adminService.getWorkspaceWarehouses(selectedWorkspaceId.value),
       adminService.getScheduledActivities(selectedWorkspaceId.value),
     ])
+    const [supplierData, inventoryData] = await Promise.all([
+      adminService.getWorkspaceSuppliers(selectedWorkspaceId.value),
+      adminService.getWorkspaceInventorySummary(selectedWorkspaceId.value),
+    ])
     products.value = productData
     warehouses.value = warehouseData
     activities.value = activityData
+    suppliers.value = supplierData
+    inventorySummary.value = inventoryData
+    stockForm.value.product_id = productData.find(product => !product.disabled_at)?.id ?? productData[0]?.id ?? ''
+    stockForm.value.warehouse_id = warehouseData.find(warehouse => !warehouse.disabled_at)?.id ?? warehouseData[0]?.id ?? ''
+    stockForm.value.to_warehouse_id = nextTransferWarehouseId()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Data gudang klien gagal dimuat'
   } finally {
     loading.value = false
+  }
+}
+
+function clearSupplierForm() {
+  supplierForm.value = { id: '', name: '', contact_person: '', phone: '', email: '', address: '', notes: '' }
+}
+
+function editSupplier(supplier: ManagedSupplier) {
+  supplierForm.value = {
+    id: supplier.id,
+    name: supplier.name,
+    contact_person: supplier.contact_person ?? '',
+    phone: supplier.phone ?? '',
+    email: supplier.email ?? '',
+    address: supplier.address ?? '',
+    notes: supplier.notes ?? '',
+  }
+}
+
+async function saveSupplier() {
+  if (!selectedWorkspaceId.value) return
+  saving.value = true
+  try {
+    if (supplierForm.value.id) {
+      await adminService.updateWorkspaceSupplier(selectedWorkspaceId.value, supplierForm.value.id, supplierForm.value)
+      successMessage.value = 'Supplier klien diperbarui'
+    } else {
+      await adminService.createWorkspaceSupplier(selectedWorkspaceId.value, supplierForm.value)
+      successMessage.value = 'Supplier klien ditambahkan'
+    }
+    clearSupplierForm()
+    await loadClientData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Supplier gagal disimpan'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleSupplier(supplier: ManagedSupplier) {
+  if (!selectedWorkspaceId.value) return
+  if (supplier.disabled_at) await adminService.enableWorkspaceSupplier(selectedWorkspaceId.value, supplier.id)
+  else await adminService.disableWorkspaceSupplier(selectedWorkspaceId.value, supplier.id)
+  await loadClientData()
+}
+
+async function removeSupplier(supplier: ManagedSupplier) {
+  if (!selectedWorkspaceId.value || !confirm(`Hapus permanen supplier ${supplier.name}?`)) return
+  await adminService.removeWorkspaceSupplier(selectedWorkspaceId.value, supplier.id)
+  await loadClientData()
+}
+
+async function saveStockOperation() {
+  if (!selectedWorkspaceId.value) return
+  saving.value = true
+  try {
+    const payload = {
+      product_id: stockForm.value.product_id,
+      warehouse_id: stockForm.value.warehouse_id,
+      quantity: stockForm.value.quantity,
+      notes: stockForm.value.notes,
+    }
+    if (stockForm.value.type === 'in') await adminService.adminStockIn(selectedWorkspaceId.value, payload)
+    else if (stockForm.value.type === 'out') await adminService.adminStockOut(selectedWorkspaceId.value, payload)
+    else await adminService.adminStockTransfer(selectedWorkspaceId.value, { ...payload, to_warehouse_id: stockForm.value.to_warehouse_id })
+    successMessage.value = 'Stok tenant diperbarui'
+    await loadClientData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Operasi stok gagal'
+  } finally {
+    saving.value = false
   }
 }
 
@@ -141,6 +236,16 @@ async function toggleWarehouse(warehouse: ManagedWarehouse) {
   await loadClientData()
 }
 
+async function removeWarehouse(warehouse: ManagedWarehouse) {
+  if (!selectedWorkspaceId.value || !confirm(`Hapus permanen gudang ${warehouse.name}? Jika ada histori stok, gunakan Nonaktifkan.`)) return
+  try {
+    await adminService.removeWorkspaceWarehouse(selectedWorkspaceId.value, warehouse.id)
+    await loadClientData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Gudang tidak bisa dihapus permanen'
+  }
+}
+
 function clearActivityForm() {
   activityForm.value = { id: '', title: '', type: 'task', status: 'pending', description: '', due_at: '' }
 }
@@ -187,6 +292,12 @@ async function toggleActivity(activity: ScheduledActivity) {
   await loadClientData()
 }
 
+async function removeActivity(activity: ScheduledActivity) {
+  if (!selectedWorkspaceId.value || !confirm(`Hapus permanen aktivitas ${activity.title}?`)) return
+  await adminService.removeScheduledActivity(selectedWorkspaceId.value, activity.id)
+  await loadClientData()
+}
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount)
 }
@@ -200,6 +311,11 @@ onMounted(async () => {
   await loadWorkspaces()
   await loadClientData()
 })
+
+watch(
+  () => [stockForm.value.type, stockForm.value.warehouse_id, warehouses.value.map(warehouse => `${warehouse.id}:${warehouse.disabled_at ?? ''}`).join('|')],
+  syncTransferDestination,
+)
 </script>
 
 <template>
@@ -228,7 +344,7 @@ onMounted(async () => {
       <p v-if="selectedWorkspace" class="mt-2 text-sm text-neutral-500">ID: {{ selectedWorkspace.id }}</p>
     </div>
 
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
       <button :class="['card p-4 text-left', activeTab === 'products' ? 'ring-2 ring-primary-500' : '']" @click="activeTab = 'products'">
         <Package class="h-5 w-5 text-primary-600" />
         <p class="mt-2 text-sm text-neutral-500">Produk</p>
@@ -238,6 +354,16 @@ onMounted(async () => {
         <Warehouse class="h-5 w-5 text-success-600" />
         <p class="mt-2 text-sm text-neutral-500">Gudang</p>
         <p class="text-2xl font-bold text-neutral-900">{{ warehouses.length }}</p>
+      </button>
+      <button :class="['card p-4 text-left', activeTab === 'suppliers' ? 'ring-2 ring-primary-500' : '']" @click="activeTab = 'suppliers'">
+        <Truck class="h-5 w-5 text-neutral-700" />
+        <p class="mt-2 text-sm text-neutral-500">Supplier</p>
+        <p class="text-2xl font-bold text-neutral-900">{{ suppliers.length }}</p>
+      </button>
+      <button :class="['card p-4 text-left', activeTab === 'stock' ? 'ring-2 ring-primary-500' : '']" @click="activeTab = 'stock'">
+        <ArrowDownToLine class="h-5 w-5 text-primary-600" />
+        <p class="mt-2 text-sm text-neutral-500">Total Stok</p>
+        <p class="text-2xl font-bold text-neutral-900">{{ inventorySummary?.totals.stock ?? 0 }}</p>
       </button>
       <button :class="['card p-4 text-left', activeTab === 'activities' ? 'ring-2 ring-primary-500' : '']" @click="activeTab = 'activities'">
         <ClipboardList class="h-5 w-5 text-warning-600" />
@@ -265,13 +391,13 @@ onMounted(async () => {
           <thead><tr><th class="table-header">Produk</th><th class="table-header">Stok Min</th><th class="table-header">Harga</th><th class="table-header">Status</th><th class="table-header text-right">Aksi</th></tr></thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-for="product in products" :key="product.id" class="hover:bg-neutral-50">
-              <td class="table-cell"><p class="font-medium">{{ product.name }}</p><p class="text-xs text-neutral-500">{{ product.sku }} · {{ product.category?.name }}</p></td>
+              <td class="table-cell"><p class="font-medium">{{ product.name }}</p><p class="text-xs text-neutral-500">{{ product.sku }} - {{ product.category?.name }}</p></td>
               <td class="table-cell">{{ product.min_stock }}</td>
               <td class="table-cell">{{ formatCurrency(product.price) }}</td>
               <td class="table-cell"><span :class="['badge', product.disabled_at ? 'badge-danger' : 'badge-success']">{{ product.disabled_at ? 'Nonaktif' : 'Aktif' }}</span></td>
               <td class="table-cell">
                 <div class="flex justify-end gap-2">
-                  <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editProduct(product)"><Save class="h-4 w-4" /></button>
+                  <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editProduct(product)"><Pencil class="h-4 w-4" /></button>
                   <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="toggleProduct(product)">
                     <CheckCircle2 v-if="product.disabled_at" class="h-4 w-4 text-success-600" />
                     <Ban v-else class="h-4 w-4 text-warning-600" />
@@ -297,18 +423,150 @@ onMounted(async () => {
         </div>
       </form>
       <div class="card divide-y divide-neutral-100">
-        <div v-for="warehouse in warehouses" :key="warehouse.id" class="flex items-center justify-between p-4">
+        <div v-for="warehouse in warehouses" :key="warehouse.id" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="font-medium text-neutral-900">{{ warehouse.name }}</p>
             <p class="text-sm text-neutral-500">{{ warehouse.address || '-' }}</p>
           </div>
           <div class="flex items-center gap-2">
             <span :class="['badge', warehouse.disabled_at ? 'badge-danger' : 'badge-success']">{{ warehouse.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>
-            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editWarehouse(warehouse)"><Save class="h-4 w-4" /></button>
+            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editWarehouse(warehouse)"><Pencil class="h-4 w-4" /></button>
             <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="toggleWarehouse(warehouse)">
               <CheckCircle2 v-if="warehouse.disabled_at" class="h-4 w-4 text-success-600" />
               <Ban v-else class="h-4 w-4 text-warning-600" />
             </button>
+            <button class="rounded-lg p-1.5 hover:bg-danger-50" @click="removeWarehouse(warehouse)"><Trash2 class="h-4 w-4 text-danger-600" /></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="activeTab === 'suppliers'" class="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <form class="card p-4 space-y-4" @submit.prevent="saveSupplier">
+        <h3 class="font-semibold text-neutral-900">{{ supplierForm.id ? 'Edit Supplier' : 'Tambah Supplier' }}</h3>
+        <input v-model="supplierForm.name" class="input" placeholder="Nama supplier" required />
+        <input v-model="supplierForm.contact_person" class="input" placeholder="Kontak utama" />
+        <input v-model="supplierForm.phone" class="input" placeholder="Nomor telepon" />
+        <input v-model="supplierForm.email" class="input" type="email" placeholder="Email supplier" />
+        <textarea v-model="supplierForm.address" class="input min-h-[80px]" placeholder="Alamat"></textarea>
+        <textarea v-model="supplierForm.notes" class="input min-h-[80px]" placeholder="Catatan kerja sama"></textarea>
+        <div class="flex gap-2">
+          <button class="btn-primary" :disabled="saving"><Save class="h-4 w-4" /> Simpan</button>
+          <button type="button" class="btn-secondary" @click="clearSupplierForm">Reset</button>
+        </div>
+      </form>
+      <div class="card divide-y divide-neutral-100">
+        <div v-if="!suppliers.length" class="p-5 text-sm text-neutral-500">Belum ada supplier untuk tenant ini.</div>
+        <div v-for="supplier in suppliers" :key="supplier.id" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <p class="font-medium text-neutral-900">{{ supplier.name }}</p>
+            <p class="text-sm text-neutral-500">{{ supplier.contact_person || 'Tanpa kontak' }} - {{ supplier.phone || supplier.email || 'Belum ada kanal kontak' }}</p>
+            <p v-if="supplier.address" class="text-xs text-neutral-500">{{ supplier.address }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span :class="['badge', supplier.disabled_at ? 'badge-danger' : 'badge-success']">{{ supplier.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>
+            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editSupplier(supplier)"><Pencil class="h-4 w-4" /></button>
+            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="toggleSupplier(supplier)">
+              <CheckCircle2 v-if="supplier.disabled_at" class="h-4 w-4 text-success-600" />
+              <Ban v-else class="h-4 w-4 text-warning-600" />
+            </button>
+            <button class="rounded-lg p-1.5 hover:bg-danger-50" @click="removeSupplier(supplier)"><Trash2 class="h-4 w-4 text-danger-600" /></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="activeTab === 'stock'" class="space-y-6">
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="card p-4">
+          <p class="text-sm text-neutral-500">Item terpantau</p>
+          <p class="text-2xl font-bold text-neutral-900">{{ inventorySummary?.totals.items ?? 0 }}</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-sm text-neutral-500">Unit tersedia</p>
+          <p class="text-2xl font-bold text-neutral-900">{{ inventorySummary?.totals.stock ?? 0 }}</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-sm text-neutral-500">Stok rendah</p>
+          <p class="text-2xl font-bold text-warning-700">{{ inventorySummary?.totals.low_stock ?? 0 }}</p>
+        </div>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <form class="card p-4 space-y-4" @submit.prevent="saveStockOperation">
+          <div>
+            <h3 class="font-semibold text-neutral-900">Operasi Stok</h3>
+            <p class="text-sm text-neutral-500">Super admin dapat menambah, mengurangi, atau memindahkan stok tenant.</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" :class="['rounded-lg border p-3 text-left text-sm', stockForm.type === 'in' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-neutral-200 text-neutral-600']" @click="stockForm.type = 'in'">
+              <ArrowDownToLine class="mb-2 h-4 w-4" />
+              Masuk
+            </button>
+            <button type="button" :class="['rounded-lg border p-3 text-left text-sm', stockForm.type === 'out' ? 'border-warning-500 bg-warning-50 text-warning-700' : 'border-neutral-200 text-neutral-600']" @click="stockForm.type = 'out'">
+              <ArrowUpFromLine class="mb-2 h-4 w-4" />
+              Keluar
+            </button>
+            <button type="button" :class="['rounded-lg border p-3 text-left text-sm', stockForm.type === 'transfer' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-neutral-200 text-neutral-600']" @click="stockForm.type = 'transfer'">
+              <Truck class="mb-2 h-4 w-4" />
+              Transfer
+            </button>
+          </div>
+          <select v-model="stockForm.product_id" class="input" required>
+            <option value="" disabled>Pilih produk</option>
+            <option v-for="product in products" :key="product.id" :value="product.id" :disabled="!!product.disabled_at">
+              {{ product.sku }} - {{ product.name }}{{ product.disabled_at ? ' (nonaktif)' : '' }}
+            </option>
+          </select>
+          <select v-model="stockForm.warehouse_id" class="input" required>
+            <option value="" disabled>Gudang asal/tujuan</option>
+            <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id" :disabled="!!warehouse.disabled_at">
+              {{ warehouse.name }}{{ warehouse.disabled_at ? ' (nonaktif)' : '' }}
+            </option>
+          </select>
+          <select v-if="stockForm.type === 'transfer'" v-model="stockForm.to_warehouse_id" class="input" required>
+            <option value="" disabled>Gudang tujuan</option>
+            <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id" :disabled="!!warehouse.disabled_at || warehouse.id === stockForm.warehouse_id">
+              {{ warehouse.name }}{{ warehouse.disabled_at ? ' (nonaktif)' : '' }}
+            </option>
+          </select>
+          <input v-model.number="stockForm.quantity" class="input" type="number" min="1" placeholder="Jumlah" required />
+          <textarea v-model="stockForm.notes" class="input min-h-[80px]" placeholder="Catatan stok"></textarea>
+          <button class="btn-primary w-full justify-center" :disabled="saving || !stockForm.product_id || !stockForm.warehouse_id || (stockForm.type === 'transfer' && (!stockForm.to_warehouse_id || stockForm.to_warehouse_id === stockForm.warehouse_id))">
+            <Save class="h-4 w-4" />
+            Simpan Operasi
+          </button>
+        </form>
+
+        <div class="card overflow-hidden">
+          <div class="border-b border-neutral-100 p-4">
+            <h3 class="font-semibold text-neutral-900">Ringkasan Inventori</h3>
+            <p class="text-sm text-neutral-500">Stok terpisah per produk dan gudang tenant.</p>
+          </div>
+          <div v-if="!inventorySummary?.items.length" class="p-5 text-sm text-neutral-500">Belum ada stok tercatat.</div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full min-w-[720px]">
+              <thead>
+                <tr>
+                  <th class="table-header">Produk</th>
+                  <th class="table-header">Gudang</th>
+                  <th class="table-header">Jumlah</th>
+                  <th class="table-header">Min</th>
+                  <th class="table-header">Status</th>
+                  <th class="table-header">Update</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr v-for="item in inventorySummary.items" :key="item.id" class="hover:bg-neutral-50">
+                  <td class="table-cell"><p class="font-medium">{{ item.product_name }}</p><p class="text-xs text-neutral-500">{{ item.product_sku }}</p></td>
+                  <td class="table-cell">{{ item.warehouse_name }}</td>
+                  <td class="table-cell font-semibold">{{ item.quantity }}</td>
+                  <td class="table-cell">{{ item.min_stock }}</td>
+                  <td class="table-cell"><span :class="['badge', item.status === 'low_stock' ? 'badge-warning' : 'badge-success']">{{ item.status === 'low_stock' ? 'Stok rendah' : 'Aman' }}</span></td>
+                  <td class="table-cell">{{ formatDate(item.updated_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -335,15 +593,16 @@ onMounted(async () => {
         <div v-for="activity in activities" :key="activity.id" class="flex items-center justify-between gap-4 p-4">
           <div class="min-w-0">
             <p class="font-medium text-neutral-900">{{ activity.title }}</p>
-            <p class="text-sm text-neutral-500">{{ activity.type }} · {{ activity.status }} · {{ formatDate(activity.due_at) }}</p>
+            <p class="text-sm text-neutral-500">{{ activity.type }} - {{ activity.status }} - {{ formatDate(activity.due_at) }}</p>
           </div>
           <div class="flex items-center gap-2">
             <span :class="['badge', activity.disabled_at ? 'badge-danger' : 'badge-primary']">{{ activity.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>
-            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editActivity(activity)"><Save class="h-4 w-4" /></button>
+            <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="editActivity(activity)"><Pencil class="h-4 w-4" /></button>
             <button class="rounded-lg p-1.5 hover:bg-neutral-100" @click="toggleActivity(activity)">
               <CheckCircle2 v-if="activity.disabled_at" class="h-4 w-4 text-success-600" />
               <Ban v-else class="h-4 w-4 text-warning-600" />
             </button>
+            <button class="rounded-lg p-1.5 hover:bg-danger-50" @click="removeActivity(activity)"><Trash2 class="h-4 w-4 text-danger-600" /></button>
           </div>
         </div>
       </div>

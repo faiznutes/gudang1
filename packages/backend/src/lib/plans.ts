@@ -82,10 +82,6 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
     include: {
       entitlements: true,
       subscriptions: {
-        where: {
-          status: { in: ['active', 'trialing'] },
-          currentPeriodEnd: { gte: now },
-        },
         orderBy: { currentPeriodEnd: 'desc' },
         take: 1,
       },
@@ -97,9 +93,19 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
   }
 
   const trialActive = !!workspace.trialEndsAt && workspace.trialEndsAt > now
-  const activeSubscription = workspace.subscriptions[0]
-  const plan = (trialActive ? 'pro' : activeSubscription?.plan ?? workspace.plan) as PlanType
-  const subscriptionStatus = (trialActive ? 'trialing' : activeSubscription?.status ?? 'none') as SubscriptionStatus | 'none'
+  const latestSubscription = workspace.subscriptions[0]
+  const subscriptionStillActive =
+    !!latestSubscription &&
+    (latestSubscription.status === 'active' || latestSubscription.status === 'trialing') &&
+    latestSubscription.currentPeriodEnd >= now
+  const plan = (trialActive ? 'pro' : subscriptionStillActive ? latestSubscription.plan : 'free') as PlanType
+  const subscriptionStatus = (trialActive
+    ? 'trialing'
+    : subscriptionStillActive
+      ? latestSubscription.status
+      : latestSubscription && latestSubscription.currentPeriodEnd < now
+        ? 'expired'
+        : latestSubscription?.status ?? 'none') as SubscriptionStatus | 'none'
   const base = PLAN_CATALOG[plan] ?? PLAN_CATALOG.free
   const features: FeatureMap = { ...base.features }
   const limits = { ...base.limits }
@@ -117,15 +123,19 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
   }
 
   const [warehouses, products, users] = await Promise.all([
-    app.prisma.warehouse.count({ where: { workspaceId } }),
-    app.prisma.product.count({ where: { workspaceId } }),
-    app.prisma.workspaceMember.count({ where: { workspaceId } }),
+    app.prisma.warehouse.count({ where: { workspaceId, disabledAt: null } }),
+    app.prisma.product.count({ where: { workspaceId, disabledAt: null } }),
+    app.prisma.workspaceMember.count({ where: { workspaceId, user: { disabledAt: null } } }),
   ])
 
   return {
     plan,
     subscriptionStatus,
     trialEndsAt: workspace.trialEndsAt?.toISOString() ?? null,
+    subscriptionStartsAt: latestSubscription?.currentPeriodStart.toISOString() ?? null,
+    subscriptionEndsAt: trialActive
+      ? workspace.trialEndsAt?.toISOString() ?? null
+      : latestSubscription?.currentPeriodEnd.toISOString() ?? null,
     features,
     limits,
     usage: { warehouses, products, users },

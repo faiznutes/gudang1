@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
+import SubscriptionCountdownCard from '@/components/SubscriptionCountdownCard.vue'
 import {
   Package,
   Warehouse,
@@ -132,6 +133,8 @@ function formatDate(dateStr: string) {
         </router-link>
       </div>
     </div>
+
+    <SubscriptionCountdownCard />
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">

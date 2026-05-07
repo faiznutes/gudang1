@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify'
+import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
 import { requireAuth, requirePlatformRole } from '../middleware/auth.js'
+import { PLAN_CATALOG } from '../lib/plans.js'
 
 const pageSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -12,6 +14,43 @@ const pageSchema = z.object({
   plan: z.string().optional(),
   role: z.string().optional(),
   workspace_id: z.string().optional(),
+})
+
+const planSchema = z.enum(['free', 'starter', 'growth', 'pro', 'custom'])
+const workspaceStatusSchema = z.enum(['active', 'suspended', 'trial'])
+const subscriptionStatusSchema = z.enum(['active', 'cancelled', 'past_due', 'expired', 'trialing'])
+const tenantRoleSchema = z.enum(['admin', 'staff', 'supplier', 'trial'])
+
+const tenantCreateSchema = z.object({
+  name: z.string().min(2),
+  plan: planSchema.default('starter'),
+  status: workspaceStatusSchema.default('active'),
+  subscription_status: subscriptionStatusSchema.default('active'),
+  current_period_start: z.string().datetime().optional(),
+  current_period_end: z.string().datetime().optional(),
+  owner: z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(6).default('password123'),
+  }),
+  warehouse: z.object({
+    name: z.string().min(1).default('Gudang Utama'),
+    address: z.string().optional(),
+  }).default({ name: 'Gudang Utama' }),
+  staff: z.array(z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(6).default('password123'),
+    role: tenantRoleSchema.exclude(['trial']).default('staff'),
+  })).max(20).default([]),
+  suppliers: z.array(z.object({
+    name: z.string().min(1),
+    contact_person: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional().or(z.literal('')),
+    address: z.string().optional(),
+    notes: z.string().optional(),
+  })).max(50).default([]),
 })
 
 function paginate<T>(data: T[], page: number, perPage: number, total: number) {
@@ -110,6 +149,29 @@ function auditLogDto(log: {
 
 function pickOwner(members: Array<{ role: string; user: { id: string; name: string; email: string } }>) {
   return members.find(member => member.role === 'admin') ?? members.find(member => member.role === 'super_admin') ?? members[0]
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+
+async function ensureTenantUserAvailable(tx: any, email: string, workspaceId: string) {
+  const normalizedEmail = email.toLowerCase()
+  const existing = await tx.user.findUnique({
+    where: { email: normalizedEmail },
+    include: { memberships: true },
+  })
+  if (!existing) return null
+  if (existing.role === 'super_admin') {
+    throw new AppError('conflict', 'Email super admin tidak boleh digunakan sebagai user tenant')
+  }
+  const otherTenantMembership = existing.memberships.find((membership: { workspaceId: string }) => membership.workspaceId !== workspaceId)
+  if (otherTenantMembership) {
+    throw new AppError('conflict', 'Email ini sudah terhubung ke tenant lain')
+  }
+  return existing
 }
 
 async function requirePlatformAdmin(app: FastifyInstance, request: any) {
@@ -270,6 +332,151 @@ export async function adminRoutes(app: FastifyInstance) {
         mrr: latestSubscription?.status === 'active' ? planPrice(latestSubscription.plan) : 0,
       }
     }), query.page, query.per_page, total)
+  })
+
+  app.post('/workspaces', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const body = tenantCreateSchema.parse(request.body)
+    const periodStart = body.current_period_start ? new Date(body.current_period_start) : new Date()
+    const periodEnd = body.current_period_end ? new Date(body.current_period_end) : addMonths(periodStart, 1)
+    if (periodEnd <= periodStart) {
+      throw new AppError('validation_error', 'Tanggal akhir subscription harus setelah tanggal mulai')
+    }
+
+    const effectivePlan = body.subscription_status === 'trialing' ? 'pro' : body.plan
+    const planLimit = PLAN_CATALOG[effectivePlan].limits.users
+    const requestedUsers = 1 + body.staff.length
+    if (requestedUsers > planLimit) {
+      throw new AppError('feature_locked', `Paket ${effectivePlan} hanya mengizinkan ${planLimit} user`)
+    }
+
+    const duplicateEmails = [body.owner.email, ...body.staff.map(member => member.email)]
+      .map(email => email.toLowerCase())
+      .filter((email, index, emails) => emails.indexOf(email) !== index)
+    if (duplicateEmails.length > 0) {
+      throw new AppError('validation_error', 'Email owner dan staff tidak boleh duplikat')
+    }
+
+    const result = await app.prisma.$transaction(async (tx) => {
+      const workspace = await tx.workspace.create({
+        data: {
+          name: body.name,
+          plan: body.plan,
+          status: body.subscription_status === 'trialing' ? 'trial' : body.status,
+          trialEndsAt: body.subscription_status === 'trialing' ? periodEnd : null,
+        },
+      })
+
+      const ownerExisting = await ensureTenantUserAvailable(tx, body.owner.email, workspace.id)
+      const ownerPasswordHash = await bcrypt.hash(body.owner.password, 10)
+      const owner = ownerExisting
+        ? await tx.user.update({
+            where: { id: ownerExisting.id },
+            data: { name: body.owner.name, passwordHash: ownerPasswordHash, role: 'admin', disabledAt: null },
+          })
+        : await tx.user.create({
+            data: {
+              name: body.owner.name,
+              email: body.owner.email.toLowerCase(),
+              passwordHash: ownerPasswordHash,
+              role: 'admin',
+            },
+          })
+
+      await tx.workspaceMember.create({
+        data: { workspaceId: workspace.id, userId: owner.id, role: 'admin' },
+      })
+
+      await tx.subscription.create({
+        data: {
+          workspaceId: workspace.id,
+          plan: effectivePlan,
+          status: body.subscription_status,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+        },
+      })
+
+      await tx.category.create({
+        data: { workspaceId: workspace.id, name: 'Umum', description: 'Kategori default tenant' },
+      })
+
+      await tx.warehouse.create({
+        data: {
+          workspaceId: workspace.id,
+          name: body.warehouse.name,
+          address: body.warehouse.address,
+          isDefault: true,
+        },
+      })
+
+      for (const staffMember of body.staff) {
+        const existing = await ensureTenantUserAvailable(tx, staffMember.email, workspace.id)
+        const passwordHash = await bcrypt.hash(staffMember.password, 10)
+        const user = existing
+          ? await tx.user.update({
+              where: { id: existing.id },
+              data: { name: staffMember.name, passwordHash, role: staffMember.role, disabledAt: null },
+            })
+          : await tx.user.create({
+              data: {
+                name: staffMember.name,
+                email: staffMember.email.toLowerCase(),
+                passwordHash,
+                role: staffMember.role,
+              },
+            })
+        await tx.workspaceMember.create({
+          data: { workspaceId: workspace.id, userId: user.id, role: staffMember.role },
+        })
+      }
+
+      for (const supplier of body.suppliers) {
+        await tx.supplier.create({
+          data: {
+            workspaceId: workspace.id,
+            name: supplier.name,
+            contactPerson: supplier.contact_person,
+            phone: supplier.phone,
+            email: supplier.email || undefined,
+            address: supplier.address,
+            notes: supplier.notes,
+          },
+        })
+      }
+
+      await tx.auditLog.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: ctx.userId,
+          action: 'admin.tenant.created',
+          entityType: 'workspace',
+          entityId: workspace.id,
+          metadata: {
+            plan: body.plan,
+            subscription_status: body.subscription_status,
+            staff_count: body.staff.length,
+            supplier_count: body.suppliers.length,
+          },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      })
+
+      return { workspace, owner }
+    })
+
+    return {
+      ...workspaceDto(result.workspace),
+      owner_id: result.owner.id,
+      owner_name: result.owner.name,
+      owner_email: result.owner.email,
+      users: requestedUsers,
+      products: 0,
+      warehouses: 1,
+      suppliers: body.suppliers.length,
+      mrr: body.subscription_status === 'active' ? planPrice(effectivePlan) : 0,
+    }
   })
 
   app.get('/workspaces/:id', async (request) => {
@@ -522,6 +729,70 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const workspace = await app.prisma.workspace.findUnique({ where: { id: subscription.workspaceId } })
     return subscriptionDto({ ...subscription, workspace })
+  })
+
+  app.put('/workspaces/:workspaceId/subscriptions/:subscriptionId/period', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ workspaceId: z.string(), subscriptionId: z.string() }).parse(request.params)
+    const body = z.object({
+      current_period_start: z.string().datetime().optional(),
+      current_period_end: z.string().datetime(),
+      status: subscriptionStatusSchema.optional(),
+      reason: z.string().max(250).optional(),
+    }).parse(request.body)
+
+    const current = await app.prisma.subscription.findFirst({
+      where: { id: params.subscriptionId, workspaceId: params.workspaceId },
+    })
+    if (!current) throw new AppError('not_found', 'Subscription tenant tidak ditemukan')
+
+    const periodStart = body.current_period_start ? new Date(body.current_period_start) : current.currentPeriodStart
+    const periodEnd = new Date(body.current_period_end)
+    if (periodEnd <= periodStart) {
+      throw new AppError('validation_error', 'Tanggal akhir subscription harus setelah tanggal mulai')
+    }
+    const nextStatus = body.status ?? (periodEnd < new Date() ? 'expired' : current.status === 'expired' ? 'active' : current.status)
+
+    const updated = await app.prisma.$transaction(async (tx) => {
+      const subscription = await tx.subscription.update({
+        where: { id: current.id },
+        data: {
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          status: nextStatus,
+          cancelAtPeriodEnd: nextStatus === 'cancelled' ? true : current.cancelAtPeriodEnd,
+        },
+      })
+      await tx.workspace.update({
+        where: { id: params.workspaceId },
+        data: {
+          plan: subscription.plan,
+          status: nextStatus === 'trialing' ? 'trial' : nextStatus === 'active' ? 'active' : undefined,
+          trialEndsAt: nextStatus === 'trialing' ? periodEnd : null,
+        },
+      })
+      await tx.auditLog.create({
+        data: {
+          workspaceId: params.workspaceId,
+          userId: ctx.userId,
+          action: 'subscription.period_updated',
+          entityType: 'subscription',
+          entityId: subscription.id,
+          metadata: {
+            previous_start: current.currentPeriodStart.toISOString(),
+            previous_end: current.currentPeriodEnd.toISOString(),
+            current_period_start: periodStart.toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            status: nextStatus,
+            reason: body.reason,
+          },
+        },
+      })
+      return subscription
+    })
+
+    const workspace = await app.prisma.workspace.findUnique({ where: { id: updated.workspaceId } })
+    return subscriptionDto({ ...updated, workspace })
   })
 
   app.post('/workspaces/:workspaceId/subscriptions/cancel', async (request) => {

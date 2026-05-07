@@ -64,6 +64,29 @@ export interface ManagedWarehouse {
   created_at: string
 }
 
+export interface ManagedSupplier {
+  id: string
+  name: string
+  contact_person?: string
+  phone?: string
+  email?: string
+  address?: string
+  notes?: string
+  disabled_at?: string | null
+  created_at: string
+  updated_at?: string
+}
+
+export interface ManagedInventoryItem {
+  id: string
+  product_id: string
+  product?: ManagedProduct
+  warehouse_id: string
+  warehouse?: ManagedWarehouse
+  quantity: number
+  updated_at: string
+}
+
 export interface ScheduledActivity {
   id: string
   workspace_id: string
@@ -85,6 +108,35 @@ export interface ManagedProductPayload {
   category?: string
   min_stock?: number
   price?: number
+}
+
+export interface TenantCreatePayload {
+  name: string
+  plan: AdminPlan
+  status: WorkspaceStatus
+  subscription_status: SubscriptionStatus
+  current_period_start?: string
+  current_period_end?: string
+  owner: { name: string; email: string; password?: string }
+  warehouse: { name: string; address?: string }
+  staff: Array<{ name: string; email: string; password?: string; role: TenantRole }>
+  suppliers: Array<{ name: string; contact_person?: string; phone?: string; email?: string; address?: string; notes?: string }>
+}
+
+export interface SupplierPayload {
+  name?: string
+  contact_person?: string
+  phone?: string
+  email?: string
+  address?: string
+  notes?: string
+}
+
+export interface StockAdjustmentPayload {
+  product_id: string
+  warehouse_id: string
+  quantity: number
+  notes?: string
 }
 
 export interface Subscription {
@@ -242,6 +294,10 @@ export const adminService = {
     return api.get<PaginatedResponse<Workspace>>(`/admin/workspaces?${params({ page, status: filters.status, plan: filters.plan, q: filters.q })}`)
   },
 
+  async createWorkspace(data: TenantCreatePayload): Promise<Workspace> {
+    return api.post<Workspace>('/admin/workspaces', data)
+  },
+
   async getWorkspace(id: string): Promise<Workspace> {
     return api.get<Workspace>(`/admin/workspaces/${id}`)
   },
@@ -298,6 +354,46 @@ export const adminService = {
     return api.post<ManagedWarehouse>(`/admin/workspaces/${workspaceId}/warehouses/${warehouseId}/enable`, {})
   },
 
+  async removeWorkspaceWarehouse(workspaceId: string, warehouseId: string): Promise<void> {
+    return api.delete<void>(`/admin/workspaces/${workspaceId}/warehouses/${warehouseId}`)
+  },
+
+  async getWorkspaceSuppliers(workspaceId: string): Promise<ManagedSupplier[]> {
+    return api.get<ManagedSupplier[]>(`/admin/workspaces/${workspaceId}/suppliers`)
+  },
+
+  async createWorkspaceSupplier(workspaceId: string, data: SupplierPayload): Promise<ManagedSupplier> {
+    return api.post<ManagedSupplier>(`/admin/workspaces/${workspaceId}/suppliers`, data)
+  },
+
+  async updateWorkspaceSupplier(workspaceId: string, supplierId: string, data: SupplierPayload): Promise<ManagedSupplier> {
+    return api.put<ManagedSupplier>(`/admin/workspaces/${workspaceId}/suppliers/${supplierId}`, data)
+  },
+
+  async disableWorkspaceSupplier(workspaceId: string, supplierId: string): Promise<ManagedSupplier> {
+    return api.post<ManagedSupplier>(`/admin/workspaces/${workspaceId}/suppliers/${supplierId}/disable`, {})
+  },
+
+  async enableWorkspaceSupplier(workspaceId: string, supplierId: string): Promise<ManagedSupplier> {
+    return api.post<ManagedSupplier>(`/admin/workspaces/${workspaceId}/suppliers/${supplierId}/enable`, {})
+  },
+
+  async removeWorkspaceSupplier(workspaceId: string, supplierId: string): Promise<void> {
+    return api.delete<void>(`/admin/workspaces/${workspaceId}/suppliers/${supplierId}`)
+  },
+
+  async adminStockIn(workspaceId: string, data: StockAdjustmentPayload): Promise<ManagedInventoryItem> {
+    return api.post<ManagedInventoryItem>(`/admin/workspaces/${workspaceId}/stock-in`, data)
+  },
+
+  async adminStockOut(workspaceId: string, data: StockAdjustmentPayload): Promise<ManagedInventoryItem> {
+    return api.post<ManagedInventoryItem>(`/admin/workspaces/${workspaceId}/stock-out`, data)
+  },
+
+  async adminStockTransfer(workspaceId: string, data: StockAdjustmentPayload & { to_warehouse_id: string }): Promise<unknown> {
+    return api.post<unknown>(`/admin/workspaces/${workspaceId}/stock-transfer`, data)
+  },
+
   async getScheduledActivities(workspaceId: string): Promise<ScheduledActivity[]> {
     return api.get<ScheduledActivity[]>(`/admin/workspaces/${workspaceId}/scheduled-activities`)
   },
@@ -316,6 +412,10 @@ export const adminService = {
 
   async enableScheduledActivity(workspaceId: string, activityId: string): Promise<ScheduledActivity> {
     return api.post<ScheduledActivity>(`/admin/workspaces/${workspaceId}/scheduled-activities/${activityId}/enable`, {})
+  },
+
+  async removeScheduledActivity(workspaceId: string, activityId: string): Promise<void> {
+    return api.delete<void>(`/admin/workspaces/${workspaceId}/scheduled-activities/${activityId}`)
   },
 
   async updateWorkspace(id: string, data: Partial<Workspace>): Promise<Workspace> {
@@ -340,6 +440,10 @@ export const adminService = {
 
   async changePlan(workspaceId: string, plan: string): Promise<Subscription> {
     return api.post<Subscription>(`/admin/workspaces/${workspaceId}/subscriptions/change-plan`, { plan })
+  },
+
+  async updateSubscriptionPeriod(workspaceId: string, subscriptionId: string, data: { current_period_start?: string; current_period_end: string; status?: SubscriptionStatus; reason?: string }): Promise<Subscription> {
+    return api.put<Subscription>(`/admin/workspaces/${workspaceId}/subscriptions/${subscriptionId}/period`, data)
   },
 
   async cancelSubscription(workspaceId: string): Promise<Subscription> {

@@ -35,6 +35,8 @@ export interface EntitlementResponse {
   plan: PlanType
   subscriptionStatus: SubscriptionStatus | 'none'
   trialEndsAt: string | null
+  subscriptionStartsAt: string | null
+  subscriptionEndsAt: string | null
   features: FeatureMap
   limits: EntitlementLimits
   usage: EntitlementUsage

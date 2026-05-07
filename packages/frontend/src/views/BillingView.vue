@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEntitlementsStore } from '@/stores/entitlements'
 import { usePlansStore, PLANS, type Plan } from '@/stores/plans'
 import { Check, Sparkles, Building2, Rocket, Crown, Clock } from 'lucide-vue-next'
+import SubscriptionCountdownCard from '@/components/SubscriptionCountdownCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const entitlementsStore = useEntitlementsStore()
 const plansStore = usePlansStore()
 
-const currentPlan = ref(authStore.workspace?.plan || 'free')
+const currentPlan = computed(() => entitlementsStore.currentPlan || authStore.workspace?.plan || 'free')
 
 const featureNames: Record<string, string> = {
   stockInOut: 'Stock Masuk/Keluar',
@@ -28,7 +31,6 @@ function isActive(planId: string) {
 
 async function selectPlan(planId: string) {
   if (planId === 'free') return
-  currentPlan.value = planId as any
   await authStore.upgradePlan(planId as any)
 }
 
@@ -68,6 +70,8 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
         </div>
       </div>
     </div>
+
+    <SubscriptionCountdownCard />
 
     <!-- Plans Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:plan-cols-4 gap-6">

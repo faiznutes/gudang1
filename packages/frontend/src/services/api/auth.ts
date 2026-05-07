@@ -38,6 +38,8 @@ export interface EntitlementResponse {
   plan: 'free' | 'starter' | 'growth' | 'pro' | 'custom'
   subscriptionStatus: 'active' | 'cancelled' | 'past_due' | 'expired' | 'trialing' | 'none'
   trialEndsAt: string | null
+  subscriptionStartsAt: string | null
+  subscriptionEndsAt: string | null
   features: {
     stockInOut: boolean
     multiWarehouse: boolean

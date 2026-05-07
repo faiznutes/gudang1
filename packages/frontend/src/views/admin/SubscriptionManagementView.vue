@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ChevronLeft, ChevronRight, CreditCard, Eye, RefreshCw, Save, Search, TrendingUp, Wallet, XCircle } from 'lucide-vue-next'
-import adminService, { type AdminPlan, type Subscription } from '@/services/api/admin'
+import { CalendarDays, ChevronLeft, ChevronRight, CreditCard, Eye, RefreshCw, Save, Search, TrendingUp, Wallet, XCircle } from 'lucide-vue-next'
+import adminService, { type AdminPlan, type Subscription, type SubscriptionStatus } from '@/services/api/admin'
 import { labelFrom, planLabels, subscriptionStatusLabels, workspaceStatusLabels } from '@/lib/labels'
 
 const subscriptions = ref<Subscription[]>([])
@@ -16,8 +16,15 @@ const saving = ref(false)
 const errorMessage = ref('')
 const showDetailModal = ref(false)
 const showPlanModal = ref(false)
+const showPeriodModal = ref(false)
 const selectedSubscription = ref<Subscription | null>(null)
 const planDraft = ref<AdminPlan>('starter')
+const periodDraft = ref<{ current_period_start: string; current_period_end: string; status: SubscriptionStatus; reason: string }>({
+  current_period_start: '',
+  current_period_end: '',
+  status: 'active',
+  reason: '',
+})
 const itemsPerPage = 10
 
 const revenueStats = computed(() => {
@@ -78,6 +85,55 @@ function openPlanModal(subscription: Subscription) {
   selectedSubscription.value = subscription
   planDraft.value = subscription.plan
   showPlanModal.value = true
+}
+
+function formatDateTimeLocal(value: string | Date) {
+  const date = typeof value === 'string' ? new Date(value) : value
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function openPeriodModal(subscription: Subscription) {
+  selectedSubscription.value = subscription
+  periodDraft.value = {
+    current_period_start: formatDateTimeLocal(subscription.current_period_start),
+    current_period_end: formatDateTimeLocal(subscription.current_period_end),
+    status: subscription.status,
+    reason: '',
+  }
+  showPeriodModal.value = true
+}
+
+function adjustPeriod(days: number) {
+  const current = new Date(periodDraft.value.current_period_end)
+  current.setDate(current.getDate() + days)
+  periodDraft.value.current_period_end = formatDateTimeLocal(current)
+}
+
+function adjustPeriodMonths(months: number) {
+  const current = new Date(periodDraft.value.current_period_end)
+  current.setMonth(current.getMonth() + months)
+  periodDraft.value.current_period_end = formatDateTimeLocal(current)
+}
+
+async function savePeriod() {
+  if (!selectedSubscription.value) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await adminService.updateSubscriptionPeriod(selectedSubscription.value.workspace_id, selectedSubscription.value.id, {
+      current_period_start: new Date(periodDraft.value.current_period_start).toISOString(),
+      current_period_end: new Date(periodDraft.value.current_period_end).toISOString(),
+      status: periodDraft.value.status,
+      reason: periodDraft.value.reason,
+    })
+    showPeriodModal.value = false
+    await loadSubscriptions()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Masa subscription gagal diperbarui'
+  } finally {
+    saving.value = false
+  }
 }
 
 async function savePlan() {
@@ -265,6 +321,9 @@ onMounted(() => loadSubscriptions(1))
                     <button class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600" title="Ubah paket" @click="openPlanModal(subscription)">
                       <Save class="h-4 w-4" />
                     </button>
+                    <button class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600" title="Ubah masa aktif" @click="openPeriodModal(subscription)">
+                      <CalendarDays class="h-4 w-4" />
+                    </button>
                     <button
                       class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-danger-600 disabled:opacity-40"
                       title="Batalkan subscription"
@@ -392,6 +451,58 @@ onMounted(() => loadSubscriptions(1))
           <button class="btn-primary" :disabled="saving" @click="savePlan">
             <Save class="h-4 w-4" />
             Simpan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showPeriodModal && selectedSubscription" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+      <div class="w-full max-w-lg rounded-t-3xl bg-white shadow-xl sm:rounded-2xl">
+        <div class="border-b border-neutral-200 p-4">
+          <h3 class="text-lg font-semibold text-neutral-900">Ubah Masa Aktif</h3>
+          <p class="text-sm text-neutral-500">{{ selectedSubscription.workspace?.name ?? '-' }}</p>
+        </div>
+        <div class="space-y-4 p-4">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="label">Mulai</label>
+              <input v-model="periodDraft.current_period_start" type="datetime-local" class="input w-full" />
+            </div>
+            <div>
+              <label class="label">Berakhir</label>
+              <input v-model="periodDraft.current_period_end" type="datetime-local" class="input w-full" />
+            </div>
+          </div>
+          <div>
+            <label class="label">Status</label>
+            <select v-model="periodDraft.status" class="input w-full">
+              <option value="active">Aktif</option>
+              <option value="trialing">Trial</option>
+              <option value="past_due">Tertunggak</option>
+              <option value="cancelled">Dibatalkan</option>
+              <option value="expired">Berakhir</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Quick Actions</label>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <button type="button" class="btn-secondary btn-sm" @click="adjustPeriod(-7)">-7 Hari</button>
+              <button type="button" class="btn-secondary btn-sm" @click="adjustPeriod(7)">+7 Hari</button>
+              <button type="button" class="btn-secondary btn-sm" @click="adjustPeriodMonths(-1)">-1 Bulan</button>
+              <button type="button" class="btn-secondary btn-sm" @click="adjustPeriodMonths(1)">+1 Bulan</button>
+              <button type="button" class="btn-secondary btn-sm" @click="adjustPeriodMonths(12)">+1 Tahun</button>
+            </div>
+          </div>
+          <div>
+            <label class="label">Catatan Audit</label>
+            <textarea v-model="periodDraft.reason" class="input min-h-[80px] w-full" placeholder="Contoh: kompensasi downtime, koreksi pembayaran, atau penyesuaian manual"></textarea>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 border-t border-neutral-200 p-4">
+          <button class="btn-secondary" @click="showPeriodModal = false">Batal</button>
+          <button class="btn-primary" :disabled="saving" @click="savePeriod">
+            <CalendarDays class="h-4 w-4" />
+            Simpan Masa Aktif
           </button>
         </div>
       </div>
