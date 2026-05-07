@@ -12,6 +12,7 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   X,
   MoreHorizontal,
@@ -24,6 +25,7 @@ const authStore = useAuthStore()
 const collapsed = ref(false)
 const showMobileMenu = ref(false)
 const showMoreMenu = ref(false)
+const showMobileAccountMenu = ref(false)
 
 const isMobile = ref(false)
 
@@ -50,6 +52,10 @@ function toggleSidebar() {
 
 function closeMobileMenu() {
   showMobileMenu.value = false
+}
+
+function closeMobileAccountMenu() {
+  showMobileAccountMenu.value = false
 }
 
 const adminNavItems = [
@@ -95,9 +101,11 @@ function navigate(routePath: string) {
   router.push(routePath)
   closeMobileMenu()
   showMoreMenu.value = false
+  closeMobileAccountMenu()
 }
 
 function handleNav(item: any) {
+  closeMobileAccountMenu()
   if (item.action === 'more') {
     showMoreMenu.value = true
   } else if (item.route) {
@@ -107,11 +115,14 @@ function handleNav(item: any) {
 
 function handleMoreMenu(routePath: string) {
   showMoreMenu.value = false
+  closeMobileAccountMenu()
   router.push(routePath)
 }
 
 function handleLogout() {
   authStore.logout()
+  showMoreMenu.value = false
+  closeMobileAccountMenu()
   router.push({ name: 'login' })
 }
 </script>
@@ -119,8 +130,62 @@ function handleLogout() {
 <template>
   <div class="min-h-screen bg-neutral-50">
     <!-- Mobile Header - No burger menu when bottom nav is shown -->
-    <header v-if="isMobile" class="fixed top-0 left-0 right-0 h-14 bg-purple-900 text-white z-30 flex items-center justify-center px-4">
-      <span class="font-bold">Admin Panel</span>
+    <header v-if="isMobile" class="fixed top-0 left-0 right-0 h-14 bg-purple-900 text-white z-30 flex items-center justify-between px-4">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-8 h-8 bg-purple-700 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Settings class="w-4 h-4 text-white" />
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-bold leading-tight truncate">Admin Panel</p>
+          <p class="text-[11px] text-purple-200 leading-tight truncate">Super Admin</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button
+          @click="showMobileAccountMenu = !showMobileAccountMenu"
+          class="flex items-center gap-1 rounded-xl bg-purple-800/80 px-2 py-1.5 active:scale-95 transition-all"
+          aria-label="Buka menu akun admin"
+        >
+          <span class="w-8 h-8 rounded-full bg-white text-purple-800 flex items-center justify-center text-sm font-bold">
+            {{ authStore.user?.name?.charAt(0) || 'A' }}
+          </span>
+          <ChevronDown class="w-4 h-4 text-purple-200" />
+        </button>
+
+        <Transition
+          enter-active-class="transition ease-out duration-100"
+          enter-from-class="transform opacity-0 scale-95"
+          enter-to-class="transform opacity-100 scale-100"
+          leave-active-class="transition ease-in duration-75"
+          leave-from-class="transform opacity-100 scale-100"
+          leave-to-class="transform opacity-0 scale-95"
+        >
+          <div
+            v-if="showMobileAccountMenu"
+            class="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white text-neutral-900 rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden"
+          >
+            <div class="px-4 py-3 border-b border-neutral-100">
+              <p class="text-sm font-semibold truncate">{{ authStore.user?.name || 'Admin' }}</p>
+              <p class="text-xs text-neutral-500 truncate">{{ authStore.user?.email || 'admin' }}</p>
+            </div>
+            <button
+              @click="navigate('/admin/settings')"
+              class="w-full flex items-center gap-3 px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 text-left"
+            >
+              <Settings class="w-4 h-4" />
+              Pengaturan
+            </button>
+            <button
+              @click="handleLogout"
+              class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-danger-600 hover:bg-danger-50 text-left border-t border-neutral-100"
+            >
+              <LogOut class="w-4 h-4" />
+              Keluar
+            </button>
+          </div>
+        </Transition>
+      </div>
     </header>
 
     <!-- Desktop Sidebar -->

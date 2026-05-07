@@ -101,6 +101,19 @@ test.describe('Super admin routes', () => {
     await expect(page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible()
   })
 
+  test('super admin can open the mobile account menu and logout', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await mockSession(page, 'super_admin')
+    await page.goto('/admin')
+
+    await expect(page.getByRole('button', { name: 'Buka menu akun admin' })).toBeVisible()
+    await page.getByRole('button', { name: 'Buka menu akun admin' }).click()
+    await expect(page.getByRole('button', { name: 'Keluar' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Keluar' }).click()
+    await expect(page).toHaveURL(/\/login$/)
+  })
+
   test('tenant admin is redirected away from the platform admin dashboard', async ({ page }) => {
     await mockSession(page, 'admin')
     await page.goto('/admin')
