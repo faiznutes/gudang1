@@ -201,13 +201,13 @@ export async function importExportRoutes(app: FastifyInstance) {
     const ctx = await requireAuth(app, request)
     const params = z.object({ type: z.enum(DATA_TYPES) }).parse(request.params)
     const headers = csvTemplates[params.type]
-    const sample: Record<DataType, Record<string, unknown>> = {
-      products: { sku: 'SKU-001', name: 'Kaos Polos', description: 'Cotton combed', category: 'Produk Utama', min_stock: 10, price: 35000 },
-      warehouses: { name: 'Gudang Utama', address: 'Jl. Merdeka No. 10', is_default: true },
-      suppliers: { name: 'PT Maju Jaya', contact_person: 'Budi', phone: '081234567890', email: 'budi@example.com', address: 'Jakarta', notes: 'Supplier utama' },
-      inventory: { sku: 'SKU-001', warehouse: 'Gudang Utama', quantity: 50 },
-      stock_movements: { type: 'in', sku: 'SKU-001', warehouse: 'Gudang Utama', to_warehouse: '', quantity: 10, notes: 'Import stok masuk' },
-      audit_logs: { action: 'manual.note', entity_type: 'system', entity_id: '', metadata: '{"note":"contoh"}' },
+    const exampleRow: Record<DataType, Record<string, unknown>> = {
+      products: { sku: 'PRODUCT-001', name: 'Nama Produk', description: 'Deskripsi produk', category: 'Kategori', min_stock: 10, price: 100000 },
+      warehouses: { name: 'Nama Gudang', address: 'Alamat gudang', is_default: true },
+      suppliers: { name: 'Nama Supplier', contact_person: 'Nama Kontak', phone: '08xxxxxxxxxx', email: 'supplier@example.com', address: 'Alamat supplier', notes: 'Catatan supplier' },
+      inventory: { sku: 'PRODUCT-001', warehouse: 'Nama Gudang', quantity: 50 },
+      stock_movements: { type: 'in', sku: 'PRODUCT-001', warehouse: 'Nama Gudang', to_warehouse: '', quantity: 10, notes: 'Catatan mutasi' },
+      audit_logs: { action: 'audit.note', entity_type: 'system', entity_id: '', metadata: '{"note":"catatan"}' },
     }
     await writeAuditLog(app, ctx, request, {
       action: 'data.template_downloaded',
@@ -215,7 +215,7 @@ export async function importExportRoutes(app: FastifyInstance) {
       entityId: params.type,
       metadata: { type: params.type },
     })
-    return sendCsv(reply, `${params.type}-template.csv`, toCsv(headers, [sample[params.type]]))
+    return sendCsv(reply, `${params.type}-template.csv`, toCsv(headers, [exampleRow[params.type]]))
   })
 
   app.get('/export/:type', async (request, reply) => {

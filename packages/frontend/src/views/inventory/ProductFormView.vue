@@ -114,7 +114,7 @@ function generateSku() {
             <input
               v-model="form.sku"
               :class="['input', errors.sku ? 'input-error' : '']"
-              placeholder="Contoh: SKU-001"
+              placeholder="Kode SKU produk"
             />
             <button type="button" @click="generateSku" class="btn-secondary">
               Generate
@@ -129,7 +129,7 @@ function generateSku() {
           <input
             v-model="form.name"
             :class="['input', errors.name ? 'input-error' : '']"
-            placeholder="Contoh: Baju Kaos Polos"
+            placeholder="Nama produk"
           />
           <p v-if="errors.name" class="text-xs text-danger-600 mt-1">{{ errors.name }}</p>
         </div>

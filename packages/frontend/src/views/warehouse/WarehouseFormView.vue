@@ -95,7 +95,7 @@ async function handleSubmit() {
           <input
             v-model="form.name"
             :class="['input', errors.name ? 'input-error' : '']"
-            placeholder="Contoh: Gudang Utama"
+            placeholder="Nama gudang"
           />
           <p v-if="errors.name" class="text-xs text-danger-600 mt-1">{{ errors.name }}</p>
         </div>
@@ -106,7 +106,7 @@ async function handleSubmit() {
           <textarea
             v-model="form.address"
             class="input min-h-[100px]"
-            placeholder="Contoh: Jl. Merdeka No. 10, Jakarta"
+            placeholder="Alamat gudang"
           />
         </div>
 

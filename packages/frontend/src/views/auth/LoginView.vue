@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Package, Eye, EyeOff, Sparkles } from 'lucide-vue-next'
+import { Eye, EyeOff, Package, Sparkles } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -38,23 +38,20 @@ function goToTrial() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
+  <div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 p-4">
     <div class="w-full max-w-md">
-      <!-- Logo -->
-      <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl shadow-lg shadow-primary-200 mb-4">
-          <Package class="w-10 h-10 text-white" />
+      <div class="mb-8 text-center">
+        <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 shadow-lg shadow-primary-200">
+          <Package class="h-10 w-10 text-white" />
         </div>
         <h1 class="text-2xl font-bold text-neutral-900">StockPilot</h1>
-        <p class="text-neutral-600 mt-1">Kelola gudang dengan mudah</p>
+        <p class="mt-1 text-neutral-600">Kelola gudang dengan mudah</p>
       </div>
 
-      <!-- Login Card -->
-      <div class="bg-white rounded-2xl shadow-xl p-8">
-        <h2 class="text-xl font-semibold text-neutral-900 mb-6">Masuk</h2>
+      <div class="rounded-2xl bg-white p-8 shadow-xl">
+        <h2 class="mb-6 text-xl font-semibold text-neutral-900">Masuk</h2>
 
-        <form @submit.prevent="handleLogin" class="space-y-5">
-          <!-- Email -->
+        <form class="space-y-5" @submit.prevent="handleLogin">
           <div>
             <label class="label">Email</label>
             <input
@@ -66,7 +63,6 @@ function goToTrial() {
             />
           </div>
 
-          <!-- Password -->
           <div>
             <label class="label">Password</label>
             <div class="relative">
@@ -74,62 +70,47 @@ function goToTrial() {
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
                 class="input pr-10"
-                placeholder="••••••••"
+                placeholder="Password"
                 autocomplete="current-password"
               />
               <button
                 type="button"
-                @click="showPassword = !showPassword"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                @click="showPassword = !showPassword"
               >
-                <Eye v-if="!showPassword" class="w-5 h-5" />
-                <EyeOff v-else class="w-5 h-5" />
+                <Eye v-if="!showPassword" class="h-5 w-5" />
+                <EyeOff v-else class="h-5 w-5" />
               </button>
             </div>
           </div>
 
-          <!-- Error -->
-          <div v-if="error" class="p-3 bg-danger-50 border border-danger-200 rounded-lg">
+          <div v-if="error" class="rounded-lg border border-danger-200 bg-danger-50 p-3">
             <p class="text-sm text-danger-700">{{ error }}</p>
           </div>
 
-          <!-- Submit -->
-          <button
-            type="submit"
-            :disabled="isLoading"
-            class="btn-primary w-full py-2.5"
-          >
-            <span v-if="isLoading" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          <button type="submit" :disabled="isLoading" class="btn-primary w-full py-2.5">
+            <span v-if="isLoading" class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             <span v-else>Masuk</span>
           </button>
         </form>
       </div>
 
-      <!-- Trial CTA -->
-      <div class="mt-6 bg-white rounded-xl shadow-lg p-6 border border-primary-100">
+      <div class="mt-6 rounded-xl border border-primary-100 bg-white p-6 shadow-lg">
         <div class="flex items-start gap-4">
-          <div class="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Sparkles class="w-5 h-5 text-primary-600" />
+          <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100">
+            <Sparkles class="h-5 w-5 text-primary-600" />
           </div>
           <div class="flex-1">
-            <h3 class="font-semibold text-neutral-900">Coba Gratis 7 Hari</h3>
-            <p class="text-sm text-neutral-600 mt-1">
-              Akses semua fitur Pro gratis selama 7 hari. Tanpa kartu kredit.
+            <h3 class="font-semibold text-neutral-900">Request trial resmi</h3>
+            <p class="mt-1 text-sm text-neutral-600">
+              Kirim data lewat WhatsApp. Tenant dan paket akan diaktifkan oleh super admin.
             </p>
           </div>
         </div>
-        <button
-          @click="goToTrial"
-          class="btn-primary w-full mt-4"
-        >
-          Mulai Trial Gratis
+        <button class="btn-primary mt-4 w-full" @click="goToTrial">
+          Request Trial via WhatsApp
         </button>
       </div>
-
-      <!-- Demo Hint -->
-      <p class="text-center text-sm text-neutral-500 mt-6">
-        Demo: admin@example.com / password123
-      </p>
     </div>
   </div>
 </template>

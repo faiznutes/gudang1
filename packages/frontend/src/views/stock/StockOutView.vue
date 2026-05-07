@@ -225,7 +225,7 @@ function goToBilling() {
             <textarea
               v-model="form.notes"
               class="input min-h-[80px]"
-              placeholder="Contoh: Pesanan customer #123"
+              placeholder="Catatan stok keluar"
             />
           </div>
 

@@ -532,7 +532,7 @@ onMounted(() => loadWorkspaces(1))
           <section v-if="createStep === 1" class="grid gap-4 lg:grid-cols-2">
             <div>
               <label class="label">Nama Tenant</label>
-              <input v-model="tenantForm.name" class="input w-full" required placeholder="Contoh: Gudang Maju Bersama" />
+              <input v-model="tenantForm.name" class="input w-full" required placeholder="Nama tenant atau perusahaan" />
             </div>
             <div>
               <label class="label">Paket</label>

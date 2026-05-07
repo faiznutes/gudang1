@@ -38,19 +38,6 @@ function dismissOnboarding() {
   showOnboarding.value = false
 }
 
-function addSampleData() {
-  const newProducts = [
-    { sku: 'SKU-004', name: 'Tas Ransel', category_id: 'c3', min_stock: 5, price: 85000 },
-    { sku: 'SKU-005', name: 'Topi Baseball', category_id: 'c3', min_stock: 10, price: 35000 },
-  ]
-  newProducts.forEach(p => inventoryStore.addProduct(p))
-
-  onboardingSteps.value[1].done = true
-  onboardingSteps.value[2].done = true
-
-  showOnboarding.value = false
-}
-
 function formatDate(dateStr: string) {
   const date = new Date(dateStr)
   return new Intl.DateTimeFormat('id-ID', {
@@ -102,13 +89,13 @@ function formatDate(dateStr: string) {
           </button>
         </div>
         <div class="mt-4 flex flex-wrap gap-3">
-          <button @click="addSampleData" class="btn-primary btn-sm">
-            <Plus class="w-4 h-4" />
-            Tambah Data Contoh
-          </button>
           <router-link to="/app/warehouses/new" class="btn-secondary btn-sm">
             <Warehouse class="w-4 h-4" />
             Buat Gudang
+          </router-link>
+          <router-link to="/app/inventory/new" class="btn-primary btn-sm">
+            <Plus class="w-4 h-4" />
+            Tambah Produk
           </router-link>
         </div>
       </div>

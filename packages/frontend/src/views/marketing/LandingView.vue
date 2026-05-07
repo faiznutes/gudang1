@@ -1,10 +1,28 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
 import { ref } from 'vue'
-import { 
-  Package, Warehouse, BarChart3, ArrowRight, Check, Star, Mail, Phone, 
-  MessageCircle, Zap, Shield, ScanBarcode, Bell, FileText, Truck, Menu, X, Sparkle
+import { useRouter } from 'vue-router'
+import {
+  ArrowRight,
+  BarChart3,
+  Bell,
+  Check,
+  ClipboardCheck,
+  FileText,
+  Mail,
+  Menu,
+  MessageCircle,
+  Package,
+  Phone,
+  ScanBarcode,
+  Shield,
+  Sparkles,
+  Truck,
+  UploadCloud,
+  Warehouse,
+  X,
+  Zap,
 } from 'lucide-vue-next'
+import { buildWhatsAppUrl, ownerContact } from '@/lib/contact'
 
 const router = useRouter()
 const mobileMenuOpen = ref(false)
@@ -12,206 +30,114 @@ const mobileMenuOpen = ref(false)
 const features = [
   {
     icon: Warehouse,
-    title: 'Multi Gudang',
-    description: 'Kelola beberapa gudang dalam satu dashboard. Transfer stok antar gudang jadi lebih mudah.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Analytics Cerdas',
-    description: 'Lihat tren stok, produk terlaris, dan insight bisnis dalam satu layar.',
-  },
-  {
-    icon: Zap,
-    title: 'Cepat & Ringan',
-    description: 'Aplikasi cepat dan responsive. Kerja di mana saja, kapan saja.',
-  },
-  {
-    icon: Shield,
-    title: 'Aman Terjamin',
-    description: 'Data tersimpan dengan enkripsi tingkat bank. Backup harian otomatis.',
+    title: 'Gudang terpisah per tenant',
+    description: 'Setiap tenant memiliki gudang, supplier, produk, staff, dan laporan yang tidak tercampur dengan tenant lain.',
   },
   {
     icon: ScanBarcode,
-    title: 'Scan Barcode',
-    description: 'Scan barcode produk langsung dari HP untuk cek stok dan mutasi.',
+    title: 'Operasi stok harian',
+    description: 'Catat stok masuk, keluar, transfer gudang, dan penyesuaian inventori dari desktop maupun perangkat mobile.',
   },
   {
     icon: Bell,
-    title: 'Notifikasi Otomatis',
-    description: 'Dapat notifikasi WhatsApp saat stok menipis atau ada transaksi baru.',
+    title: 'Alert stok dan langganan',
+    description: 'Notifikasi stok menipis, pengingat langganan, dan status sinkronisasi membantu admin mengambil tindakan cepat.',
   },
   {
     icon: FileText,
-    title: 'Export Laporan',
-    description: 'Export laporan stok ke PDF atau Excel untukArsip atau pajak.',
+    title: 'Import, export, audit trail',
+    description: 'Kelola CSV, template import, export laporan, dan jejak audit agar aktivitas penting tetap bisa ditelusuri.',
   },
   {
-    icon: Truck,
-    title: 'Kontrol Pengiriman',
-    description: 'Lacak status pengiriman dan update stok secara real-time.',
+    icon: Shield,
+    title: 'Kontrol akses paket',
+    description: 'Fitur tenant mengikuti paket aktif, durasi langganan, add-on, dan aturan akses yang dikendalikan super admin.',
+  },
+  {
+    icon: Zap,
+    title: 'PWA siap kerja',
+    description: 'Aplikasi ringan, responsif, bisa dipasang seperti app, dan memberi indikator online/offline serta sinkronisasi.',
   },
 ]
 
-const benefits = [
-  'Tidak perlu instal aplikasi - akses dari browser',
-  'Gratis update fitur baru selamanya',
-  'Support via WhatsApp responsif',
-  'Tanpa biaya maintenance server',
-  'Data aman dengan backup cloud',
-  'Mudah digunakan - tidak perlu jadi ahli IT',
-  'Cukup dengan HP/Smartphone',
-  'Akses unlimited - tidak ada batasan pengguna',
+const workflow = [
+  {
+    title: 'Request trial',
+    description: 'Calon tenant mengisi form singkat lalu mengirim data melalui WhatsApp ke kontak resmi.',
+  },
+  {
+    title: 'Aktivasi super admin',
+    description: 'Super admin membuat tenant, menentukan paket, durasi, gudang awal, dan akses staff sesuai kebutuhan.',
+  },
+  {
+    title: 'Operasi gudang berjalan',
+    description: 'Tenant admin dan operator mulai mengelola produk, stok, supplier, laporan, dan audit aktivitas.',
+  },
 ]
 
-const testimonials = [
+const capabilities = [
+  'Multi-tenant dengan data gudang terisolasi',
+  'Role super admin, tenant admin, staff, supplier, dan trial',
+  'Paket dan izin fitur dapat disesuaikan',
+  'Countdown langganan di dashboard dan billing',
+  'Mode PWA dengan indikator sinkronisasi',
+  'Audit trail untuk perubahan penting',
+]
+
+const plans = [
   {
-    name: 'Budi Santoso',
-    role: 'Pemilik Toko配件 Jakarta',
-    text: 'StockPilot sangat membantu saya kelola stok toko配件. Sekarang tidak ada lagi barang hilang dan saya tahu pasti masih ada berapa stok!',
-    avatar: 'B',
-    rating: 5,
+    name: 'Starter',
+    description: 'Untuk toko kecil yang mulai merapikan stok.',
+    features: ['1 gudang utama', 'Produk dan supplier dasar', 'Stock masuk dan keluar', 'Laporan inventori inti'],
   },
   {
-    name: 'Siti Aminah',
-    role: 'Admin Distributor Bandung',
-    text: 'Sebelum pakai StockPilot, saya sering lupa stok di gudang mana. Sekarang semuanya terkordinasi. Transfer antar gudang juga mudah.',
-    avatar: 'S',
-    rating: 5,
+    name: 'Growth',
+    description: 'Untuk bisnis yang punya beberapa lokasi atau tim.',
+    features: ['Multi gudang', 'Staff dan permission per role', 'Import/export CSV', 'Alert stok menipis'],
+    popular: true,
   },
   {
-    name: 'Joko Wijaya',
-    role: 'Owner Online Shop Surabaya',
-    text: 'Saya berjualan di 3 marketplace berbeda. Dengan StockPilot, saya bisa tracking stokreal waktu terima order. Trial 7 hari sangat membantu untuk coba dulu.',
-    avatar: 'J',
-    rating: 5,
-  },
-  {
-    name: 'Ahmad Rizal',
-    role: 'Manager Toko Elektronik',
-    text: 'Fitur notifikasi WhatsApp-nya非常好. Saya dapat notifikasi kalau stok hampir habis, jadi tidak kehabisan produk favorit customer.',
-    avatar: 'A',
-    rating: 5,
+    name: 'Pro',
+    description: 'Untuk operasional yang butuh kontrol dan audit lebih lengkap.',
+    features: ['Audit trail lengkap', 'Analytics lanjutan', 'Prioritas konfigurasi', 'Add-on sesuai kebutuhan'],
   },
 ]
 
 const faqs = [
   {
-    question: 'Apakah data saya aman di StockPilot?',
-    answer: 'Kami menggunakan enkripsi tingkat bank untuk melindungi data Anda. Semua data di-backup secara harian dan disimpan di server aman dengan ISO certification.',
+    question: 'Apakah akun trial dibuat otomatis?',
+    answer: 'Tidak. Request trial dikirim lewat WhatsApp, lalu super admin mengaktifkan tenant agar data produksi tetap bersih dan akses awal bisa diperiksa.',
   },
   {
-    question: 'Bisakah saya import data dari Excel yang sudah ada?',
-    answer: 'Ya! Import produk dari Excel/CSV sangat mudah. Kami juga提供模板 agar import semakin lancar.',
+    question: 'Apakah data antar tenant terpisah?',
+    answer: 'Ya. Gudang, supplier, produk, staff, aktivitas, dan laporan disimpan per tenant sehingga tidak saling berbagi data.',
   },
   {
-    question: 'Apa perbedaan paket Starter dan Pro?',
-    answer: 'Paket Starter cocok untuk bisnis dengan 1 gudang. Paket Pro memberikan akses lengkap termasuk export PDF, batch import, dan fitur analytics lengkap.',
+    question: 'Bisakah durasi langganan diubah?',
+    answer: 'Bisa. Super admin dapat menaikkan atau mengurangi durasi langganan dan fitur tenant sesuai paket yang disepakati.',
   },
   {
-    question: 'Bagaimana jika saya ingin upgrade paket?',
-    answer: 'Upgrade bisa dilakukan kapan saja dari dashboard. Perubahan akan berlaku di bulan berikutnya.',
-  },
-  {
-    question: 'Apakah ada biaya tersembunyi?',
-    answer: 'Tidak ada! Harga yang Anda lihat adalah harga final. Tidak ada biaya setup, biaya maintenance, atau biaya tersembunyi lainnya.',
-  },
-  {
-    question: 'Bagaimana cara trial bekerja?',
-    answer: 'Trial 7 hari memberikan akses ke semua fitur Pro secara gratis. Tidak perlu kartu kredit. Setelah trial selesai, Anda bisa upgrade atau menggunakan paket Free.',
-  },
-]
-
-const plans = [
-  { 
-    name: 'Free', 
-    price: 'Rp 0', 
-    period: '', 
-    description: 'Untuk coba-coba dan belajar',
-    features: [
-      'View dashboard',
-      'View inventori',
-      'View aktivitas',
-      '1 Gudang',
-      '100 Produk',
-      '1 User',
-      'Support email',
-    ],
-    notIncluded: [
-      'Stock In/Out',
-      'Multi Gudang',
-      'Analytics',
-      'Export PDF',
-      'Import CSV',
-    ],
-    popular: false 
-  },
-  { 
-    name: 'Starter', 
-    price: 'Rp 49rb', 
-    period: '/bln', 
-    description: 'Untuk bisnis rumahan & toko kecil',
-    features: [
-      'Semua fitur Free',
-      'Stock In/Out',
-      '500 Produk',
-      '1 Gudang',
-      '2 User',
-      'Support prioritas',
-      'Notifikasi WhatsApp',
-    ],
-    notIncluded: [
-      'Multi Gudang',
-      'Analytics Lengkap',
-      'Export PDF',
-    ],
-    popular: false 
-  },
-  { 
-    name: 'Growth', 
-    price: 'Rp 149rb', 
-    period: '/bln', 
-    description: 'Untuk bisnis yang berkembang',
-    features: [
-      'Semua fitur Starter',
-      'Multi Gudang (5 gudang)',
-      '2000 Produk',
-      '10 User',
-      'Analytics Lengkap',
-      'Priority Support',
-      'API Access',
-    ],
-    notIncluded: [
-      'Export PDF',
-      'Batch Import',
-    ],
-    popular: true 
-  },
-  { 
-    name: 'Pro', 
-    price: 'Rp 299rb', 
-    period: '/bln', 
-    description: 'Untuk bisnis skala besar',
-    features: [
-      'Semua fitur Growth',
-      'Unlimited Gudang',
-      'Unlimited Produk',
-      'Unlimited User',
-      'Export PDF',
-      'Batch Import CSV',
-      'Custom Integrasi',
-      'Dedicated Support',
-    ],
-    notIncluded: [],
-    popular: false 
+    question: 'Apakah mendukung import dan export CSV?',
+    answer: 'Ya. Template CSV tersedia untuk produk, gudang, supplier, inventori, mutasi stok, dan audit sesuai aturan akses paket.',
   },
 ]
 
 function goToTrial() {
   router.push('/trial-signup')
+  closeMobileMenu()
 }
 
 function goToLogin() {
   router.push('/login')
+  closeMobileMenu()
+}
+
+function openWhatsAppContact() {
+  window.open(
+    buildWhatsAppUrl('Halo faiznute, saya ingin konsultasi StockPilot dan request aktivasi trial.'),
+    '_blank',
+    'noopener,noreferrer',
+  )
 }
 
 function toggleMobileMenu() {
@@ -224,432 +150,300 @@ function closeMobileMenu() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-white">
-    <!-- Hero Section with Gradient -->
-    <section class="relative bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 overflow-hidden">
-      <!-- Background Pattern -->
-      <div class="absolute inset-0 opacity-10">
-        <div class="absolute top-0 left-0 w-72 h-72 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-      </div>
-      
-      <!-- Navigation -->
-      <nav class="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur">
-                <Package class="w-6 h-6 text-white" />
-              </div>
-              <span class="text-xl font-bold text-white">StockPilot</span>
-            </div>
-            
-            <!-- Desktop Nav -->
-            <div class="hidden md:flex items-center gap-6">
-              <a href="#features" class="text-white/80 hover:text-white transition">Fitur</a>
-              <a href="#pricing" class="text-white/80 hover:text-white transition">Harga</a>
-              <a href="#testimonials" class="text-white/80 hover:text-white transition">Testimoni</a>
-              <a href="#faq" class="text-white/80 hover:text-white transition">FAQ</a>
-            </div>
-            
-            <!-- Desktop Buttons -->
-            <div class="hidden md:flex items-center gap-3">
-              <button @click="goToLogin" class="text-white/80 hover:text-white font-medium">Masuk</button>
-              <button @click="goToTrial" class="bg-white text-primary-600 hover:bg-neutral-100 px-5 py-2.5 rounded-xl font-medium transition">
-                Coba Gratis
-              </button>
-            </div>
-            
-            <!-- Mobile Menu Button -->
-            <button @click="toggleMobileMenu" class="md:hidden text-white p-2 -mr-2">
-              <Menu v-if="!mobileMenuOpen" class="w-6 h-6" />
-              <X v-else class="w-6 h-6" />
-            </button>
+  <div class="min-h-screen bg-white text-neutral-900">
+    <nav class="sticky top-0 z-50 border-b border-white/10 bg-primary-700/95 backdrop-blur">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <router-link to="/" class="flex items-center gap-3" @click="closeMobileMenu">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+            <Package class="h-6 w-6 text-white" />
           </div>
-          
-          <!-- Mobile Menu Dropdown -->
-          <div v-if="mobileMenuOpen" class="md:hidden absolute top-full left-0 right-0 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 border-t border-white/10 py-4">
-            <div class="flex flex-col gap-3">
-              <a href="#features" @click="closeMobileMenu" class="text-white/80 hover:text-white px-4 py-2">Fitur</a>
-              <a href="#pricing" @click="closeMobileMenu" class="text-white/80 hover:text-white px-4 py-2">Harga</a>
-              <a href="#testimonials" @click="closeMobileMenu" class="text-white/80 hover:text-white px-4 py-2">Testimoni</a>
-              <a href="#faq" @click="closeMobileMenu" class="text-white/80 hover:text-white px-4 py-2">FAQ</a>
-              <hr class="border-white/20 my-2" />
-              <button @click="goToLogin(); closeMobileMenu()" class="text-white/80 hover:text-white px-4 py-2 text-left">Masuk</button>
-              <button @click="goToTrial(); closeMobileMenu()" class="bg-white text-primary-600 mx-4 py-2.5 rounded-xl font-medium text-center">
-                Coba Gratis
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+          <span class="text-xl font-bold text-white">StockPilot</span>
+        </router-link>
 
-      <!-- Hero Content -->
-      <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 md:pt-28 pb-16">
-        <div class="text-center">
-          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/20 rounded-full text-white text-sm font-medium mb-8">
-            <Sparkle class="w-4 h-4" />
-            Gratis 7 hari tanpa kartu kredit
-          </div>
-          <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-            Kelola Gudang
-            <br class="hidden md:block" />
-            Jadi <span class="text-yellow-400">Lebih Mudah</span>
-          </h1>
-          <p class="text-xl md:text-2xl text-primary-100 max-w-3xl mx-auto mb-10 leading-relaxed">
-            StockPilot membantu UMKM dan bisnis yang berkembang kelola inventori, lacak stock masuk/keluar, dan analisis bisnis dalam satu aplikasi yang mudah digunakan.
-          </p>
-          <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <button @click="goToTrial" class="bg-white text-primary-600 hover:bg-neutral-100 px-8 py-4 rounded-2xl font-semibold text-lg transition flex items-center justify-center gap-2">
-              Mulai Trial Gratis
-              <ArrowRight class="w-5 h-5" />
-            </button>
-            <a href="#features" class="text-white border border-white/30 hover:bg-white/10 px-8 py-4 rounded-2xl font-semibold text-lg transition">
-              Pelajari Lebih Lanjut
-            </a>
-          </div>
-          
-          <!-- Stats -->
-          <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
-            <div class="text-center">
-              <p class="text-3xl md:text-4xl font-bold text-white">5000+</p>
-              <p class="text-primary-200 text-sm">UMKM Bergabung</p>
-            </div>
-            <div class="text-center">
-              <p class="text-3xl md:text-4xl font-bold text-white">15000+</p>
-              <p class="text-primary-200 text-sm">Produk Dikelola</p>
-            </div>
-            <div class="text-center">
-              <p class="text-3xl md:text-4xl font-bold text-white">99.9%</p>
-              <p class="text-primary-200 text-sm">Uptime Server</p>
-            </div>
-            <div class="text-center">
-              <p class="text-3xl md:text-4xl font-bold text-white">4.9/5</p>
-              <p class="text-primary-200 text-sm">Rating User</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Logo cloud -->
-    <section class="py-12 bg-neutral-50 border-y border-neutral-100">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p class="text-center text-neutral-500 text-sm mb-8">Dipercaya oleh bisnis dari berbagai industria</p>
-        <div class="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-60">
-          <div class="text-xl font-bold text-neutral-400">Tokopedia</div>
-          <div class="text-xl font-bold text-neutral-400">Shopee</div>
-          <div class="text-xl font-bold text-neutral-400">Bukalapak</div>
-          <div class="text-xl font-bold text-neutral-400"> Lazada</div>
-          <div class="text-xl font-bold text-neutral-400">Grab</div>
-          <div class="text-xl font-bold text-neutral-400">Gojek</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section id="features" class="py-20 md:py-28 px-4">
-      <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-16">
-          <h2 class="text-3xl md:text-5xl font-bold text-neutral-900 mb-4">
-            Semua yang Kamu Butuhkan
-          </h2>
-          <p class="text-xl text-neutral-600 max-w-2xl mx-auto">
-            Dilengkapi dengan fitur lengkap untuk kelola gudang dengan mudah. Tidak perlu jadi ahli IT untuk pakai StockPilot.
-          </p>
+        <div class="hidden items-center gap-7 md:flex">
+          <a href="#features" class="text-sm font-medium text-white/80 transition hover:text-white">Fitur</a>
+          <a href="#workflow" class="text-sm font-medium text-white/80 transition hover:text-white">Alur</a>
+          <a href="#plans" class="text-sm font-medium text-white/80 transition hover:text-white">Paket</a>
+          <a href="#faq" class="text-sm font-medium text-white/80 transition hover:text-white">FAQ</a>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div
-            v-for="feature in features"
-            :key="feature.title"
-            class="bg-white rounded-2xl p-6 shadow-card border border-neutral-100 hover:shadow-soft hover:-translate-y-1 transition-all duration-300"
-          >
-            <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-4">
-              <component :is="feature.icon" class="w-6 h-6 text-primary-600" />
-            </div>
-            <h3 class="text-lg font-semibold text-neutral-900 mb-2">{{ feature.title }}</h3>
-            <p class="text-neutral-600 text-sm leading-relaxed">{{ feature.description }}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Benefits -->
-    <section class="py-20 md:py-28 px-4">
-      <div class="max-w-7xl mx-auto">
-        <div class="bg-primary-600 rounded-3xl p-8 md:p-16 text-center">
-          <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
-            Mengapa Pilih StockPilot?
-          </h2>
-          <p class="text-lg text-primary-100 mb-12 max-w-xl mx-auto">
-            Semua yang kamu butuhkan untuk kelola gudang dengan lebih efektif dan efisien
-          </p>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-            <div
-              v-for="(benefit, index) in benefits"
-              :key="index"
-              class="flex items-start gap-3 text-white"
-            >
-              <Check class="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              <span class="text-primary-50">{{ benefit }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- How it works -->
-    <section class="py-20 md:py-28 px-4 bg-neutral-50">
-      <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-16">
-          <h2 class="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-            Mulai Dalam 3 Menit
-          </h2>
-          <p class="text-lg text-neutral-600">
-            Tidak perlu belajar lama. Cukup 3 langkah saja langsung bisa pakai
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div class="text-center">
-            <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span class="text-2xl font-bold text-primary-600">1</span>
-            </div>
-            <h3 class="font-semibold text-neutral-900 mb-2">Daftar Gratis</h3>
-            <p class="text-neutral-600">Isi nama dan email untuk mulai trial 7 hari</p>
-          </div>
-          <div class="text-center">
-            <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span class="text-2xl font-bold text-primary-600">2</span>
-            </div>
-            <h3 class="font-semibold text-neutral-900 mb-2">Tambah Produk</h3>
-            <p class="text-neutral-600">Input produk satu per satu atau import dari Excel</p>
-          </div>
-          <div class="text-center">
-            <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span class="text-2xl font-bold text-primary-600">3</span>
-            </div>
-            <h3 class="font-semibold text-neutral-900 mb-2">Mulai Kelola</h3>
-            <p class="text-neutral-600">Langsung catat stock masuk/keluar dengan mudah</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Pricing -->
-    <section id="pricing" class="py-20 md:py-28 px-4">
-      <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-16">
-          <h2 class="text-3xl md:text-5xl font-bold text-neutral-900 mb-4">
-            Harga Terjangkau untuk UMKM
-          </h2>
-          <p class="text-xl text-neutral-600 max-w-2xl mx-auto">
-            Pilih paket yang sesuai dengan kebutuhan bisnismu. Semua paket dengan harga transparan tanpa biaya tersembunyi.
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div
-            v-for="plan in plans"
-            :key="plan.name"
-            :class="[
-              'bg-white rounded-2xl p-6 shadow-card border-2 transition-all duration-300',
-              plan.popular ? 'border-primary-500 ring-4 ring-primary-100' : 'border-neutral-100'
-            ]"
-          >
-            <div
-              v-if="plan.popular"
-              class="bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-3"
-            >
-              PALING POPULER
-            </div>
-            <h3 class="text-xl font-bold text-neutral-900">{{ plan.name }}</h3>
-            <div class="mt-2 mb-1">
-              <span class="text-4xl font-bold text-neutral-900">{{ plan.price }}</span>
-              <span v-if="plan.period" class="text-neutral-500 text-sm">{{ plan.period }}</span>
-            </div>
-            <p class="text-neutral-600 text-sm mb-4">{{ plan.description }}</p>
-            
-            <ul class="space-y-2 mb-6">
-              <li
-                v-for="feature in plan.features"
-                :key="feature"
-                class="flex items-start gap-2 text-sm text-neutral-700"
-              >
-                <Check class="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" />
-                {{ feature }}
-              </li>
-              <li
-                v-for="feature in plan.notIncluded"
-                :key="feature"
-                class="flex items-start gap-2 text-sm text-neutral-400 line-through"
-              >
-                <span class="w-4 h-4 flex-shrink-0 mt-0.5">×</span>
-                {{ feature }}
-              </li>
-            </ul>
-            
-            <button
-              @click="plan.name === 'Free' ? goToLogin() : goToTrial()"
-              :class="[
-                'w-full py-3 rounded-xl font-medium transition',
-                plan.popular 
-                  ? 'bg-primary-600 text-white hover:bg-primary-700' 
-                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-              ]"
-            >
-              {{ plan.name === 'Free' ? 'Gunakan Gratis' : 'Coba Gratis' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Testimonials -->
-    <section id="testimonials" class="py-20 md:py-28 px-4 bg-neutral-50">
-      <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-16">
-          <h2 class="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-            Dipercayaan Ribuan Bisnis
-          </h2>
-          <p class="text-lg text-neutral-600">
-            Bergabung dengan bisnis lain yang sudah merasakan manfaat StockPilot
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div
-            v-for="testimonial in testimonials"
-            :key="testimonial.name"
-            class="bg-white rounded-2xl p-6 shadow-card"
-          >
-            <div class="flex items-center gap-1 mb-4">
-              <Star v-for="i in testimonial.rating" :key="i" class="w-4 h-4 text-yellow-500" fill="currentColor" />
-            </div>
-            <p class="text-neutral-700 mb-4 leading-relaxed">"{{ testimonial.text }}"</p>
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center font-semibold text-primary-700">
-                {{ testimonial.avatar }}
-              </div>
-              <div>
-                <p class="font-medium text-neutral-900">{{ testimonial.name }}</p>
-                <p class="text-sm text-neutral-500">{{ testimonial.role }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FAQ -->
-    <section id="faq" class="py-20 md:py-28 px-4">
-      <div class="max-w-3xl mx-auto">
-        <div class="text-center mb-16">
-          <h2 class="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-            Pertanyaan Umum
-          </h2>
-          <p class="text-lg text-neutral-600">
-            Ada pertanyaan? Kami siap membantu
-          </p>
-        </div>
-
-        <div class="space-y-4">
-          <div
-            v-for="faq in faqs"
-            :key="faq.question"
-            class="bg-neutral-50 rounded-xl p-6"
-          >
-            <h3 class="font-semibold text-neutral-900 mb-2">{{ faq.question }}</h3>
-            <p class="text-neutral-600">{{ faq.answer }}</p>
-          </div>
-        </div>
-
-        <div class="mt-12 text-center">
-          <p class="text-neutral-600 mb-4">Masih ada pertanyaan?</p>
-          <button class="btn-primary px-8 py-3">
-            Hubungi Kami
+        <div class="hidden items-center gap-3 md:flex">
+          <button class="rounded-xl px-4 py-2 text-sm font-semibold text-white/85 hover:text-white" @click="goToLogin">
+            Masuk
+          </button>
+          <button class="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-neutral-100" @click="goToTrial">
+            Request Trial
           </button>
         </div>
-      </div>
-    </section>
 
-    <!-- CTA -->
-    <section class="py-20 md:py-28 px-4">
-      <div class="max-w-7xl mx-auto bg-primary-600 rounded-3xl p-8 md:p-16 text-center">
-        <h2 class="text-3xl md:text-5xl font-bold text-white mb-4">
-          Siap Coba Gratis?
-        </h2>
-        <p class="text-lg text-primary-100 mb-8 max-w-xl mx-auto">
-          Mulai 7 hari trial gratis sekarang. Tanpa kartu kredit, tanpa komitmen. Semua fitur Pro bisa dicoba!
-        </p>
-        <button @click="goToTrial" class="bg-white text-primary-600 hover:bg-neutral-100 px-10 py-4 rounded-2xl font-bold text-lg transition flex items-center justify-center gap-2 mx-auto">
-          <Sparkle class="w-5 h-5" />
-          Mulai Trial Gratis 7 Hari
+        <button class="rounded-xl p-2 text-white hover:bg-white/10 md:hidden" @click="toggleMobileMenu">
+          <X v-if="mobileMenuOpen" class="h-6 w-6" />
+          <Menu v-else class="h-6 w-6" />
         </button>
-        <p class="text-primary-200 text-sm mt-4">
-          Tidak perlu kartu kredit • Cancel kapan saja • Semua fitur Pro
-        </p>
       </div>
-    </section>
 
-    <!-- Footer -->
-    <footer class="bg-neutral-900 py-16 px-4">
-      <div class="max-w-7xl mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-12">
-          <div>
-            <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-                <Package class="w-6 h-6 text-white" />
-              </div>
-              <span class="text-xl font-bold text-white">StockPilot</span>
+      <div v-if="mobileMenuOpen" class="border-t border-white/10 bg-primary-700 px-4 py-4 md:hidden">
+        <div class="flex flex-col gap-2">
+          <a href="#features" class="rounded-xl px-3 py-2 text-white/85 hover:bg-white/10" @click="closeMobileMenu">Fitur</a>
+          <a href="#workflow" class="rounded-xl px-3 py-2 text-white/85 hover:bg-white/10" @click="closeMobileMenu">Alur</a>
+          <a href="#plans" class="rounded-xl px-3 py-2 text-white/85 hover:bg-white/10" @click="closeMobileMenu">Paket</a>
+          <a href="#faq" class="rounded-xl px-3 py-2 text-white/85 hover:bg-white/10" @click="closeMobileMenu">FAQ</a>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <button class="rounded-xl border border-white/20 px-4 py-2.5 font-semibold text-white" @click="goToLogin">Masuk</button>
+            <button class="rounded-xl bg-white px-4 py-2.5 font-semibold text-primary-700" @click="goToTrial">Trial</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <header class="relative overflow-hidden bg-primary-700">
+      <div class="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_34%),radial-gradient(circle_at_80%_20%,rgba(16,185,129,0.34),transparent_30%)]"></div>
+      <div class="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <section class="flex flex-col justify-center">
+          <h1 class="max-w-3xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+            Kelola gudang, tenant, dan stok dalam satu platform yang rapi.
+          </h1>
+          <p class="mt-6 max-w-2xl text-lg leading-8 text-primary-50">
+            StockPilot membantu super admin mengatur tenant, paket, dan akses, sementara tenant admin menjalankan operasional gudang harian sesuai fitur yang aktif.
+          </p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <button class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-semibold text-primary-700 shadow-lg shadow-primary-950/20 transition hover:bg-neutral-100" @click="goToTrial">
+              Request trial via WhatsApp
+              <ArrowRight class="h-5 w-5" />
+            </button>
+            <button class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 px-6 py-3 font-semibold text-white transition hover:bg-white/10" @click="openWhatsAppContact">
+              <MessageCircle class="h-5 w-5" />
+              Konsultasi paket
+            </button>
+          </div>
+          <div class="mt-8 grid gap-3 text-sm text-primary-50 sm:grid-cols-3">
+            <div class="flex items-center gap-2">
+              <Shield class="h-4 w-4 text-emerald-200" />
+              Akses dikontrol
             </div>
-            <p class="text-neutral-400">Solusi pengelolaan gudang yang mudah untuk bisnis Indonesia.</p>
+            <div class="flex items-center gap-2">
+              <UploadCloud class="h-4 w-4 text-emerald-200" />
+              PWA offline sync
+            </div>
+            <div class="flex items-center gap-2">
+              <ClipboardCheck class="h-4 w-4 text-emerald-200" />
+              Audit siap telusur
+            </div>
           </div>
-          <div>
-            <h4 class="font-semibold text-white mb-4">Produk</h4>
-            <ul class="space-y-2 text-neutral-400">
-              <li><a href="#" class="hover:text-white">Fitur</a></li>
-              <li><a href="#pricing" class="hover:text-white">Harga</a></li>
-              <li><a href="#" class="hover:text-white">Demo</a></li>
-              <li><a href="#" class="hover:text-white">Integrasi</a></li>
-            </ul>
+        </section>
+
+        <section class="rounded-2xl border border-white/15 bg-white/10 p-4 shadow-2xl shadow-primary-950/20 backdrop-blur">
+          <div class="rounded-xl bg-white p-5">
+            <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
+              <div>
+                <p class="text-sm font-medium text-neutral-500">Panel operasional</p>
+                <h2 class="text-xl font-bold text-neutral-900">Ringkasan Gudang</h2>
+              </div>
+              <div class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                Online sync
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-3">
+              <div class="rounded-xl border border-neutral-100 p-4">
+                <Warehouse class="mb-3 h-6 w-6 text-primary-600" />
+                <p class="text-sm text-neutral-500">Gudang aktif</p>
+                <p class="mt-1 text-2xl font-bold">Per tenant</p>
+              </div>
+              <div class="rounded-xl border border-neutral-100 p-4">
+                <BarChart3 class="mb-3 h-6 w-6 text-emerald-600" />
+                <p class="text-sm text-neutral-500">Laporan</p>
+                <p class="mt-1 text-2xl font-bold">Realtime</p>
+              </div>
+            </div>
+            <div class="mt-5 space-y-3">
+              <div class="flex items-center justify-between rounded-xl bg-primary-50 p-4">
+                <div class="flex items-center gap-3">
+                  <Package class="h-5 w-5 text-primary-700" />
+                  <span class="font-semibold">Produk dan supplier</span>
+                </div>
+                <Check class="h-5 w-5 text-emerald-600" />
+              </div>
+              <div class="flex items-center justify-between rounded-xl bg-neutral-50 p-4">
+                <div class="flex items-center gap-3">
+                  <Truck class="h-5 w-5 text-neutral-700" />
+                  <span class="font-semibold">Mutasi stok</span>
+                </div>
+                <Check class="h-5 w-5 text-emerald-600" />
+              </div>
+              <div class="flex items-center justify-between rounded-xl bg-neutral-50 p-4">
+                <div class="flex items-center gap-3">
+                  <Sparkles class="h-5 w-5 text-neutral-700" />
+                  <span class="font-semibold">Paket dan izin fitur</span>
+                </div>
+                <Check class="h-5 w-5 text-emerald-600" />
+              </div>
+            </div>
           </div>
+        </section>
+      </div>
+    </header>
+
+    <main>
+      <section id="features" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div class="max-w-3xl">
+          <h2 class="text-3xl font-bold tracking-tight text-neutral-900">Fitur inti untuk operasional gudang</h2>
+          <p class="mt-4 text-lg leading-8 text-neutral-600">
+            Fokusnya bukan data dummy, melainkan alur produksi yang bisa dipakai tenant sungguhan setelah diaktifkan super admin.
+          </p>
+        </div>
+        <div class="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <article v-for="feature in features" :key="feature.title" class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
+            <div class="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
+              <component :is="feature.icon" class="h-6 w-6" />
+            </div>
+            <h3 class="text-lg font-bold text-neutral-900">{{ feature.title }}</h3>
+            <p class="mt-3 text-sm leading-6 text-neutral-600">{{ feature.description }}</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="workflow" class="bg-neutral-50">
+        <div class="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
-            <h4 class="font-semibold text-white mb-4">Perusahaan</h4>
-            <ul class="space-y-2 text-neutral-400">
-              <li><a href="#" class="hover:text-white">Tentang Kami</a></li>
-              <li><a href="#" class="hover:text-white">Blog</a></li>
-              <li><a href="#" class="hover:text-white">Karir</a></li>
-              <li><a href="#" class="hover:text-white">Press</a></li>
-            </ul>
+            <h2 class="text-3xl font-bold text-neutral-900">Alur aktivasi yang aman</h2>
+            <p class="mt-4 text-lg leading-8 text-neutral-600">
+              Pendaftaran publik dibuat sebagai request, sehingga tenant produksi hanya muncul setelah disetujui dan dikonfigurasi.
+            </p>
+            <button class="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white transition hover:bg-primary-700" @click="goToTrial">
+              Kirim request trial
+              <ArrowRight class="h-5 w-5" />
+            </button>
           </div>
-          <div>
-            <h4 class="font-semibold text-white mb-4">Hubungi</h4>
-            <ul class="space-y-3 text-neutral-400">
-              <li class="flex items-center gap-2">
-                <Mail class="w-4 h-4" />
-                hello@stockpilot.id
-              </li>
-              <li class="flex items-center gap-2">
-                <Phone class="w-4 h-4" />
-                +62 812 3456 7890
-              </li>
-              <li class="flex items-center gap-2">
-                <MessageCircle class="w-4 h-4" />
-                @stockpilot_id
-              </li>
-            </ul>
+          <div class="grid gap-4">
+            <article v-for="(item, index) in workflow" :key="item.title" class="flex gap-4 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-600 font-bold text-white">
+                {{ index + 1 }}
+              </div>
+              <div>
+                <h3 class="font-bold text-neutral-900">{{ item.title }}</h3>
+                <p class="mt-2 text-sm leading-6 text-neutral-600">{{ item.description }}</p>
+              </div>
+            </article>
           </div>
         </div>
-        <div class="border-t border-neutral-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p class="text-neutral-500 text-sm">© 2024 StockPilot. All rights reserved.</p>
-          <div class="flex gap-6 text-neutral-500 text-sm">
-            <a href="#" class="hover:text-white">Privacy Policy</a>
-            <a href="#" class="hover:text-white">Terms of Service</a>
-            <a href="#" class="hover:text-white">Kebijakan Privasi</a>
+      </section>
+
+      <section class="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_1fr] lg:px-8">
+        <div class="rounded-2xl bg-neutral-950 p-6 text-white sm:p-8">
+          <h2 class="text-2xl font-bold">Siap untuk multi-tier admin</h2>
+          <p class="mt-4 leading-7 text-neutral-300">
+            Super admin mengelola platform penuh, sedangkan tenant admin hanya melihat fitur sesuai paket dan status langganannya.
+          </p>
+        </div>
+        <div class="grid gap-3">
+          <div v-for="item in capabilities" :key="item" class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4">
+            <Check class="h-5 w-5 flex-shrink-0 text-emerald-600" />
+            <span class="font-medium text-neutral-800">{{ item }}</span>
           </div>
         </div>
+      </section>
+
+      <section id="plans" class="bg-primary-50">
+        <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div class="max-w-3xl">
+            <h2 class="text-3xl font-bold text-neutral-900">Paket disesuaikan oleh super admin</h2>
+            <p class="mt-4 text-lg leading-8 text-neutral-600">
+              Durasi langganan, batas fitur, add-on, dan akses tenant bisa dinaikkan atau dikurangi sesuai kebutuhan operasional.
+            </p>
+          </div>
+          <div class="mt-10 grid gap-5 lg:grid-cols-3">
+            <article
+              v-for="plan in plans"
+              :key="plan.name"
+              :class="[
+                'rounded-xl border bg-white p-6 shadow-sm',
+                plan.popular ? 'border-primary-500 ring-2 ring-primary-100' : 'border-neutral-200'
+              ]"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-xl font-bold text-neutral-900">{{ plan.name }}</h3>
+                  <p class="mt-2 text-sm leading-6 text-neutral-600">{{ plan.description }}</p>
+                </div>
+                <span v-if="plan.popular" class="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700">Populer</span>
+              </div>
+              <ul class="mt-6 space-y-3">
+                <li v-for="item in plan.features" :key="item" class="flex items-start gap-3 text-sm text-neutral-700">
+                  <Check class="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+                  {{ item }}
+                </li>
+              </ul>
+              <button class="mt-6 w-full rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white transition hover:bg-primary-700" @click="openWhatsAppContact">
+                Konsultasi paket
+              </button>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+        <h2 class="text-3xl font-bold text-neutral-900">Pertanyaan umum</h2>
+        <div class="mt-8 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white">
+          <article v-for="item in faqs" :key="item.question" class="p-6">
+            <h3 class="font-bold text-neutral-900">{{ item.question }}</h3>
+            <p class="mt-2 leading-7 text-neutral-600">{{ item.answer }}</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="bg-neutral-950 px-4 py-16 text-white sm:px-6 lg:px-8">
+        <div class="mx-auto flex max-w-5xl flex-col items-center text-center">
+          <h2 class="max-w-3xl text-3xl font-bold">Mulai dari request trial yang rapi, lanjut ke aktivasi tenant yang terkendali.</h2>
+          <p class="mt-4 max-w-2xl leading-8 text-neutral-300">
+            Kirim data calon tenant ke kontak resmi, lalu super admin menyiapkan akun, paket, dan gudang awal.
+          </p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <button class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-semibold text-neutral-950 transition hover:bg-neutral-100" @click="goToTrial">
+              Request trial
+              <ArrowRight class="h-5 w-5" />
+            </button>
+            <button class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-3 font-semibold text-white transition hover:bg-white/10" @click="openWhatsAppContact">
+              <MessageCircle class="h-5 w-5" />
+              WhatsApp
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-neutral-200 bg-white">
+      <div class="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.2fr_1fr] lg:px-8">
+        <div>
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600">
+              <Package class="h-6 w-6 text-white" />
+            </div>
+            <span class="text-xl font-bold text-neutral-900">StockPilot</span>
+          </div>
+          <p class="mt-4 max-w-md text-sm leading-6 text-neutral-600">
+            Platform manajemen gudang multi-tenant untuk operasional stok, supplier, laporan, paket, dan audit.
+          </p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-neutral-900">Kontak resmi</h3>
+          <div class="mt-4 space-y-3 text-sm text-neutral-600">
+            <div class="flex items-center gap-3">
+              <MessageCircle class="h-4 w-4 text-primary-600" />
+              {{ ownerContact.name }}
+            </div>
+            <div class="flex items-center gap-3">
+              <Phone class="h-4 w-4 text-primary-600" />
+              {{ ownerContact.whatsappLocal }}
+            </div>
+            <div class="flex items-center gap-3">
+              <Mail class="h-4 w-4 text-primary-600" />
+              {{ ownerContact.email }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="border-t border-neutral-100 px-4 py-5 text-center text-sm text-neutral-500">
+        StockPilot. Semua hak dilindungi.
       </div>
     </footer>
   </div>

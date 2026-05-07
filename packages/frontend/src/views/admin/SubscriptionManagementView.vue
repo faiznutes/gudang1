@@ -495,7 +495,7 @@ onMounted(() => loadSubscriptions(1))
           </div>
           <div>
             <label class="label">Catatan Audit</label>
-            <textarea v-model="periodDraft.reason" class="input min-h-[80px] w-full" placeholder="Contoh: kompensasi downtime, koreksi pembayaran, atau penyesuaian manual"></textarea>
+            <textarea v-model="periodDraft.reason" class="input min-h-[80px] w-full" placeholder="Alasan perubahan periode langganan"></textarea>
           </div>
         </div>
         <div class="flex justify-end gap-3 border-t border-neutral-200 p-4">

@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify'
-import type { Prisma } from '@prisma/client'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
@@ -13,16 +12,6 @@ import { getPlatformSettings, getSessionPolicy } from '../lib/settings.js'
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
-})
-
-const registerSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-  password_confirmation: z.string().min(6).optional(),
-  workspace_name: z.string().min(2).optional(),
-  plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']).default('free'),
-  trial: z.boolean().default(false),
 })
 
 function base64Url(value: string) {
@@ -82,27 +71,6 @@ function signAccessToken(app: FastifyInstance, payload: { sub: string; workspace
   return app.jwt.sign(payload, { expiresIn: '8h' })
 }
 
-async function createStarterWorkspaceData(tx: Prisma.TransactionClient, workspaceId: string) {
-  const category = await tx.category.create({
-    data: {
-      workspaceId,
-      name: 'Umum',
-      description: 'Kategori default',
-    },
-  })
-
-  await tx.warehouse.create({
-    data: {
-      workspaceId,
-      name: 'Gudang Utama',
-      address: 'Lokasi utama',
-      isDefault: true,
-    },
-  })
-
-  return category
-}
-
 export async function authRoutes(app: FastifyInstance) {
   app.post('/login', async (request, reply) => {
     const body = loginSchema.parse(request.body)
@@ -153,93 +121,11 @@ export async function authRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post('/register', async (request, reply) => {
-    const body = registerSchema.parse(request.body)
-    if (body.password_confirmation && body.password_confirmation !== body.password) {
-      throw new AppError('validation_error', 'Konfirmasi password tidak cocok')
-    }
-
-    const existing = await app.prisma.user.findUnique({ where: { email: body.email.toLowerCase() } })
-    if (existing) {
-      throw new AppError('conflict', 'Email sudah terdaftar')
-    }
-
-    const passwordHash = await bcrypt.hash(body.password, 10)
-    const trialEndsAt = body.trial ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : null
-
-    const result = await app.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          name: body.name,
-          email: body.email.toLowerCase(),
-          passwordHash,
-          role: body.trial ? 'trial' : 'admin',
-        },
-      })
-
-      const workspace = await tx.workspace.create({
-        data: {
-          name: body.workspace_name ?? `${body.name}'s Workspace`,
-          plan: body.trial ? 'free' : body.plan,
-          status: body.trial ? 'trial' : 'active',
-          trialEndsAt,
-        },
-      })
-
-      const member = await tx.workspaceMember.create({
-        data: {
-          userId: user.id,
-          workspaceId: workspace.id,
-          role: body.trial ? 'trial' : 'admin',
-        },
-      })
-
-      await tx.subscription.create({
-        data: {
-          workspaceId: workspace.id,
-          plan: body.trial ? 'pro' : body.plan,
-          status: body.trial ? 'trialing' : 'active',
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: body.trial ? trialEndsAt! : new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000),
-        },
-      })
-
-      await createStarterWorkspaceData(tx, workspace.id)
-      await tx.auditLog.create({
-        data: {
-          workspaceId: workspace.id,
-          userId: user.id,
-          action: 'workspace.registered',
-          entityType: 'workspace',
-          entityId: workspace.id,
-          metadata: { plan: body.plan, trial: body.trial },
-        },
-      })
-
-      return { user, workspace, member }
-    })
-
-    const sessionPolicy = await getSessionPolicy(app)
-    const token = signAccessToken(app, {
-      sub: result.user.id,
-      workspaceId: result.workspace.id,
-      role: result.member.role,
-      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
-    })
-    setRefreshCookie(app, reply, {
-      sub: result.user.id,
-      workspaceId: result.workspace.id,
-      role: result.member.role,
-      sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
-    })
-
-    return {
-      token,
-      user: userDto(result.user),
-      workspace: workspaceDto(result.workspace),
-      entitlements: await getEntitlements(app, result.workspace.id),
-      ...sessionDto(sessionPolicy),
-    }
+  app.post('/register', async () => {
+    throw new AppError(
+      'forbidden',
+      'Pendaftaran tenant baru diproses melalui WhatsApp dan diaktifkan oleh super admin.',
+    )
   })
 
   app.post('/logout', async (_request, reply) => {

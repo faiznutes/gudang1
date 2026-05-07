@@ -183,7 +183,7 @@ function goToBilling() {
             <textarea
               v-model="form.notes"
               class="input min-h-[80px]"
-              placeholder="Contoh: Pembelian dari supplier ABC"
+              placeholder="Catatan stok masuk"
             />
           </div>
 

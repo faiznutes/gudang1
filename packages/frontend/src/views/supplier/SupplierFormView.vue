@@ -101,7 +101,7 @@ async function handleSubmit() {
           <input
             v-model="form.name"
             :class="['input', errors.name ? 'input-error' : '']"
-            placeholder="Contoh: PT Maju Jaya"
+            placeholder="Nama supplier"
           />
           <p v-if="errors.name" class="text-xs text-danger-600 mt-1">{{ errors.name }}</p>
         </div>
@@ -112,7 +112,7 @@ async function handleSubmit() {
           <input
             v-model="form.contact_person"
             class="input"
-            placeholder="Contoh: Budi Santoso"
+            placeholder="Nama kontak"
           />
         </div>
 
@@ -122,7 +122,7 @@ async function handleSubmit() {
           <input
             v-model="form.phone"
             class="input"
-            placeholder="Contoh: 0812-3456-7890"
+            placeholder="08xxxxxxxxxx"
           />
         </div>
 
@@ -133,7 +133,7 @@ async function handleSubmit() {
             v-model="form.email"
             type="email"
             class="input"
-            placeholder="Contoh: budi@majujaya.com"
+            placeholder="supplier@email.com"
           />
         </div>
 
@@ -143,7 +143,7 @@ async function handleSubmit() {
           <textarea
             v-model="form.address"
             class="input min-h-[80px]"
-            placeholder="Contoh: Jl. Industri Raya No. 15, Jakarta"
+            placeholder="Alamat supplier"
           />
         </div>
 

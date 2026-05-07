@@ -1,240 +1,169 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { Package, Sparkles, Check, Eye, EyeOff, ArrowLeft } from 'lucide-vue-next'
-
-const router = useRouter()
-const authStore = useAuthStore()
+import { computed, ref } from 'vue'
+import { ArrowLeft, Check, Mail, MessageCircle, Package, Phone, Sparkles } from 'lucide-vue-next'
+import { buildWhatsAppUrl, ownerContact } from '@/lib/contact'
 
 const name = ref('')
+const whatsapp = ref('')
 const email = ref('')
-const password = ref('')
-const confirmPassword = ref('')
-const showPassword = ref(false)
-const isLoading = ref(false)
+const businessName = ref('')
 const error = ref('')
-const acceptedTerms = ref(false)
+const sent = ref(false)
 
-const features = [
-  'Akses semua fitur Pro',
-  'Unlimited gudang',
-  'Unlimited produk',
-  'Export PDF & CSV',
-  'Analytics lengkap',
-  '7 hari gratis',
+const benefits = [
+  'Konsultasi kebutuhan gudang sebelum akun dibuat',
+  'Setup tenant dan gudang dipandu oleh super admin',
+  'Akses trial dipastikan sesuai paket dan izin yang aktif',
+  'Tidak ada akun otomatis yang masuk ke sistem produksi',
 ]
 
-async function handleTrialSignup() {
-  if (!name.value || !email.value || !password.value) {
-    error.value = 'Semua field harus diisi'
-    return
-  }
+const normalizedWhatsapp = computed(() => whatsapp.value.replace(/[^\d+]/g, ''))
 
-  if (password.value !== confirmPassword.value) {
-    error.value = 'Password tidak cocok'
-    return
-  }
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
 
-  if (password.value.length < 6) {
-    error.value = 'Password minimal 6 karakter'
-    return
-  }
+function buildMessage() {
+  return [
+    'Halo faiznute, saya ingin request akun trial StockPilot.',
+    '',
+    `Nama: ${name.value.trim()}`,
+    `WhatsApp: ${normalizedWhatsapp.value}`,
+    `Email: ${email.value.trim().toLowerCase()}`,
+    businessName.value.trim() ? `Nama bisnis: ${businessName.value.trim()}` : 'Nama bisnis: -',
+    '',
+    'Mohon dibantu aktivasi trial dan informasi paket yang sesuai.',
+  ].join('\n')
+}
 
-  if (!acceptedTerms.value) {
-    error.value = 'Anda harus menyetujui syarat & ketentuan'
-    return
-  }
-
-  isLoading.value = true
+function submitTrialRequest() {
   error.value = ''
 
-  try {
-    await authStore.trialSignup(name.value, email.value, password.value)
-    router.push('/app')
-  } catch (e) {
-    error.value = 'Pendaftaran gagal'
-  } finally {
-    isLoading.value = false
+  if (!name.value.trim() || !normalizedWhatsapp.value || !email.value.trim()) {
+    error.value = 'Nama, nomor WhatsApp, dan email wajib diisi.'
+    return
   }
+
+  if (normalizedWhatsapp.value.length < 9) {
+    error.value = 'Nomor WhatsApp belum valid.'
+    return
+  }
+
+  if (!isValidEmail(email.value.trim())) {
+    error.value = 'Format email belum valid.'
+    return
+  }
+
+  sent.value = true
+  window.open(buildWhatsAppUrl(buildMessage()), '_blank', 'noopener,noreferrer')
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 py-12 px-4">
-    <div class="max-w-5xl mx-auto">
-      <!-- Back -->
+  <div class="min-h-screen bg-neutral-950 text-white">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.35),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.22),transparent_30%)]"></div>
+
+    <main class="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
       <router-link
-        to="/login"
-        class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-8"
+        to="/"
+        class="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 hover:bg-white/10"
       >
-        <ArrowLeft class="w-4 h-4" />
-        Kembali ke Login
+        <ArrowLeft class="h-4 w-4" />
+        Kembali ke beranda
       </router-link>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Left: Benefits -->
-        <div class="hidden lg:block">
-          <div class="sticky top-8">
-            <div class="inline-flex items-center gap-2 px-3 py-1 bg-primary-100 rounded-full text-primary-700 text-sm font-medium mb-6">
-              <Sparkles class="w-4 h-4" />
-              Trial 7 Hari
-            </div>
-            <h1 class="text-4xl font-bold text-neutral-900 mb-4">
-              Coba Semua Fitur Pro Gratis
+      <div class="grid flex-1 items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <section class="space-y-8">
+          <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-500 shadow-xl shadow-primary-900/40">
+            <Package class="h-8 w-8" />
+          </div>
+          <div>
+            <h1 class="max-w-xl text-4xl font-bold leading-tight sm:text-5xl">
+              Request trial StockPilot lewat WhatsApp
             </h1>
-            <p class="text-lg text-neutral-600 mb-8">
-              Dapatkan akses penuh ke semua fitur StockPilot selama 7 hari. Tanpa kartu kredit, tanpa komitmen.
-            </p>
-
-            <!-- Features List -->
-            <div class="space-y-4">
-              <div
-                v-for="feature in features"
-                :key="feature"
-                class="flex items-center gap-3"
-              >
-                <div class="w-6 h-6 bg-success-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Check class="w-4 h-4 text-success-600" />
-                </div>
-                <span class="text-neutral-700">{{ feature }}</span>
-              </div>
-            </div>
-
-            <!-- Trust Badges -->
-            <div class="mt-12 p-6 bg-white rounded-2xl shadow-sm border border-neutral-100">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                  <Package class="w-6 h-6 text-primary-600" />
-                </div>
-                <div>
-                  <p class="font-semibold text-neutral-900">Dipercaya 1000+ UMKM</p>
-                  <p class="text-sm text-neutral-500">Bergabung dengan bisnis lain yang sudah menggunakan StockPilot</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right: Signup Form -->
-        <div>
-          <div class="bg-white rounded-2xl shadow-xl p-8">
-            <h2 class="text-2xl font-bold text-neutral-900 mb-2">Buat Akun Trial</h2>
-            <p class="text-neutral-600 mb-6">Isi form di bawah untuk memulai trial 7 hari</p>
-
-            <form @submit.prevent="handleTrialSignup" class="space-y-5">
-              <!-- Name -->
-              <div>
-                <label class="label">Nama Lengkap</label>
-                <input
-                  v-model="name"
-                  type="text"
-                  class="input"
-                  placeholder="Budi Santoso"
-                  autocomplete="name"
-                />
-              </div>
-
-              <!-- Email -->
-              <div>
-                <label class="label">Email</label>
-                <input
-                  v-model="email"
-                  type="email"
-                  class="input"
-                  placeholder="nama@email.com"
-                  autocomplete="email"
-                />
-              </div>
-
-              <!-- Password -->
-              <div>
-                <label class="label">Password</label>
-                <div class="relative">
-                  <input
-                    v-model="password"
-                    :type="showPassword ? 'text' : 'password'"
-                    class="input pr-10"
-                    placeholder="••••••••"
-                    autocomplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    @click="showPassword = !showPassword"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                  >
-                    <Eye v-if="!showPassword" class="w-5 h-5" />
-                    <EyeOff v-else class="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- Confirm Password -->
-              <div>
-                <label class="label">Konfirmasi Password</label>
-                <input
-                  v-model="confirmPassword"
-                  type="password"
-                  class="input"
-                  placeholder="••••••••"
-                  autocomplete="new-password"
-                />
-              </div>
-
-              <!-- Terms -->
-              <div class="flex items-start gap-3">
-                <input
-                  v-model="acceptedTerms"
-                  type="checkbox"
-                  id="terms"
-                  class="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500 mt-1"
-                />
-                <label for="terms" class="text-sm text-neutral-600">
-                  Saya menyetujui <a href="#" class="text-primary-600 hover:underline">Syarat & Ketentuan</a> serta <a href="#" class="text-primary-600 hover:underline">Kebijakan Privasi</a>
-                </label>
-              </div>
-
-              <!-- Error -->
-              <div v-if="error" class="p-3 bg-danger-50 border border-danger-200 rounded-lg">
-                <p class="text-sm text-danger-700">{{ error }}</p>
-              </div>
-
-              <!-- Submit -->
-              <button
-                type="submit"
-                :disabled="isLoading"
-                class="btn-primary w-full py-3 text-base"
-              >
-                <span v-if="isLoading" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                <span v-else>Mulai Trial Gratis 7 Hari</span>
-              </button>
-            </form>
-
-            <!-- Login Link -->
-            <p class="text-center text-sm text-neutral-600 mt-6">
-              Sudah punya akun?
-              <router-link to="/login" class="font-medium text-primary-600 hover:text-primary-700">
-                Masuk
-              </router-link>
+            <p class="mt-5 max-w-xl text-lg leading-8 text-neutral-300">
+              Isi data singkat, lalu sistem akan membuka WhatsApp dengan pesan siap kirim ke kontak resmi. Akun trial dibuat manual agar akses tetap aman dan hanya super admin yang mengaktifkan tenant.
             </p>
           </div>
 
-          <!-- Mobile Features -->
-          <div class="lg:hidden mt-6 bg-white rounded-xl p-6 border border-neutral-100">
-            <h3 class="font-semibold text-neutral-900 mb-4">Fitur Trial</h3>
-            <div class="space-y-3">
-              <div
-                v-for="feature in features"
-                :key="feature"
-                class="flex items-center gap-2 text-sm"
-              >
-                <Check class="w-4 h-4 text-success-600" />
-                <span class="text-neutral-700">{{ feature }}</span>
+          <div class="grid gap-3">
+            <div
+              v-for="benefit in benefits"
+              :key="benefit"
+              class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-200"
+            >
+              <Check class="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-300" />
+              <span>{{ benefit }}</span>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <p class="text-sm font-semibold text-white">Kontak aktivasi</p>
+            <div class="mt-4 grid gap-3 text-sm text-neutral-300">
+              <div class="flex items-center gap-3">
+                <MessageCircle class="h-4 w-4 text-emerald-300" />
+                {{ ownerContact.name }}
+              </div>
+              <div class="flex items-center gap-3">
+                <Phone class="h-4 w-4 text-emerald-300" />
+                {{ ownerContact.whatsappLocal }}
+              </div>
+              <div class="flex items-center gap-3">
+                <Mail class="h-4 w-4 text-emerald-300" />
+                {{ ownerContact.email }}
               </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section class="rounded-[1.5rem] border border-white/10 bg-white p-5 text-neutral-900 shadow-2xl sm:p-8">
+          <div class="mb-6 flex items-start gap-4">
+            <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
+              <Sparkles class="h-5 w-5" />
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold">Form request trial</h2>
+              <p class="mt-1 text-sm text-neutral-600">Data ini akan dikirim lewat WhatsApp, bukan membuat akun otomatis.</p>
+            </div>
+          </div>
+
+          <form class="space-y-5" @submit.prevent="submitTrialRequest">
+            <div>
+              <label class="label">Nama lengkap</label>
+              <input v-model="name" type="text" class="input" placeholder="Nama Anda" autocomplete="name" />
+            </div>
+            <div>
+              <label class="label">Nomor WhatsApp</label>
+              <input v-model="whatsapp" type="tel" class="input" placeholder="08xxxxxxxxxx" autocomplete="tel" />
+            </div>
+            <div>
+              <label class="label">Email</label>
+              <input v-model="email" type="email" class="input" placeholder="nama@email.com" autocomplete="email" />
+            </div>
+            <div>
+              <label class="label">Nama bisnis <span class="text-neutral-400">(opsional)</span></label>
+              <input v-model="businessName" type="text" class="input" placeholder="Nama toko atau perusahaan" autocomplete="organization" />
+            </div>
+
+            <div v-if="error" class="rounded-xl border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700">
+              {{ error }}
+            </div>
+            <div v-if="sent" class="rounded-xl border border-success-200 bg-success-50 p-3 text-sm text-success-700">
+              WhatsApp sudah dibuka. Silakan kirim pesan yang sudah disiapkan.
+            </div>
+
+            <button type="submit" class="btn-primary w-full py-3 text-base">
+              <MessageCircle class="h-5 w-5" />
+              Kirim request via WhatsApp
+            </button>
+          </form>
+
+          <p class="mt-5 text-center text-sm text-neutral-500">
+            Sudah punya akun super admin?
+            <router-link to="/login" class="font-semibold text-primary-600 hover:text-primary-700">Masuk</router-link>
+          </p>
+        </section>
       </div>
-    </div>
+    </main>
   </div>
 </template>

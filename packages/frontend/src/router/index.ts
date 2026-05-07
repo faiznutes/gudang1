@@ -24,7 +24,7 @@ const routes = [
   {
     path: '/register',
     name: 'register',
-    component: () => import('@/views/auth/RegisterView.vue'),
+    redirect: '/trial-signup',
     meta: { guest: true },
   },
   // App dashboard routes
