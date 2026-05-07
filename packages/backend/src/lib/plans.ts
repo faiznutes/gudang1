@@ -24,6 +24,22 @@ export function planPrice(plan: string) {
   return PLAN_PRICES[plan as PlanType]?.monthly ?? 0
 }
 
+const PLAN_RANK: Record<PlanType, number> = {
+  free: 0,
+  starter: 1,
+  growth: 2,
+  pro: 3,
+  custom: 4,
+}
+
+function higherPlan(left: PlanType, right: PlanType) {
+  return PLAN_RANK[right] > PLAN_RANK[left] ? right : left
+}
+
+function isFutureOrToday(date: Date, now: Date) {
+  return date >= now
+}
+
 export const PLAN_CATALOG: Record<PlanType, PlanDefinition> = {
   free: {
     id: 'free',
@@ -94,8 +110,11 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
     include: {
       entitlements: true,
       subscriptions: {
-        orderBy: { currentPeriodEnd: 'desc' },
-        take: 1,
+        orderBy: [
+          { currentPeriodEnd: 'desc' },
+          { createdAt: 'desc' },
+        ],
+        take: 20,
       },
     },
   })
@@ -104,20 +123,47 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
     throw new Error(`Workspace ${workspaceId} tidak ditemukan`)
   }
 
-  const trialActive = !!workspace.trialEndsAt && workspace.trialEndsAt > now
   const latestSubscription = workspace.subscriptions[0]
-  const subscriptionStillActive =
-    !!latestSubscription &&
-    (latestSubscription.status === 'active' || latestSubscription.status === 'trialing') &&
-    latestSubscription.currentPeriodEnd >= now
-  const plan = (trialActive ? 'pro' : subscriptionStillActive ? latestSubscription.plan : 'free') as PlanType
-  const subscriptionStatus = (trialActive
-    ? 'trialing'
-    : subscriptionStillActive
-      ? latestSubscription.status
-      : latestSubscription && latestSubscription.currentPeriodEnd < now
-        ? 'expired'
-        : latestSubscription?.status ?? 'none') as SubscriptionStatus | 'none'
+  const activePaidSubscription = workspace.subscriptions.find(subscription => (
+    subscription.status === 'active' && isFutureOrToday(subscription.currentPeriodEnd, now)
+  ))
+  const activeTrialSubscription = workspace.status === 'trial'
+    ? workspace.subscriptions.find(subscription => (
+      subscription.status === 'trialing' && isFutureOrToday(subscription.currentPeriodEnd, now)
+    ))
+    : null
+  const workspaceTrialEndsAt = workspace.status === 'trial' && workspace.trialEndsAt && workspace.trialEndsAt > now
+    ? workspace.trialEndsAt
+    : null
+  const activeTrialEndsAt = activeTrialSubscription?.currentPeriodEnd ?? workspaceTrialEndsAt
+  const workspaceActivePlan = workspace.status === 'active' ? (workspace.plan as PlanType) : null
+
+  let plan = PLAN_CATALOG.free.id
+  let subscriptionStatus: SubscriptionStatus | 'none' = 'none'
+  let subscriptionStartsAt: Date | null = latestSubscription?.currentPeriodStart ?? null
+  let subscriptionEndsAt: Date | null = latestSubscription?.currentPeriodEnd ?? null
+  let trialEndsAt: Date | null = null
+
+  if (activePaidSubscription || workspaceActivePlan) {
+    plan = (activePaidSubscription?.plan as PlanType | undefined) ?? 'free'
+    if (workspaceActivePlan) {
+      plan = higherPlan(plan, workspaceActivePlan)
+    }
+    subscriptionStatus = 'active'
+    subscriptionStartsAt = activePaidSubscription?.currentPeriodStart ?? null
+    subscriptionEndsAt = activePaidSubscription?.currentPeriodEnd ?? null
+  } else if (activeTrialEndsAt) {
+    plan = 'pro'
+    subscriptionStatus = 'trialing'
+    trialEndsAt = activeTrialEndsAt
+    subscriptionStartsAt = activeTrialSubscription?.currentPeriodStart ?? null
+    subscriptionEndsAt = activeTrialEndsAt
+  } else if (latestSubscription) {
+    subscriptionStatus = latestSubscription.currentPeriodEnd < now
+      ? 'expired'
+      : latestSubscription.status
+  }
+
   const base = PLAN_CATALOG[plan] ?? PLAN_CATALOG.free
   const features: FeatureMap = { ...base.features }
   const limits = { ...base.limits }
@@ -143,11 +189,9 @@ export async function getEntitlements(app: FastifyInstance, workspaceId: string)
   return {
     plan,
     subscriptionStatus,
-    trialEndsAt: workspace.trialEndsAt?.toISOString() ?? null,
-    subscriptionStartsAt: latestSubscription?.currentPeriodStart.toISOString() ?? null,
-    subscriptionEndsAt: trialActive
-      ? workspace.trialEndsAt?.toISOString() ?? null
-      : latestSubscription?.currentPeriodEnd.toISOString() ?? null,
+    trialEndsAt: trialEndsAt?.toISOString() ?? null,
+    subscriptionStartsAt: subscriptionStartsAt?.toISOString() ?? null,
+    subscriptionEndsAt: subscriptionEndsAt?.toISOString() ?? null,
     features,
     limits,
     usage: { warehouses, products, users },

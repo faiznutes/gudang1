@@ -13,7 +13,10 @@ const now = ref(Date.now())
 let timer: number | null = null
 
 const entitlements = computed(() => entitlementsStore.entitlements)
-const subscriptionEnd = computed(() => entitlements.value.trialEndsAt || entitlements.value.subscriptionEndsAt)
+const subscriptionEnd = computed(() => {
+  if (entitlements.value.subscriptionStatus === 'trialing') return entitlements.value.trialEndsAt
+  return entitlements.value.subscriptionEndsAt
+})
 const subscriptionStart = computed(() => entitlements.value.subscriptionStartsAt)
 const targetEnd = computed(() => subscriptionEnd.value)
 const targetStart = computed(() => subscriptionStart.value)
@@ -23,6 +26,12 @@ const remainingMs = computed(() => {
 })
 const isExpired = computed(() => remainingMs.value !== null && remainingMs.value <= 0)
 const isSubscriptionTimer = computed(() => !!subscriptionEnd.value)
+const shouldShowCard = computed(() => {
+  if (!targetEnd.value || remainingMs.value === null) return false
+  if (entitlements.value.subscriptionStatus === 'trialing') return true
+  if (entitlements.value.subscriptionStatus === 'expired' || entitlements.value.subscriptionStatus === 'past_due') return true
+  return remainingMs.value <= 7 * 24 * 60 * 60 * 1000
+})
 const countdownParts = computed(() => {
   const totalSeconds = Math.max(0, Math.floor((remainingMs.value ?? 0) / 1000))
   return {
@@ -48,7 +57,9 @@ const tone = computed(() => {
   return 'border-primary-200 bg-primary-50 text-primary-900'
 })
 const title = computed(() => {
-  return entitlements.value.subscriptionStatus === 'trialing' ? 'Masa trial tersisa' : 'Masa aktif paket'
+  if (entitlements.value.subscriptionStatus === 'trialing') return 'Masa trial tersisa'
+  if (entitlements.value.subscriptionStatus === 'expired' || entitlements.value.subscriptionStatus === 'past_due') return 'Akses paket perlu dicek'
+  return 'Paket segera diperpanjang'
 })
 const statusText = computed(() => {
   if (isSubscriptionTimer.value) {
@@ -74,7 +85,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section v-if="targetEnd" :class="['overflow-hidden rounded-2xl border p-4 shadow-sm lg:p-6', tone]">
+  <section v-if="shouldShowCard" :class="['overflow-hidden rounded-2xl border p-4 shadow-sm lg:p-6', tone]">
     <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex items-start gap-4">
         <div class="relative grid h-20 w-20 flex-shrink-0 place-items-center rounded-full" :style="circleStyle">

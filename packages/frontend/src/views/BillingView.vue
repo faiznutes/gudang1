@@ -13,6 +13,10 @@ const entitlementsStore = useEntitlementsStore()
 const plansStore = usePlansStore()
 
 const currentPlan = computed(() => entitlementsStore.currentPlan || authStore.workspace?.plan || 'free')
+const shouldShowTrialCta = computed(() => {
+  const status = entitlementsStore.entitlements.subscriptionStatus
+  return currentPlan.value === 'free' && status !== 'active' && status !== 'trialing'
+})
 
 const featureNames: Record<string, string> = {
   stockInOut: 'Stock Masuk/Keluar',
@@ -196,7 +200,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
     </div>
 
     <!-- Trial CTA -->
-    <div class="card p-6 bg-primary-50 border-primary-200">
+    <div v-if="shouldShowTrialCta" class="card p-6 bg-primary-50 border-primary-200">
       <div class="flex flex-col sm:flex-row sm:items-center gap-4">
         <div class="flex-1">
           <h3 class="font-semibold text-primary-900 flex items-center gap-2">

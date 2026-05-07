@@ -36,6 +36,7 @@ export const useEntitlementsStore = defineStore('entitlements', () => {
 
   const currentPlan = computed(() => entitlements.value.plan)
   const isTrial = computed(() => {
+    if (entitlements.value.subscriptionStatus !== 'trialing') return false
     if (!entitlements.value.trialEndsAt) return false
     return new Date(entitlements.value.trialEndsAt) > new Date()
   })

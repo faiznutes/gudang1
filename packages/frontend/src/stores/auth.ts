@@ -51,7 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.role === 'admin')
   const isStaff = computed(() => user.value?.role === 'staff')
   const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
-  const isTrial = computed(() => entitlementsStore.isTrial || trialStore.isTrial)
+  const isTrial = computed(() => entitlementsStore.isTrial)
   const homeRoute = computed(() => isSuperAdmin.value ? '/admin' : '/app')
   const activitySessionRemainingMs = computed(() => {
     if (!activitySessionExpiresAt.value) return null
@@ -125,6 +125,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(ACTIVE_WORKSPACE_KEY, data.workspace.id)
     if (data.entitlements) {
       entitlementsStore.setEntitlements(data.entitlements)
+      if (data.entitlements.subscriptionStatus === 'trialing') {
+        trialStore.syncTrialWindow(data.entitlements.subscriptionStartsAt, data.entitlements.trialEndsAt)
+      } else {
+        trialStore.endTrial()
+      }
     }
     activitySessionExpiresAt.value = data.activity_session_expires_at ?? activitySessionExpiresAt.value
     sessionPolicy.value = data.session_policy ?? sessionPolicy.value

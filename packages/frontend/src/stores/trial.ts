@@ -45,12 +45,25 @@ export const useTrialStore = defineStore('trial', () => {
     const start = new Date()
     const end = new Date(start)
     end.setDate(end.getDate() + TRIAL_DAYS)
-    
+
+    syncTrialWindow(start.toISOString(), end.toISOString())
+  }
+
+  function syncTrialWindow(start: string | null | undefined, end: string | null | undefined) {
+    if (!end || new Date(end) <= new Date()) {
+      endTrial()
+      return
+    }
+
+    const fallbackStart = new Date(end)
+    fallbackStart.setDate(fallbackStart.getDate() - TRIAL_DAYS)
+    const normalizedStart = start ?? fallbackStart.toISOString()
+
     isTrial.value = true
-    trialStartDate.value = start.toISOString()
-    trialEndDate.value = end.toISOString()
-    localStorage.setItem('trialStartDate', start.toISOString())
-    localStorage.setItem('trialEndDate', end.toISOString())
+    trialStartDate.value = normalizedStart
+    trialEndDate.value = end
+    localStorage.setItem('trialStartDate', normalizedStart)
+    localStorage.setItem('trialEndDate', end)
   }
 
   function initTrial() {
@@ -90,6 +103,7 @@ export const useTrialStore = defineStore('trial', () => {
     progress,
     TRIAL_DAYS,
     startTrial,
+    syncTrialWindow,
     initTrial,
     endTrial,
     dismissBanner,

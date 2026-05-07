@@ -8,7 +8,7 @@ export function useFeatureAccess() {
   const trialStore = useTrialStore()
   const entitlementsStore = useEntitlementsStore()
 
-  const isTrialActive = computed(() => entitlementsStore.isTrial || trialStore.isTrial)
+  const isTrialActive = computed(() => entitlementsStore.isTrial)
   const currentPlanId = computed(() => entitlementsStore.currentPlan || plansStore.currentPlan)
 
   function canAccessStockInOut(): boolean {

@@ -621,14 +621,80 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.put('/workspaces/:id', async (request) => {
-    await requirePlatformAdmin(app, request)
+    const ctx = await requirePlatformAdmin(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = z.object({
       name: z.string().min(1).optional(),
       status: z.enum(['active', 'suspended', 'trial']).optional(),
       plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']).optional(),
     }).parse(request.body)
-    const workspace = await app.prisma.workspace.update({ where: { id: params.id }, data: body })
+
+    const current = await app.prisma.workspace.findUnique({ where: { id: params.id } })
+    if (!current) throw new AppError('not_found', 'Workspace tidak ditemukan')
+
+    const nextStatus = body.status ?? current.status
+    const nextPlan = body.plan ?? current.plan
+    const now = new Date()
+
+    const workspace = await app.prisma.$transaction(async (tx) => {
+      const updated = await tx.workspace.update({
+        where: { id: params.id },
+        data: {
+          ...body,
+          trialEndsAt: nextStatus === 'active' ? null : undefined,
+        },
+      })
+
+      if (nextStatus === 'active' && (body.plan || current.status === 'trial')) {
+        const currentSubscription = await tx.subscription.findFirst({
+          where: {
+            workspaceId: params.id,
+            status: { in: ['active', 'trialing'] },
+            currentPeriodEnd: { gte: now },
+          },
+          orderBy: { currentPeriodEnd: 'desc' },
+        })
+
+        if (currentSubscription) {
+          await tx.subscription.update({
+            where: { id: currentSubscription.id },
+            data: {
+              plan: nextPlan,
+              status: 'active',
+              cancelAtPeriodEnd: false,
+            },
+          })
+        } else if (nextPlan !== 'free') {
+          const end = new Date(now)
+          end.setMonth(end.getMonth() + 1)
+          await tx.subscription.create({
+            data: {
+              workspaceId: params.id,
+              plan: nextPlan,
+              status: 'active',
+              currentPeriodStart: now,
+              currentPeriodEnd: end,
+            },
+          })
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          workspaceId: params.id,
+          userId: ctx.userId,
+          action: 'admin.tenant.updated',
+          entityType: 'workspace',
+          entityId: params.id,
+          metadata: { name: body.name, plan: body.plan, status: body.status },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      })
+
+      return updated
+    })
+
     return workspaceDto(workspace)
   })
 
@@ -640,9 +706,44 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.post('/workspaces/:id/activate', async (request) => {
-    await requirePlatformAdmin(app, request)
+    const ctx = await requirePlatformAdmin(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const workspace = await app.prisma.workspace.update({ where: { id: params.id }, data: { status: 'active' } })
+    const current = await app.prisma.workspace.findUnique({ where: { id: params.id } })
+    if (!current) throw new AppError('not_found', 'Workspace tidak ditemukan')
+    const now = new Date()
+    const workspace = await app.prisma.$transaction(async (tx) => {
+      const updated = await tx.workspace.update({ where: { id: params.id }, data: { status: 'active', trialEndsAt: null } })
+      const trialSubscription = await tx.subscription.findFirst({
+        where: {
+          workspaceId: params.id,
+          status: 'trialing',
+          currentPeriodEnd: { gte: now },
+        },
+        orderBy: { currentPeriodEnd: 'desc' },
+      })
+      if (trialSubscription) {
+        await tx.subscription.update({
+          where: { id: trialSubscription.id },
+          data: {
+            plan: current.plan,
+            status: 'active',
+            cancelAtPeriodEnd: false,
+          },
+        })
+      }
+      await tx.auditLog.create({
+        data: {
+          workspaceId: params.id,
+          userId: ctx.userId,
+          action: 'admin.tenant.activated',
+          entityType: 'workspace',
+          entityId: params.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      })
+      return updated
+    })
     return workspaceDto(workspace)
   })
 
