@@ -29,8 +29,12 @@ const STORE_NAME = 'queue'
 const POPUP_DISMISSED_KEY = 'stockpilot:pwa-popup-dismissed-date'
 const LAST_CACHE_REFRESH_KEY = 'stockpilot:last-cache-refresh-at'
 const DAILY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+export const OFFLINE_QUEUE_CHANGED_EVENT = 'stockpilot:offline-queue-changed'
+export const OFFLINE_SYNC_COMPLETE_EVENT = 'stockpilot:offline-sync-complete'
+let syncInFlight: Promise<void> | null = null
 
 export const CACHE_REFRESH_ENDPOINTS = [
+  '/auth/me',
   '/me/entitlements',
   '/products',
   '/categories',
@@ -96,6 +100,8 @@ export async function enqueueOfflineOperation(input: Omit<OfflineOperation, 'id'
     updatedAt: now,
   }
   await withStore('readwrite', store => store.add(operation))
+  notifyOfflineQueueChanged()
+  requestOfflineSync().catch(() => {})
   return operation
 }
 
@@ -149,6 +155,30 @@ function postServiceWorkerMessage(message: Record<string, unknown>) {
   if (controller) controller.postMessage(message)
 }
 
+function notifyOfflineQueueChanged() {
+  window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT))
+}
+
+function notifyOfflineSyncComplete() {
+  window.dispatchEvent(new CustomEvent(OFFLINE_SYNC_COMPLETE_EVENT))
+}
+
+async function registerBackgroundSync() {
+  if (!('serviceWorker' in navigator)) return
+  const registration = await navigator.serviceWorker.ready.catch(() => undefined)
+  const syncManager = (registration as (ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } }) | undefined)?.sync
+  await syncManager?.register('stockpilot-offline-sync')
+}
+
+export async function requestOfflineSync() {
+  await registerBackgroundSync().catch(() => {})
+  if (navigator.onLine) {
+    window.setTimeout(() => {
+      syncOfflineQueue().catch(() => {})
+    }, 0)
+  }
+}
+
 export async function refreshDailyCache(endpoints = CACHE_REFRESH_ENDPOINTS) {
   if (!navigator.onLine) {
     throw new Error('Cache belum bisa diperbarui saat offline')
@@ -186,6 +216,7 @@ export async function refreshDailyCache(endpoints = CACHE_REFRESH_ENDPOINTS) {
 async function updateOperation(operation: OfflineOperation) {
   operation.updatedAt = new Date().toISOString()
   await withStore('readwrite', store => store.put(operation))
+  notifyOfflineQueueChanged()
 }
 
 async function sendOperation(operation: OfflineOperation) {
@@ -211,38 +242,63 @@ async function sendOperation(operation: OfflineOperation) {
 
 export async function syncOfflineQueue() {
   if (!navigator.onLine) return
-  const queue = await getOfflineQueue()
-  for (const operation of queue.filter(item => item.status === 'pending' || item.status === 'failed')) {
-    operation.status = 'syncing'
-    operation.error = undefined
-    await updateOperation(operation)
-    try {
-      await sendOperation(operation)
-      operation.status = 'synced'
+  if (!localStorage.getItem('token')) return
+  if (syncInFlight) return syncInFlight
+  syncInFlight = (async () => {
+    let syncedCount = 0
+    const queue = await getOfflineQueue()
+    for (const operation of queue.filter(item => item.status === 'pending' || item.status === 'failed')) {
+      operation.status = 'syncing'
+      operation.error = undefined
       await updateOperation(operation)
-    } catch (error) {
-      const code = (error as any)?.code
-      operation.status = code === 'conflict' || code === 'feature_locked' ? 'needs_review' : 'failed'
-      operation.error = error instanceof Error ? error.message : 'Sinkronisasi gagal'
-      await updateOperation(operation)
+      try {
+        await sendOperation(operation)
+        operation.status = 'synced'
+        syncedCount += 1
+        await updateOperation(operation)
+      } catch (error) {
+        const code = (error as any)?.code
+        operation.status = code === 'conflict' || code === 'feature_locked' ? 'needs_review' : 'failed'
+        operation.error = error instanceof Error ? error.message : 'Sinkronisasi gagal'
+        await updateOperation(operation)
+      }
     }
-  }
+    if (syncedCount > 0) notifyOfflineSyncComplete()
+  })().finally(() => {
+    syncInFlight = null
+  })
+  return syncInFlight
 }
 
 export function installOfflineSync() {
-  window.addEventListener('online', () => {
-    syncOfflineQueue().catch(() => {})
+  const syncAndRefresh = async () => {
+    if (!navigator.onLine) return
+    if (!localStorage.getItem('token')) return
+    await syncOfflineQueue()
+    if (shouldRefreshDailyCache()) {
+      await refreshDailyCache().catch(() => {})
+    }
+  }
+
+  const requestSyncAndRefresh = () => {
+    syncAndRefresh().catch(() => {})
+  }
+
+  window.addEventListener('online', requestSyncAndRefresh)
+  window.addEventListener('focus', requestSyncAndRefresh)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestSyncAndRefresh()
   })
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', event => {
       if (event.data?.type === 'SYNC_OFFLINE_QUEUE') {
-        syncOfflineQueue().catch(() => {})
+        requestSyncAndRefresh()
       }
     })
   }
 
   if (navigator.onLine) {
-    syncOfflineQueue().catch(() => {})
+    requestSyncAndRefresh()
   }
 }

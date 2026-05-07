@@ -5,6 +5,7 @@ import {
   dismissPwaPopupToday,
   getLastCacheRefreshAt,
   getOfflineQueueSummary,
+  OFFLINE_QUEUE_CHANGED_EVENT,
   refreshDailyCache,
   shouldRefreshDailyCache,
   wasPwaPopupDismissedToday,
@@ -68,7 +69,7 @@ async function loadStatus() {
 }
 
 function evaluateVisibility() {
-  if (wasPwaPopupDismissedToday()) {
+  if (wasPwaPopupDismissedToday() && !hasQueueAttention.value && !updateAvailable.value) {
     show.value = false
     return
   }
@@ -131,10 +132,17 @@ function handleSwMessage(event: MessageEvent) {
   }
 }
 
+async function handleQueueChanged() {
+  await loadStatus()
+  evaluateVisibility()
+}
+
 onMounted(async () => {
   installed.value = window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   window.addEventListener('appinstalled', handleAppInstalled)
+  window.addEventListener('online', handleQueueChanged)
+  window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChanged)
   navigator.serviceWorker?.addEventListener('message', handleSwMessage)
 
   const registration = await navigator.serviceWorker?.getRegistration().catch(() => undefined)
@@ -154,6 +162,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   window.removeEventListener('appinstalled', handleAppInstalled)
+  window.removeEventListener('online', handleQueueChanged)
+  window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, handleQueueChanged)
   navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
 })
 </script>

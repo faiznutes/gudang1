@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useResponsiveNav } from '@/composables/useResponsiveNav'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +11,7 @@ import DesktopSidebar from '@/components/layout/DesktopSidebar.vue'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import TrialBanner from '@/components/TrialBanner.vue'
+import { OFFLINE_SYNC_COMPLETE_EVENT } from '@/services/offlineQueue'
 
 const { showSidebar, showBottomNav, isDesktop } = useResponsiveNav()
 const route = useRoute()
@@ -35,7 +36,7 @@ watch(
   }
 )
 
-onMounted(async () => {
+async function reloadTenantData() {
   if (!authStore.isAuthenticated || route.path.startsWith('/admin')) return
   await Promise.allSettled([
     inventoryStore.loadAll(),
@@ -43,6 +44,19 @@ onMounted(async () => {
     activityStore.loadActivities(),
     notificationsStore.loadNotifications(),
   ])
+}
+
+function handleOfflineSyncComplete() {
+  reloadTenantData().catch(() => {})
+}
+
+onMounted(async () => {
+  window.addEventListener(OFFLINE_SYNC_COMPLETE_EVENT, handleOfflineSyncComplete)
+  await reloadTenantData()
+})
+
+onUnmounted(() => {
+  window.removeEventListener(OFFLINE_SYNC_COMPLETE_EVENT, handleOfflineSyncComplete)
 })
 
 function toggleSidebar() {
@@ -67,22 +81,6 @@ function toggleSidebar() {
       ]"
     >
       <TrialBanner />
-      <div
-        v-if="authStore.activitySessionExpiresAt"
-        :class="[
-          'border-b px-4 py-2 text-sm lg:px-8',
-          authStore.isActivitySessionExpired
-            ? 'border-danger-100 bg-danger-50 text-danger-700'
-            : 'border-warning-100 bg-warning-50 text-warning-800'
-        ]"
-      >
-        <span v-if="authStore.isActivitySessionExpired">
-          Sesi aktivitas berakhir. Aksi ubah data dinonaktifkan, laporan tetap bisa dibuka.
-        </span>
-        <span v-else>
-          Sesi aktivitas tersisa {{ authStore.activitySessionCountdown }}.
-        </span>
-      </div>
       <AppHeader />
 
       <main class="flex-1 pb-20 lg:pb-8">

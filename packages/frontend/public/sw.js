@@ -1,5 +1,5 @@
-const CACHE_NAME = 'stockpilot-shell-v3'
-const API_CACHE = 'stockpilot-api-v1'
+const CACHE_NAME = 'stockpilot-shell-v4'
+const API_CACHE = 'stockpilot-api-v2'
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const SHELL_ASSETS = [
 ]
 
 const CACHEABLE_API_PATTERNS = [
+  /\/api\/auth\/me/,
   /\/api\/me\/entitlements/,
   /\/api\/products/,
   /\/api\/categories/,

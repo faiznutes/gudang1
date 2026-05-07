@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { CalendarDays, Clock3, Lock, ShieldCheck } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth'
+import { CalendarDays, Clock3, Lock } from 'lucide-vue-next'
 import { useEntitlementsStore } from '@/stores/entitlements'
 import { labelFrom, planLabels, subscriptionStatusLabels } from '@/lib/labels'
 
@@ -9,7 +8,6 @@ const props = withDefaults(defineProps<{ compact?: boolean }>(), {
   compact: false,
 })
 
-const authStore = useAuthStore()
 const entitlementsStore = useEntitlementsStore()
 const now = ref(Date.now())
 let timer: number | null = null
@@ -17,7 +15,7 @@ let timer: number | null = null
 const entitlements = computed(() => entitlementsStore.entitlements)
 const subscriptionEnd = computed(() => entitlements.value.trialEndsAt || entitlements.value.subscriptionEndsAt)
 const subscriptionStart = computed(() => entitlements.value.subscriptionStartsAt)
-const targetEnd = computed(() => subscriptionEnd.value || authStore.activitySessionExpiresAt)
+const targetEnd = computed(() => subscriptionEnd.value)
 const targetStart = computed(() => subscriptionStart.value)
 const remainingMs = computed(() => {
   if (!targetEnd.value) return null
@@ -50,14 +48,13 @@ const tone = computed(() => {
   return 'border-primary-200 bg-primary-50 text-primary-900'
 })
 const title = computed(() => {
-  if (isSubscriptionTimer.value) return entitlements.value.subscriptionStatus === 'trialing' ? 'Masa trial tersisa' : 'Masa aktif paket'
-  return 'Sesi aktivitas tersisa'
+  return entitlements.value.subscriptionStatus === 'trialing' ? 'Masa trial tersisa' : 'Masa aktif paket'
 })
 const statusText = computed(() => {
   if (isSubscriptionTimer.value) {
     return `${labelFrom(planLabels, entitlements.value.plan)} - ${labelFrom(subscriptionStatusLabels, entitlements.value.subscriptionStatus)}`
   }
-  return authStore.isActivitySessionExpired ? 'Aksi terkunci, laporan tetap terbuka' : 'Aksi operasional masih aktif'
+  return `${labelFrom(planLabels, entitlements.value.plan)} - ${labelFrom(subscriptionStatusLabels, entitlements.value.subscriptionStatus)}`
 })
 
 function formatDate(value?: string | null) {
@@ -77,7 +74,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section :class="['overflow-hidden rounded-2xl border p-4 shadow-sm lg:p-6', tone]">
+  <section v-if="targetEnd" :class="['overflow-hidden rounded-2xl border p-4 shadow-sm lg:p-6', tone]">
     <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex items-start gap-4">
         <div class="relative grid h-20 w-20 flex-shrink-0 place-items-center rounded-full" :style="circleStyle">
@@ -92,14 +89,6 @@ onUnmounted(() => {
           <p class="mt-2 flex items-center gap-2 text-sm opacity-80">
             <CalendarDays class="h-4 w-4" />
             Berakhir {{ formatDate(targetEnd) }}
-          </p>
-          <p v-if="authStore.isActivitySessionExpired" class="mt-2 flex items-center gap-2 text-sm font-medium text-danger-700">
-            <Lock class="h-4 w-4" />
-            Aksi ubah data dinonaktifkan sampai sesi baru dibuat.
-          </p>
-          <p v-else-if="authStore.activitySessionExpiresAt && isSubscriptionTimer" class="mt-2 flex items-center gap-2 text-sm opacity-80">
-            <ShieldCheck class="h-4 w-4" />
-            Sesi aktivitas: {{ authStore.activitySessionCountdown }}
           </p>
         </div>
       </div>

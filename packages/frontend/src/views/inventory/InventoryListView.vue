@@ -147,8 +147,8 @@ async function handleImport(event: Event) {
           <Plus class="w-4 h-4" />
           Tambah Produk
         </router-link>
-        <button v-else class="btn-secondary text-danger-600" disabled title="Sesi aktivitas sudah berakhir">
-          × Aksi terkunci
+        <button v-else class="btn-secondary text-danger-600" disabled title="Aksi saat ini dikunci">
+          x Aksi terkunci
         </button>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { useEntitlementsStore } from './entitlements'
 
 export type UserRole = 'admin' | 'staff' | 'supplier' | 'super_admin' | 'trial'
 export type PlanType = 'free' | 'starter' | 'growth' | 'pro' | 'custom'
+const OFFLINE_SESSION_KEY = 'stockpilot:last-session'
 
 export interface User {
   id: string
@@ -36,6 +37,14 @@ export const useAuthStore = defineStore('auth', () => {
   let countdownTimer: number | null = null
   const trialStore = useTrialStore()
   const entitlementsStore = useEntitlementsStore()
+
+  type SessionSnapshot = {
+    user: User
+    workspace: Workspace
+    entitlements?: EntitlementResponse
+    activity_session_expires_at?: string | null
+    session_policy?: SessionPolicy
+  }
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
@@ -78,6 +87,33 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function cacheSession(data: SessionSnapshot) {
+    localStorage.setItem(OFFLINE_SESSION_KEY, JSON.stringify({
+      user: data.user,
+      workspace: data.workspace,
+      entitlements: data.entitlements,
+      activity_session_expires_at: data.activity_session_expires_at,
+      session_policy: data.session_policy,
+    }))
+  }
+
+  function getCachedSession(): SessionSnapshot | null {
+    const cached = localStorage.getItem(OFFLINE_SESSION_KEY)
+    if (!cached) return null
+    try {
+      return JSON.parse(cached) as SessionSnapshot
+    } catch {
+      localStorage.removeItem(OFFLINE_SESSION_KEY)
+      return null
+    }
+  }
+
+  function canUseOfflineSessionFallback(error: unknown) {
+    if (!token.value) return false
+    if (!navigator.onLine) return true
+    return error instanceof TypeError
+  }
+
   function applySession(data: { token?: string; user: User; workspace: Workspace; entitlements?: EntitlementResponse; activity_session_expires_at?: string | null; session_policy?: SessionPolicy }) {
     user.value = data.user
     workspace.value = data.workspace
@@ -94,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('activity_session_expires_at', activitySessionExpiresAt.value)
       startCountdown()
     }
+    cacheSession(data)
   }
 
   async function login(email: string, password: string) {
@@ -139,8 +176,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshSession() {
     if (!token.value) return
-    const session = await authService.getCurrentSession()
-    applySession(session)
+    try {
+      const session = await authService.getCurrentSession()
+      applySession(session)
+    } catch (error) {
+      const cachedSession = getCachedSession()
+      if (cachedSession && canUseOfflineSessionFallback(error)) {
+        applySession(cachedSession)
+        return
+      }
+      throw error
+    }
   }
 
   async function initAuth() {
@@ -172,6 +218,7 @@ export const useAuthStore = defineStore('auth', () => {
     entitlementsStore.reset()
     localStorage.removeItem('token')
     localStorage.removeItem('activity_session_expires_at')
+    localStorage.removeItem(OFFLINE_SESSION_KEY)
   }
 
   return {
