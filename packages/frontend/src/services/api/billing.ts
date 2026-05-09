@@ -1,6 +1,21 @@
 import api from './client'
-import type { EntitlementResponse } from './auth'
-import type { Addon, BillingCycle, PlanPackage } from './admin'
+import type { Addon, BillingCycle, BillingRequest, BillingRequestType, PlanPackage } from './admin'
+
+export interface BillingRequestPayload {
+  type: BillingRequestType
+  package_code?: string
+  package_id?: string
+  addon_code?: string
+  addon_id?: string
+  billing_cycle?: Exclude<BillingCycle, 'manual'>
+  quantity?: number
+  requested_limit_key?: string
+  requested_limit_value?: number
+  requested_activation_date?: string
+  title?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+}
 
 export const billingService = {
   async getPackages(): Promise<PlanPackage[]> {
@@ -11,8 +26,20 @@ export const billingService = {
     return api.get<Addon[]>('/billing/addons')
   },
 
-  async changePlan(packageCode: string, billingCycle: Exclude<BillingCycle, 'manual'> = 'monthly'): Promise<EntitlementResponse> {
-    return api.post<EntitlementResponse>('/billing/change-plan', { package_code: packageCode, billing_cycle: billingCycle })
+  async getRequests(): Promise<BillingRequest[]> {
+    return api.get<BillingRequest[]>('/billing/requests')
+  },
+
+  async createRequest(data: BillingRequestPayload): Promise<BillingRequest> {
+    return api.post<BillingRequest>('/billing/requests', data)
+  },
+
+  async changePlan(packageCode: string, billingCycle: Exclude<BillingCycle, 'manual'> = 'monthly'): Promise<BillingRequest> {
+    return api.post<BillingRequest>('/billing/change-plan', { package_code: packageCode, billing_cycle: billingCycle })
+  },
+
+  async requestAddon(addonId: string, billingCycle: Exclude<BillingCycle, 'manual'> = 'monthly', quantity = 1): Promise<BillingRequest> {
+    return api.post<BillingRequest>('/billing/requests', { type: 'addon_activation', addon_id: addonId, billing_cycle: billingCycle, quantity })
   },
 }
 

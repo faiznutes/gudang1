@@ -28,6 +28,31 @@ export const subscriptionStatusLabels: Record<string, string> = {
   trialing: 'Trial',
 }
 
+export const billingRequestTypeLabels: Record<string, string> = {
+  plan_change: 'Perubahan Paket',
+  addon_activation: 'Aktivasi Add-on',
+  limit_increase: 'Tambah Limit',
+  subscription_extension: 'Perpanjangan',
+  custom_feature: 'Fitur Kustom',
+  manual_adjustment: 'Penyesuaian Manual',
+  enterprise_customization: 'Kustom Enterprise',
+}
+
+export const billingRequestStatusLabels: Record<string, string> = {
+  pending: 'Menunggu Review',
+  approved: 'Disetujui',
+  rejected: 'Ditolak',
+  cancelled: 'Dibatalkan',
+}
+
+export const customizationClassificationLabels: Record<string, string> = {
+  rejected: 'Ditolak',
+  future_roadmap: 'Roadmap',
+  enterprise_only: 'Enterprise Only',
+  billable_customization: 'Kustom Berbayar',
+  global_feature_candidate: 'Kandidat Fitur Global',
+}
+
 export const queueStatusLabels: Record<string, string> = {
   pending: 'Menunggu',
   syncing: 'Sinkronisasi',

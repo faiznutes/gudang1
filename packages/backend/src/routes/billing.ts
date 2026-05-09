@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify'
+import { BILLING_REQUEST_TYPES } from '@stockpilot/shared'
 import { z } from 'zod'
-import { billingAmount, getEntitlements, legacyPlanForCode } from '../lib/plans.js'
-import { requireActiveSession, requireAuth, requireTenantRole } from '../middleware/auth.js'
+import { billingRequestDto, createBillingRequest, includeBillingRequestRelations } from '../lib/billingRequests.js'
 import { AppError } from '../lib/errors.js'
+import { requireActiveSession, requireAuth, requireTenantRole } from '../middleware/auth.js'
 
 function packageDto(planPackage: any) {
   return {
@@ -10,6 +11,7 @@ function packageDto(planPackage: any) {
     code: planPackage.code,
     name: planPackage.name,
     description: planPackage.description,
+    status: planPackage.status,
     monthly_price: planPackage.monthlyPrice,
     yearly_price: planPackage.yearlyPrice,
     original_monthly_price: planPackage.originalMonthlyPrice,
@@ -30,13 +32,31 @@ function addonDto(addon: any) {
     code: addon.code,
     name: addon.name,
     description: addon.description,
+    status: addon.status,
     monthly_price: addon.monthlyPrice,
     yearly_price: addon.yearlyPrice,
     feature_key: addon.featureKey,
     limit_key: addon.limitKey,
     limit_increment: addon.limitIncrement,
+    sort_order: addon.sortOrder,
   }
 }
+
+const requestCreateSchema = z.object({
+  type: z.enum(BILLING_REQUEST_TYPES),
+  package_code: z.string().trim().min(1).optional(),
+  package_id: z.string().trim().min(1).optional(),
+  addon_code: z.string().trim().min(1).optional(),
+  addon_id: z.string().trim().min(1).optional(),
+  billing_cycle: z.enum(['monthly', 'yearly']).default('monthly'),
+  quantity: z.coerce.number().int().min(1).max(999).default(1),
+  requested_limit_key: z.string().trim().min(1).max(60).optional(),
+  requested_limit_value: z.coerce.number().int().min(1).max(999999).optional(),
+  requested_activation_date: z.string().datetime().optional(),
+  title: z.string().trim().min(3).max(160).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  metadata: z.record(z.unknown()).optional(),
+})
 
 export async function billingRoutes(app: FastifyInstance) {
   app.get('/billing/packages', async (request) => {
@@ -58,6 +78,47 @@ export async function billingRoutes(app: FastifyInstance) {
     return addons.map(addonDto)
   })
 
+  app.get('/billing/requests', async (request) => {
+    const ctx = await requireAuth(app, request)
+    const query = z.object({
+      status: z.enum(['pending', 'approved', 'rejected', 'cancelled']).optional(),
+      type: z.enum(BILLING_REQUEST_TYPES).optional(),
+    }).parse(request.query)
+    const requests = await app.prisma.billingRequest.findMany({
+      where: {
+        workspaceId: ctx.workspaceId,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.type ? { type: query.type } : {}),
+      },
+      include: includeBillingRequestRelations(),
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    return requests.map(billingRequestDto)
+  })
+
+  app.post('/billing/requests', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireActiveSession(ctx)
+    requireTenantRole(ctx, ['admin', 'trial'])
+    const body = requestCreateSchema.parse(request.body)
+    return createBillingRequest(app, ctx, {
+      type: body.type,
+      packageCode: body.package_code,
+      packageId: body.package_id,
+      addonCode: body.addon_code,
+      addonId: body.addon_id,
+      billingCycle: body.billing_cycle,
+      quantity: body.quantity,
+      requestedLimitKey: body.requested_limit_key,
+      requestedLimitValue: body.requested_limit_value,
+      requestedActivationDate: body.requested_activation_date ? new Date(body.requested_activation_date) : null,
+      title: body.title,
+      notes: body.notes,
+      metadata: body.metadata,
+    })
+  })
+
   app.post('/billing/change-plan', async (request) => {
     const ctx = await requireAuth(app, request)
     requireActiveSession(ctx)
@@ -66,68 +127,15 @@ export async function billingRoutes(app: FastifyInstance) {
       plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']).optional(),
       package_code: z.string().trim().min(1).optional(),
       billing_cycle: z.enum(['monthly', 'yearly']).default('monthly'),
+      notes: z.string().trim().max(2000).optional(),
     }).parse(request.body)
     const requestedCode = body.package_code ?? body.plan
     if (!requestedCode) throw new AppError('validation_error', 'Paket harus dipilih')
-    const planPackage = await app.prisma.planPackage.findUnique({
-      where: { code: requestedCode },
-      include: { features: true },
+    return createBillingRequest(app, ctx, {
+      type: 'plan_change',
+      packageCode: requestedCode,
+      billingCycle: body.billing_cycle,
+      notes: body.notes,
     })
-    if (!planPackage || planPackage.status !== 'active') {
-      throw new AppError('not_found', 'Paket aktif tidak ditemukan')
-    }
-    const now = new Date()
-    const end = new Date(now)
-    if (body.billing_cycle === 'yearly') {
-      end.setFullYear(end.getFullYear() + 1)
-    } else {
-      end.setMonth(end.getMonth() + 1)
-    }
-    const legacyPlan = legacyPlanForCode(planPackage.code)
-
-    await app.prisma.$transaction(async (tx) => {
-      await tx.workspace.update({
-        where: { id: ctx.workspaceId },
-        data: { plan: legacyPlan, status: 'active', trialEndsAt: null },
-      })
-      await tx.subscription.updateMany({
-        where: { workspaceId: ctx.workspaceId, status: { in: ['active', 'trialing'] } },
-        data: { status: 'cancelled', cancelAtPeriodEnd: true },
-      })
-      const subscription = await tx.subscription.create({
-        data: {
-          workspaceId: ctx.workspaceId,
-          planPackageId: planPackage.id,
-          plan: legacyPlan,
-          status: 'active',
-          billingCycle: body.billing_cycle,
-          amountSnapshot: billingAmount(planPackage, body.billing_cycle),
-          source: 'tenant',
-          currentPeriodStart: now,
-          currentPeriodEnd: end,
-        },
-      })
-      await tx.auditLog.create({
-        data: {
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
-          action: 'billing.plan_changed',
-          entityType: 'subscription',
-          entityId: subscription.id,
-          metadata: { package_code: planPackage.code, plan: legacyPlan, billing_cycle: body.billing_cycle },
-        },
-      })
-      await tx.subscriptionEvent.create({
-        data: {
-          workspaceId: ctx.workspaceId,
-          subscriptionId: subscription.id,
-          userId: ctx.userId,
-          type: 'subscription.plan_changed',
-          metadata: { package_code: planPackage.code, plan: legacyPlan, billing_cycle: body.billing_cycle },
-        },
-      })
-    })
-
-    return getEntitlements(app, ctx.workspaceId)
   })
 }

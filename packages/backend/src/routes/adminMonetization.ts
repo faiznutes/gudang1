@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { FEATURE_KEYS } from '@stockpilot/shared'
+import { BILLING_REQUEST_TYPES, CUSTOMIZATION_CLASSIFICATIONS, FEATURE_KEYS } from '@stockpilot/shared'
 import { AppError } from '../lib/errors.js'
 import { billingAmount } from '../lib/plans.js'
+import { approveBillingRequest, billingRequestDto, includeBillingRequestRelations, rejectBillingRequest } from '../lib/billingRequests.js'
 import { runSubscriptionLifecycle } from '../lib/subscriptionLifecycle.js'
 import { requireAuth, requirePlatformRole } from '../middleware/auth.js'
 
@@ -11,6 +12,9 @@ const billingCycleSchema = z.enum(['monthly', 'yearly', 'manual'])
 const catalogStatusSchema = z.enum(['active', 'archived'])
 const limitKeySchema = z.enum(['warehouses', 'products', 'users'])
 const packageCodeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{1,31}$/, 'Kode paket hanya boleh huruf kecil, angka, dash, dan underscore')
+const billingRequestStatusSchema = z.enum(['pending', 'approved', 'rejected', 'cancelled'])
+const billingRequestTypeSchema = z.enum(BILLING_REQUEST_TYPES)
+const customizationClassificationSchema = z.enum(CUSTOMIZATION_CLASSIFICATIONS)
 
 const packagePayloadSchema = z.object({
   code: packageCodeSchema.optional(),
@@ -41,6 +45,16 @@ const addonPayloadSchema = z.object({
   limit_key: limitKeySchema.nullable().optional(),
   limit_increment: z.coerce.number().int().min(0).nullable().optional(),
   sort_order: z.coerce.number().int().min(0).max(9999).optional(),
+})
+
+const decisionPayloadSchema = z.object({
+  notes: z.string().trim().max(2000).optional(),
+  approved_amount: z.coerce.number().int().min(0).optional(),
+  promotional_amount: z.coerce.number().int().min(0).optional(),
+  approved_activation_date: z.string().datetime().nullable().optional(),
+  temporary_access_until: z.string().datetime().nullable().optional(),
+  classification: customizationClassificationSchema.optional(),
+  rejection_reason: z.string().trim().max(2000).optional(),
 })
 
 async function requirePlatformAdmin(app: FastifyInstance, request: any) {
@@ -129,6 +143,88 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
   app.post('/subscriptions/lifecycle/run', async (request) => {
     await requirePlatformAdmin(app, request)
     return runSubscriptionLifecycle(app)
+  })
+
+  app.get('/billing-requests', async (request) => {
+    await requirePlatformAdmin(app, request)
+    const query = z.object({
+      page: z.coerce.number().int().positive().default(1),
+      per_page: z.coerce.number().int().positive().max(100).default(20),
+      status: billingRequestStatusSchema.optional(),
+      type: billingRequestTypeSchema.optional(),
+      workspace_id: z.string().optional(),
+      q: z.string().trim().optional(),
+    }).parse(request.query)
+    const where: any = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.type ? { type: query.type } : {}),
+      ...(query.workspace_id ? { workspaceId: query.workspace_id } : {}),
+      ...(query.q
+        ? {
+            OR: [
+              { title: { contains: query.q, mode: 'insensitive' } },
+              { workspace: { name: { contains: query.q, mode: 'insensitive' } } },
+              { requestedBy: { email: { contains: query.q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    }
+    const [items, total] = await Promise.all([
+      app.prisma.billingRequest.findMany({
+        where,
+        include: includeBillingRequestRelations(),
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.per_page,
+        take: query.per_page,
+      }),
+      app.prisma.billingRequest.count({ where }),
+    ])
+
+    return {
+      data: items.map(billingRequestDto),
+      meta: {
+        current_page: query.page,
+        per_page: query.per_page,
+        total,
+        total_pages: Math.max(1, Math.ceil(total / query.per_page)),
+      },
+    }
+  })
+
+  app.get('/billing-requests/:id', async (request) => {
+    await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const item = await app.prisma.billingRequest.findUnique({
+      where: { id: params.id },
+      include: includeBillingRequestRelations(),
+    })
+    if (!item) throw new AppError('not_found', 'Request billing tidak ditemukan')
+    return billingRequestDto(item)
+  })
+
+  app.post('/billing-requests/:id/approve', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const body = decisionPayloadSchema.parse(request.body)
+    return approveBillingRequest(app, ctx, params.id, {
+      notes: body.notes,
+      approvedAmount: body.approved_amount,
+      promotionalAmount: body.promotional_amount,
+      approvedActivationDate: body.approved_activation_date ? new Date(body.approved_activation_date) : null,
+      temporaryAccessUntil: body.temporary_access_until ? new Date(body.temporary_access_until) : null,
+      classification: body.classification,
+    })
+  })
+
+  app.post('/billing-requests/:id/reject', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const body = decisionPayloadSchema.parse(request.body)
+    return rejectBillingRequest(app, ctx, params.id, {
+      notes: body.notes,
+      rejectionReason: body.rejection_reason,
+      classification: body.classification,
+    })
   })
 
   app.get('/packages', async (request) => {

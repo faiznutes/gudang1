@@ -68,6 +68,31 @@ enum NotificationDeliveryStatus {
   skipped
 }
 
+enum BillingRequestType {
+  plan_change
+  addon_activation
+  limit_increase
+  subscription_extension
+  custom_feature
+  manual_adjustment
+  enterprise_customization
+}
+
+enum BillingRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum CustomizationClassification {
+  rejected
+  future_roadmap
+  enterprise_only
+  billable_customization
+  global_feature_candidate
+}
+
 enum WorkspaceStatus {
   active
   suspended
@@ -106,6 +131,9 @@ model User {
   assignedAddons  WorkspaceAddon[]     @relation("AddonAssignedBy")
   subscriptionEvents SubscriptionEvent[]
   notificationDeliveries NotificationDelivery[]
+  requestedBillingRequests BillingRequest[] @relation("BillingRequestRequestedBy")
+  reviewedBillingRequests BillingRequest[] @relation("BillingRequestReviewedBy")
+  billingRequestHistories BillingRequestHistory[]
 }
 
 model Workspace {
@@ -133,6 +161,7 @@ model Workspace {
   syncOperations SyncOperation[]
   settings       SystemSetting[]
   scheduledActivities ScheduledActivity[]
+  billingRequests BillingRequest[]
 }
 
 model WorkspaceMember {
@@ -191,6 +220,8 @@ model PlanPackage {
   updatedAt            DateTime      @updatedAt
   features             PlanFeature[]
   subscriptions        Subscription[]
+  currentBillingRequests BillingRequest[] @relation("BillingRequestCurrentPackage")
+  requestedBillingRequests BillingRequest[] @relation("BillingRequestRequestedPackage")
 
   @@index([status, sortOrder])
 }
@@ -224,6 +255,7 @@ model Addon {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   assignments    WorkspaceAddon[]
+  billingRequests BillingRequest[]
 
   @@index([status, sortOrder])
 }
@@ -269,6 +301,68 @@ model SubscriptionEvent {
   @@index([subscriptionId])
   @@index([workspaceAddonId])
   @@index([type])
+}
+
+model BillingRequest {
+  id                      String                      @id @default(cuid())
+  workspaceId             String
+  requestedById           String?
+  reviewedById            String?
+  type                    BillingRequestType
+  status                  BillingRequestStatus       @default(pending)
+  currentPlanPackageId    String?
+  requestedPlanPackageId  String?
+  addonId                 String?
+  billingCycle            BillingCycle               @default(monthly)
+  quantity                Int                        @default(1)
+  requestedLimitKey       String?
+  requestedLimitValue     Int?
+  currentAmount           Int                        @default(0)
+  requestedAmount         Int                        @default(0)
+  billingImpact           Int                        @default(0)
+  requestedActivationDate DateTime?
+  approvedActivationDate  DateTime?
+  approvedAmount          Int?
+  promotionalAmount       Int?
+  temporaryAccessUntil    DateTime?
+  title                   String
+  notes                   String?
+  adminNotes              String?
+  rejectionReason         String?
+  classification          CustomizationClassification?
+  metadata                Json?
+  decidedAt               DateTime?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  workspace               Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy             User?                      @relation("BillingRequestRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  reviewedBy              User?                      @relation("BillingRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  currentPlanPackage      PlanPackage?               @relation("BillingRequestCurrentPackage", fields: [currentPlanPackageId], references: [id], onDelete: SetNull)
+  requestedPlanPackage    PlanPackage?               @relation("BillingRequestRequestedPackage", fields: [requestedPlanPackageId], references: [id], onDelete: SetNull)
+  addon                   Addon?                     @relation(fields: [addonId], references: [id], onDelete: SetNull)
+  history                 BillingRequestHistory[]
+
+  @@index([workspaceId, status, createdAt])
+  @@index([type, status, createdAt])
+  @@index([requestedPlanPackageId])
+  @@index([addonId])
+}
+
+model BillingRequestHistory {
+  id               String                @id @default(cuid())
+  billingRequestId String
+  userId           String?
+  action           String
+  fromStatus       BillingRequestStatus?
+  toStatus         BillingRequestStatus?
+  notes            String?
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+  billingRequest   BillingRequest        @relation(fields: [billingRequestId], references: [id], onDelete: Cascade)
+  user             User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([billingRequestId, createdAt])
+  @@index([userId])
 }
 
 model NotificationDelivery {

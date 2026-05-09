@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -75,6 +76,14 @@ const adminNavItems = [
     tone: 'from-rose-500 to-pink-400',
   },
   {
+    name: 'Approval Billing',
+    shortName: 'Approve',
+    description: 'Request paket, add-on, kustom',
+    icon: ClipboardCheck,
+    route: '/admin/approvals',
+    tone: 'from-amber-500 to-yellow-400',
+  },
+  {
     name: 'Produk SaaS',
     shortName: 'SaaS',
     description: 'Paket, fitur, dan add-on',
@@ -106,7 +115,7 @@ const rightItems = [
   adminNavItems[4],
   { name: 'Lainnya', shortName: 'Menu', description: 'Menu lengkap', icon: MoreHorizontal, route: '', tone: 'from-neutral-700 to-neutral-500', action: 'more' },
 ]
-const moreMenuItems = [adminNavItems[1], adminNavItems[5], adminNavItems[6], adminNavItems[7], adminNavItems[3], adminNavItems[4], adminNavItems[2]]
+const moreMenuItems = [adminNavItems[1], adminNavItems[5], adminNavItems[6], adminNavItems[7], adminNavItems[8], adminNavItems[3], adminNavItems[4], adminNavItems[2]]
 
 const currentNavItem = computed(() => {
   return adminNavItems.find(item => isActive(item.route)) ?? adminNavItems[0]

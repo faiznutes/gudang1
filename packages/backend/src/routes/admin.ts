@@ -156,6 +156,70 @@ function addMonths(date: Date, months: number) {
   return next
 }
 
+type DashboardGranularity = 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+function startOfBucket(date: Date, granularity: DashboardGranularity) {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  if (granularity === 'weekly') {
+    const day = next.getDay()
+    next.setDate(next.getDate() + (day === 0 ? -6 : 1 - day))
+  }
+  if (granularity === 'monthly') {
+    next.setDate(1)
+  }
+  if (granularity === 'yearly') {
+    next.setMonth(0, 1)
+  }
+  return next
+}
+
+function addBucket(date: Date, granularity: DashboardGranularity, count = 1) {
+  const next = new Date(date)
+  if (granularity === 'daily') next.setDate(next.getDate() + count)
+  if (granularity === 'weekly') next.setDate(next.getDate() + count * 7)
+  if (granularity === 'monthly') next.setMonth(next.getMonth() + count)
+  if (granularity === 'yearly') next.setFullYear(next.getFullYear() + count)
+  return next
+}
+
+function bucketKey(date: Date, granularity: DashboardGranularity) {
+  const bucket = startOfBucket(date, granularity)
+  if (granularity === 'yearly') return String(bucket.getFullYear())
+  if (granularity === 'monthly') return `${bucket.getFullYear()}-${String(bucket.getMonth() + 1).padStart(2, '0')}`
+  return bucket.toISOString().slice(0, 10)
+}
+
+function buildDashboardBuckets(range: string, from?: string, to?: string) {
+  const now = new Date()
+  let granularity: DashboardGranularity = range === 'yearly' ? 'yearly' : range === 'weekly' ? 'weekly' : range === 'daily' ? 'daily' : 'monthly'
+  let start: Date
+  let end = now
+
+  if (range === 'custom' && from && to) {
+    start = new Date(from)
+    end = new Date(to)
+    const days = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+    granularity = days > 120 ? 'monthly' : 'daily'
+  } else if (granularity === 'daily') {
+    start = addBucket(now, 'daily', -13)
+  } else if (granularity === 'weekly') {
+    start = addBucket(now, 'weekly', -7)
+  } else if (granularity === 'yearly') {
+    start = addBucket(now, 'yearly', -4)
+  } else {
+    start = addBucket(now, 'monthly', -11)
+  }
+
+  start = startOfBucket(start, granularity)
+  end = addBucket(startOfBucket(end, granularity), granularity)
+  const buckets: Array<{ key: string; label: string; start: Date }> = []
+  for (let cursor = new Date(start); cursor < end; cursor = addBucket(cursor, granularity)) {
+    buckets.push({ key: bucketKey(cursor, granularity), label: bucketKey(cursor, granularity), start: new Date(cursor) })
+  }
+  return { granularity, start, end, buckets }
+}
+
 async function ensureTenantUserAvailable(tx: any, email: string, workspaceId: string) {
   const normalizedEmail = email.toLowerCase()
   const existing = await tx.user.findUnique({
@@ -182,6 +246,12 @@ async function requirePlatformAdmin(app: FastifyInstance, request: any) {
 export async function adminRoutes(app: FastifyInstance) {
   app.get('/dashboard/stats', async (request) => {
     await requirePlatformAdmin(app, request)
+    const query = z.object({
+      range: z.enum(['daily', 'weekly', 'monthly', 'yearly', 'custom']).default('monthly'),
+      from: z.string().datetime().optional(),
+      to: z.string().datetime().optional(),
+    }).parse(request.query)
+    const trendRange = buildDashboardBuckets(query.range, query.from, query.to)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const [
@@ -200,9 +270,15 @@ export async function adminRoutes(app: FastifyInstance) {
       totalSuppliers,
       stockMovements7d,
       pendingApprovals,
+      pendingBillingRequests,
       expiringSubscriptions,
       inventoryForLowStock,
       recentAuditLogs,
+      trendSubscriptions,
+      trendAddons,
+      trendRequests,
+      trendWorkspaces,
+      trendMovements,
     ] = await Promise.all([
       app.prisma.workspace.count(),
       app.prisma.workspace.count({ where: { status: 'active' } }),
@@ -238,6 +314,7 @@ export async function adminRoutes(app: FastifyInstance) {
           status: { in: ['pending', 'waiting_approval', 'approval_pending', 'review'] },
         },
       }),
+      app.prisma.billingRequest.count({ where: { status: 'pending' } }),
       app.prisma.subscription.count({
         where: {
           status: { in: ['active', 'trialing'] },
@@ -257,6 +334,25 @@ export async function adminRoutes(app: FastifyInstance) {
         },
         orderBy: { createdAt: 'desc' },
         take: 8,
+      }),
+      app.prisma.subscription.findMany({
+        where: { createdAt: { gte: trendRange.start, lt: trendRange.end } },
+        include: { planPackage: true },
+      }),
+      app.prisma.workspaceAddon.findMany({
+        where: { createdAt: { gte: trendRange.start, lt: trendRange.end } },
+        include: { addon: true },
+      }),
+      app.prisma.billingRequest.findMany({
+        where: { createdAt: { gte: trendRange.start, lt: trendRange.end } },
+      }),
+      app.prisma.workspace.findMany({
+        where: { createdAt: { gte: trendRange.start, lt: trendRange.end } },
+        select: { createdAt: true, status: true, plan: true },
+      }),
+      app.prisma.stockMovement.findMany({
+        where: { createdAt: { gte: trendRange.start, lt: trendRange.end } },
+        select: { createdAt: true, type: true },
       }),
     ])
 
@@ -280,6 +376,81 @@ export async function adminRoutes(app: FastifyInstance) {
       return sum + amount
     }, 0)
 
+    const revenueBuckets = trendRange.buckets.map(bucket => ({
+      ...bucket,
+      subscription: 0,
+      addon: 0,
+      total: 0,
+    }))
+    const tenantBuckets = trendRange.buckets.map(bucket => ({ ...bucket, new_tenants: 0 }))
+    const addonBuckets = trendRange.buckets.map(bucket => ({ ...bucket, count: 0, revenue: 0 }))
+    const requestBuckets = trendRange.buckets.map(bucket => ({
+      ...bucket,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      plan_changes: 0,
+      addon_requests: 0,
+      custom_requests: 0,
+    }))
+    const movementBuckets = trendRange.buckets.map(bucket => ({ ...bucket, in: 0, out: 0, transfer: 0, total: 0 }))
+
+    const revenueByKey = new Map(revenueBuckets.map(bucket => [bucket.key, bucket]))
+    const tenantByKey = new Map(tenantBuckets.map(bucket => [bucket.key, bucket]))
+    const addonByKey = new Map(addonBuckets.map(bucket => [bucket.key, bucket]))
+    const requestByKey = new Map(requestBuckets.map(bucket => [bucket.key, bucket]))
+    const movementByKey = new Map(movementBuckets.map(bucket => [bucket.key, bucket]))
+
+    for (const subscription of trendSubscriptions) {
+      const bucket = revenueByKey.get(bucketKey(subscription.createdAt, trendRange.granularity))
+      if (!bucket) continue
+      const amount = subscription.amountSnapshot > 0
+        ? subscription.amountSnapshot
+        : subscription.planPackage
+          ? billingAmount(subscription.planPackage, subscription.billingCycle)
+          : planPrice(subscription.plan)
+      bucket.subscription += amount
+      bucket.total += amount
+    }
+    for (const assignment of trendAddons) {
+      const key = bucketKey(assignment.createdAt, trendRange.granularity)
+      const revenueBucket = revenueByKey.get(key)
+      const addonBucket = addonByKey.get(key)
+      const amount = assignment.amountSnapshot > 0
+        ? assignment.amountSnapshot
+        : billingAmount(assignment.addon, assignment.billingCycle) * assignment.quantity
+      if (revenueBucket) {
+        revenueBucket.addon += amount
+        revenueBucket.total += amount
+      }
+      if (addonBucket) {
+        addonBucket.count += 1
+        addonBucket.revenue += amount
+      }
+    }
+    for (const workspace of trendWorkspaces) {
+      const bucket = tenantByKey.get(bucketKey(workspace.createdAt, trendRange.granularity))
+      if (bucket) bucket.new_tenants += 1
+    }
+    for (const billingRequest of trendRequests) {
+      const bucket = requestByKey.get(bucketKey(billingRequest.createdAt, trendRange.granularity))
+      if (!bucket) continue
+      if (billingRequest.status === 'pending') bucket.pending += 1
+      if (billingRequest.status === 'approved') bucket.approved += 1
+      if (billingRequest.status === 'rejected') bucket.rejected += 1
+      if (billingRequest.type === 'plan_change') bucket.plan_changes += 1
+      if (billingRequest.type === 'addon_activation') bucket.addon_requests += 1
+      if (['custom_feature', 'enterprise_customization'].includes(billingRequest.type)) bucket.custom_requests += 1
+    }
+    for (const movement of trendMovements) {
+      const bucket = movementByKey.get(bucketKey(movement.createdAt, trendRange.granularity))
+      if (!bucket) continue
+      bucket.total += 1
+      if (movement.type === 'in') bucket.in += 1
+      if (movement.type === 'out') bucket.out += 1
+      if (movement.type === 'transfer') bucket.transfer += 1
+    }
+
     return {
       total_workspaces: totalWorkspaces,
       active_workspaces: activeWorkspaces,
@@ -290,7 +461,8 @@ export async function adminRoutes(app: FastifyInstance) {
       addon_revenue: addonRevenue,
       active_addons: activeAddons.length,
       active_subscriptions: subscriptions.length,
-      pending_approvals: pendingApprovals,
+      pending_approvals: pendingApprovals + pendingBillingRequests,
+      pending_billing_requests: pendingBillingRequests,
       expiring_subscriptions: expiringSubscriptions,
       low_stock_items: lowStockItems,
       total_products: totalProducts,
@@ -320,6 +492,39 @@ export async function adminRoutes(app: FastifyInstance) {
       plan_distribution: workspacesByPlan.map(item => ({
         plan: item.plan,
         count: item._count._all,
+      })),
+      active_vs_expired_tenants: {
+        active: activeWorkspaces,
+        trial: trialWorkspaces,
+        suspended: Math.max(0, totalWorkspaces - activeWorkspaces - trialWorkspaces),
+        expiring_soon: expiringSubscriptions,
+      },
+      analytics_range: {
+        range: query.range,
+        granularity: trendRange.granularity,
+        from: trendRange.start.toISOString(),
+        to: trendRange.end.toISOString(),
+      },
+      revenue_trends: revenueBuckets.map(({ key, label, subscription, addon, total }) => ({ key, label, subscription, addon, total })),
+      tenant_growth_trends: tenantBuckets.map(({ key, label, new_tenants }) => ({ key, label, new_tenants })),
+      addon_sales_trends: addonBuckets.map(({ key, label, count, revenue }) => ({ key, label, count, revenue })),
+      request_trends: requestBuckets.map(({ key, label, pending, approved, rejected, plan_changes, addon_requests, custom_requests }) => ({
+        key,
+        label,
+        pending,
+        approved,
+        rejected,
+        plan_changes,
+        addon_requests,
+        custom_requests,
+      })),
+      feature_usage_trends: movementBuckets.map(({ key, label, in: stockIn, out, transfer, total }) => ({
+        key,
+        label,
+        stock_in: stockIn,
+        stock_out: out,
+        transfer,
+        total,
       })),
       recent_audit_logs: recentAuditLogs.map(auditLogDto),
       system_health: [

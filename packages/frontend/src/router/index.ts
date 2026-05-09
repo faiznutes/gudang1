@@ -155,6 +155,11 @@ const routes = [
         component: () => import('@/views/admin/SubscriptionManagementView.vue'),
       },
       {
+        path: 'approvals',
+        name: 'admin-approvals',
+        component: () => import('@/views/admin/BillingApprovalView.vue'),
+      },
+      {
         path: 'packages',
         name: 'admin-packages',
         component: () => import('@/views/admin/PackageManagementView.vue'),

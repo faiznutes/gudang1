@@ -27,6 +27,14 @@ const router = useRouter()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const selectedRange = ref('monthly')
+
+const rangeOptions = [
+  { value: 'daily', label: 'Harian' },
+  { value: 'weekly', label: 'Mingguan' },
+  { value: 'monthly', label: 'Bulanan' },
+  { value: 'yearly', label: 'Tahunan' },
+]
 
 const totalPlans = computed(() => {
   return stats.value?.plan_distribution.reduce((sum, item) => sum + item.count, 0) ?? 0
@@ -130,11 +138,46 @@ const riskSignals = computed(() => {
 
 const quickActions = [
   { label: 'Tambah tenant', caption: 'Setup workspace, owner, gudang, staff', icon: Building2, path: '/admin/workspaces' },
+  { label: 'Approval billing', caption: 'Review paket, add-on, dan kustomisasi', icon: ClipboardCheck, path: '/admin/approvals' },
   { label: 'Produk SaaS', caption: 'Kelola paket, fitur, dan add-on', icon: PackagePlus, path: '/admin/packages' },
   { label: 'Subscription tenant', caption: 'Naik, turun, atau perpanjang masa aktif', icon: CreditCard, path: '/admin/subscriptions' },
   { label: 'Data klien', caption: 'Kelola produk, stok, dan supplier tenant', icon: Warehouse, path: '/admin/client-warehouse' },
   { label: 'Audit aktivitas', caption: 'Lihat riwayat perubahan lintas tenant', icon: FileText, path: '/admin/audit-logs' },
 ]
+
+const trendCards = computed(() => {
+  if (!stats.value) return []
+  return [
+    {
+      label: 'MRR & add-on',
+      caption: 'Subscription dan add-on baru',
+      tone: 'bg-emerald-500',
+      unit: 'currency',
+      data: (stats.value.revenue_trends ?? []).map(item => ({ label: item.label, value: item.total })),
+    },
+    {
+      label: 'Pertumbuhan tenant',
+      caption: 'Workspace baru per periode',
+      tone: 'bg-sky-500',
+      unit: 'number',
+      data: (stats.value.tenant_growth_trends ?? []).map(item => ({ label: item.label, value: item.new_tenants })),
+    },
+    {
+      label: 'Approval request',
+      caption: 'Pending, approve, reject',
+      tone: 'bg-amber-500',
+      unit: 'number',
+      data: (stats.value.request_trends ?? []).map(item => ({ label: item.label, value: item.pending + item.approved + item.rejected })),
+    },
+    {
+      label: 'Penggunaan fitur stok',
+      caption: 'Stock in, out, transfer',
+      tone: 'bg-violet-500',
+      unit: 'number',
+      data: (stats.value.feature_usage_trends ?? []).map(item => ({ label: item.label, value: item.total })),
+    },
+  ]
+})
 
 const governanceCards = [
   {
@@ -171,7 +214,7 @@ async function loadDashboard() {
   loading.value = true
   errorMessage.value = ''
   try {
-    stats.value = await adminService.getDashboardStats()
+    stats.value = await adminService.getDashboardStats({ range: selectedRange.value })
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Dashboard admin gagal dimuat'
   } finally {
@@ -189,6 +232,18 @@ function formatCurrency(amount: number) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('id-ID').format(value)
+}
+
+function trendMax(data: Array<{ value: number }>) {
+  return Math.max(1, ...data.map(item => item.value))
+}
+
+function trendHeight(value: number, data: Array<{ value: number }>) {
+  return `${Math.max(8, Math.round((value / trendMax(data)) * 100))}%`
+}
+
+function formatTrendValue(value: number, unit: string) {
+  return unit === 'currency' ? formatCurrency(value) : formatNumber(value)
 }
 
 function formatDate(dateStr: string) {
@@ -303,6 +358,39 @@ onMounted(loadDashboard)
             <p class="mt-2 text-sm leading-5 text-neutral-500">{{ card.caption }}</p>
           </article>
         </div>
+
+        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
+          <div class="flex flex-col gap-3 border-b border-neutral-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-xl font-black text-neutral-950">Tren revenue dan operasi SaaS</h3>
+              <p class="mt-1 text-sm text-neutral-500">Grafik aktual dari subscription, add-on, tenant growth, request approval, dan mutasi stok.</p>
+            </div>
+            <select v-model="selectedRange" class="input max-w-44" @change="loadDashboard">
+              <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+          <div class="mt-5 grid gap-4 xl:grid-cols-4">
+            <article v-for="trend in trendCards" :key="trend.label" class="rounded-2xl border border-neutral-100 bg-[#fbfdff] p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-black text-neutral-950">{{ trend.label }}</p>
+                  <p class="mt-1 text-xs text-neutral-500">{{ trend.caption }}</p>
+                </div>
+                <p class="text-xs font-black text-neutral-500">{{ formatTrendValue(trend.data.at(-1)?.value ?? 0, trend.unit) }}</p>
+              </div>
+              <div class="mt-5 flex h-36 items-end gap-1 rounded-xl bg-white px-2 py-3">
+                <div v-for="point in trend.data" :key="`${trend.label}-${point.label}`" class="group relative flex h-full flex-1 items-end">
+                  <div :class="['w-full rounded-t-md transition group-hover:opacity-80', trend.tone]" :style="{ height: trendHeight(point.value, trend.data) }"></div>
+                  <div class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg bg-neutral-950 px-2 py-1 text-xs font-bold text-white shadow-lg group-hover:block">
+                    {{ point.label }} - {{ formatTrendValue(point.value, trend.unit) }}
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <div class="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">

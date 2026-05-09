@@ -8,6 +8,9 @@ export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired'
 export type BillingCycle = 'monthly' | 'yearly' | 'manual'
 export type CatalogStatus = 'active' | 'archived'
 export type FeatureKey = 'stockInOut' | 'multiWarehouse' | 'analytics' | 'exportPDF' | 'batchImport' | 'reports'
+export type BillingRequestType = 'plan_change' | 'addon_activation' | 'limit_increase' | 'subscription_extension' | 'custom_feature' | 'manual_adjustment' | 'enterprise_customization'
+export type BillingRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type CustomizationClassification = 'rejected' | 'future_roadmap' | 'enterprise_only' | 'billable_customization' | 'global_feature_candidate'
 
 export interface Workspace {
   id: string
@@ -205,6 +208,49 @@ export interface WorkspaceAddon {
   created_at: string
 }
 
+export interface BillingRequest {
+  id: string
+  workspace_id: string
+  workspace_name?: string
+  requested_by?: { id: string; name: string; email: string } | null
+  reviewed_by?: { id: string; name: string; email: string } | null
+  type: BillingRequestType
+  status: BillingRequestStatus
+  title: string
+  current_package?: Pick<PlanPackage, 'id' | 'code' | 'name' | 'monthly_price' | 'yearly_price'> | null
+  requested_package?: Pick<PlanPackage, 'id' | 'code' | 'name' | 'monthly_price' | 'yearly_price'> | null
+  addon?: Addon | null
+  billing_cycle: BillingCycle
+  quantity: number
+  requested_limit_key?: string | null
+  requested_limit_value?: number | null
+  current_amount: number
+  requested_amount: number
+  billing_impact: number
+  approved_amount?: number | null
+  promotional_amount?: number | null
+  temporary_access_until?: string | null
+  requested_activation_date?: string | null
+  approved_activation_date?: string | null
+  notes?: string | null
+  admin_notes?: string | null
+  rejection_reason?: string | null
+  classification?: CustomizationClassification | null
+  metadata?: Record<string, unknown> | null
+  decided_at?: string | null
+  created_at: string
+  updated_at: string
+  history?: Array<{
+    id: string
+    action: string
+    from_status?: BillingRequestStatus | null
+    to_status?: BillingRequestStatus | null
+    notes?: string | null
+    user?: { id: string; name: string; email: string } | null
+    created_at: string
+  }>
+}
+
 export interface AuditLog {
   id: string
   workspace_id: string
@@ -249,6 +295,7 @@ export interface DashboardStats {
   active_addons?: number
   active_subscriptions?: number
   pending_approvals?: number
+  pending_billing_requests?: number
   expiring_subscriptions?: number
   low_stock_items?: number
   total_products?: number
@@ -268,6 +315,13 @@ export interface DashboardStats {
   }>
   recent_workspaces: Workspace[]
   plan_distribution: Array<{ plan: AdminPlan; count: number }>
+  active_vs_expired_tenants?: { active: number; trial: number; suspended: number; expiring_soon: number }
+  analytics_range?: { range: string; granularity: string; from: string; to: string }
+  revenue_trends?: Array<{ key: string; label: string; subscription: number; addon: number; total: number }>
+  tenant_growth_trends?: Array<{ key: string; label: string; new_tenants: number }>
+  addon_sales_trends?: Array<{ key: string; label: string; count: number; revenue: number }>
+  request_trends?: Array<{ key: string; label: string; pending: number; approved: number; rejected: number; plan_changes: number; addon_requests: number; custom_requests: number }>
+  feature_usage_trends?: Array<{ key: string; label: string; stock_in: number; stock_out: number; transfer: number; total: number }>
   recent_audit_logs?: AuditLog[]
   system_health: Array<{ service: string; status: string; uptime: string }>
 }
@@ -531,8 +585,24 @@ export const adminService = {
     return api.put<SystemSetting>(`/admin/settings/${key}`, { value })
   },
 
-  async getDashboardStats(): Promise<DashboardStats> {
-    return api.get<DashboardStats>('/admin/dashboard/stats')
+  async getDashboardStats(filters: { range?: string; from?: string; to?: string } = {}): Promise<DashboardStats> {
+    return api.get<DashboardStats>(`/admin/dashboard/stats?${params({ range: filters.range, from: filters.from, to: filters.to })}`)
+  },
+
+  async getBillingRequests(filters: { page?: number; q?: string; status?: string; type?: string; workspace_id?: string } = {}): Promise<PaginatedResponse<BillingRequest>> {
+    return api.get<PaginatedResponse<BillingRequest>>(`/admin/billing-requests?${params({ page: filters.page ?? 1, q: filters.q, status: filters.status, type: filters.type, workspace_id: filters.workspace_id })}`)
+  },
+
+  async getBillingRequest(id: string): Promise<BillingRequest> {
+    return api.get<BillingRequest>(`/admin/billing-requests/${id}`)
+  },
+
+  async approveBillingRequest(id: string, data: { notes?: string; approved_amount?: number; promotional_amount?: number; approved_activation_date?: string | null; temporary_access_until?: string | null; classification?: CustomizationClassification }): Promise<BillingRequest> {
+    return api.post<BillingRequest>(`/admin/billing-requests/${id}/approve`, data)
+  },
+
+  async rejectBillingRequest(id: string, data: { notes?: string; rejection_reason?: string; classification?: CustomizationClassification }): Promise<BillingRequest> {
+    return api.post<BillingRequest>(`/admin/billing-requests/${id}/reject`, data)
   },
 
   async getPackages(status?: CatalogStatus): Promise<PlanPackage[]> {

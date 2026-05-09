@@ -16,6 +16,29 @@ export type CatalogStatus = (typeof CATALOG_STATUSES)[number]
 export const ADDON_ASSIGNMENT_STATUSES = ['active', 'cancelled', 'expired'] as const
 export type AddonAssignmentStatus = (typeof ADDON_ASSIGNMENT_STATUSES)[number]
 
+export const BILLING_REQUEST_TYPES = [
+  'plan_change',
+  'addon_activation',
+  'limit_increase',
+  'subscription_extension',
+  'custom_feature',
+  'manual_adjustment',
+  'enterprise_customization',
+] as const
+export type BillingRequestType = (typeof BILLING_REQUEST_TYPES)[number]
+
+export const BILLING_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const
+export type BillingRequestStatus = (typeof BILLING_REQUEST_STATUSES)[number]
+
+export const CUSTOMIZATION_CLASSIFICATIONS = [
+  'rejected',
+  'future_roadmap',
+  'enterprise_only',
+  'billable_customization',
+  'global_feature_candidate',
+] as const
+export type CustomizationClassification = (typeof CUSTOMIZATION_CLASSIFICATIONS)[number]
+
 export const FEATURE_KEYS = [
   'stockInOut',
   'multiWarehouse',
@@ -314,6 +337,49 @@ export interface WorkspaceAddonContract {
   amount: number
   current_period_start: string
   current_period_end: string | null
+}
+
+export interface BillingRequestContract {
+  id: string
+  workspace_id: string
+  workspace_name?: string
+  requested_by?: { id: string; name: string; email: string } | null
+  reviewed_by?: { id: string; name: string; email: string } | null
+  type: BillingRequestType
+  status: BillingRequestStatus
+  title: string
+  current_package?: Pick<PlanPackageContract, 'id' | 'code' | 'name' | 'monthly_price' | 'yearly_price'> | null
+  requested_package?: Pick<PlanPackageContract, 'id' | 'code' | 'name' | 'monthly_price' | 'yearly_price'> | null
+  addon?: AddonContract | null
+  billing_cycle: BillingCycle
+  quantity: number
+  requested_limit_key?: string | null
+  requested_limit_value?: number | null
+  current_amount: number
+  requested_amount: number
+  billing_impact: number
+  approved_amount?: number | null
+  promotional_amount?: number | null
+  temporary_access_until?: string | null
+  requested_activation_date?: string | null
+  approved_activation_date?: string | null
+  notes?: string | null
+  admin_notes?: string | null
+  rejection_reason?: string | null
+  classification?: CustomizationClassification | null
+  metadata?: Record<string, unknown> | null
+  decided_at?: string | null
+  created_at: string
+  updated_at: string
+  history?: Array<{
+    id: string
+    action: string
+    from_status?: BillingRequestStatus | null
+    to_status?: BillingRequestStatus | null
+    notes?: string | null
+    user?: { id: string; name: string; email: string } | null
+    created_at: string
+  }>
 }
 
 export interface EntitlementResponse {

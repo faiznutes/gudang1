@@ -9,7 +9,7 @@ type NotificationSeverity = 'info' | 'warning' | 'critical'
 
 interface NotificationItem {
   id: string
-  type: 'low_stock' | 'subscription_expiring' | 'subscription_expired'
+  type: 'low_stock' | 'subscription_expiring' | 'subscription_expired' | 'billing_request'
   severity: NotificationSeverity
   title: string
   message: string
@@ -117,6 +117,32 @@ export async function notificationRoutes(app: FastifyInstance) {
 
     for (const delivery of queuedDeliveries) {
       const payload = (delivery.payload ?? {}) as Record<string, unknown>
+      if (delivery.type.startsWith('billing.request')) {
+        const title = typeof payload.title === 'string' ? payload.title : 'Request billing'
+        const workspaceName = typeof payload.workspace_name === 'string' ? payload.workspace_name : 'Tenant'
+        const requestId = typeof payload.request_id === 'string' ? payload.request_id : undefined
+        const approved = delivery.type.endsWith('.approved')
+        const rejected = delivery.type.endsWith('.rejected')
+        notifications.push({
+          id: `delivery:${delivery.id}`,
+          type: 'billing_request',
+          severity: rejected ? 'warning' : approved ? 'info' : 'critical',
+          title: approved ? 'Request billing disetujui' : rejected ? 'Request billing ditolak' : 'Request billing baru',
+          message: ctx.platformRole === 'super_admin'
+            ? `${workspaceName}: ${title}`
+            : approved
+              ? `${title} sudah disetujui super admin.`
+              : rejected
+                ? `${title} ditolak. Cek catatan dari super admin.`
+                : `${title} sedang menunggu review super admin.`,
+          created_at: delivery.scheduledAt.toISOString(),
+          action_url: ctx.platformRole === 'super_admin'
+            ? requestId ? `/admin/approvals?request=${requestId}` : '/admin/approvals'
+            : '/app/billing',
+          read: false,
+        })
+        continue
+      }
       const daysRemaining = typeof payload.days_remaining === 'number' ? payload.days_remaining : undefined
       const workspaceName = typeof payload.workspace_name === 'string' ? payload.workspace_name : 'Tenant'
       const packageName = typeof payload.package_name === 'string' ? payload.package_name : 'paket'
