@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import SyncStatusIndicator from '@/components/layout/SyncStatusIndicator.vue'
-import { Search, Bell, ChevronDown, User, LogOut, Settings, HelpCircle } from 'lucide-vue-next'
+import { Bell, ChevronDown, CreditCard, User, LogOut, Settings, HelpCircle } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,23 +16,23 @@ const showNotifications = ref(false)
 const pageTitle = () => {
   const titles: Record<string, string> = {
     dashboard: 'Dashboard',
-    inventory: 'Inventori',
+    inventory: 'Produk',
     'inventory-detail': 'Detail Produk',
     'inventory-new': 'Tambah Produk',
     'inventory-edit': 'Edit Produk',
     warehouses: 'Gudang',
     'warehouse-new': 'Tambah Gudang',
     'warehouse-edit': 'Edit Gudang',
-    'stock-in': 'Stock Masuk',
-    'stock-out': 'Stock Keluar',
-    'stock-movement': 'Mutasi Stok',
+    'stock-in': 'Stok Masuk',
+    'stock-out': 'Stok Keluar',
+    'stock-movement': 'Riwayat Stok',
     suppliers: 'Supplier',
     'supplier-new': 'Tambah Supplier',
     'supplier-edit': 'Edit Supplier',
-    activity: 'Aktivitas',
-    analytics: 'Analitik',
+    activity: 'Riwayat Aktivitas',
+    analytics: 'Laporan',
     settings: 'Pengaturan',
-    billing: 'Billing',
+    billing: 'Paket & Add-on',
     tutorial: 'Pusat Bantuan',
   }
   return titles[route.name as string] || 'StockPilot'
@@ -40,10 +40,12 @@ const pageTitle = () => {
 
 const pageSubtitle = () => {
   const subtitles: Record<string, string> = {
-    dashboard: 'Ringkasan aktivitas gudang',
-    inventory: 'Kelola produk dan stok',
+    dashboard: 'Ringkasan kerja harian',
+    inventory: 'Cari, cek, dan tambah produk',
     warehouses: 'Kelola lokasi gudang',
     suppliers: 'Kelola data supplier',
+    activity: 'Catatan pergerakan stok',
+    analytics: 'Ringkasan stok dan gudang',
   }
   return subtitles[route.name as string] || ''
 }
@@ -90,19 +92,7 @@ function handleLogout() {
 
         <!-- Right Actions -->
         <div class="flex items-center gap-2">
-          <SyncStatusIndicator class="flex-shrink-0" />
-
-          <!-- Search (Desktop) -->
-          <div class="hidden md:block">
-            <div class="relative">
-              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="Cari..."
-                class="w-64 pl-9 pr-4 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-          </div>
+          <SyncStatusIndicator class="hidden flex-shrink-0 sm:flex" />
 
           <!-- Notifications -->
           <div class="relative">
@@ -196,6 +186,10 @@ function handleLogout() {
                   <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/settings')">
                     <Settings class="w-4 h-4" />
                     Pengaturan
+                  </button>
+                  <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/billing')">
+                    <CreditCard class="w-4 h-4" />
+                    Paket & Add-on
                   </button>
                   <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click="navigateTo('/app/tutorial')">
                     <HelpCircle class="w-4 h-4" />

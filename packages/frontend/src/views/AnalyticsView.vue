@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { BarChart3, TrendingUp, TrendingDown, Package, Warehouse, AlertTriangle } from 'lucide-vue-next'
 
 const inventoryStore = useInventoryStore()
 const activityStore = useActivityStore()
+const selectedRange = ref(14)
 
 const totalProducts = computed(() => inventoryStore.totalProducts)
 const totalWarehouses = computed(() => inventoryStore.totalWarehouses)
@@ -58,14 +59,64 @@ const productsByCategory = computed(() => {
 
   return Array.from(categoryMap.entries()).map(([name, count]) => ({ name, count }))
 })
+
+const trendDays = computed(() => {
+  const today = new Date()
+  const days = []
+
+  for (let index = selectedRange.value - 1; index >= 0; index -= 1) {
+    const date = new Date(today)
+    date.setDate(today.getDate() - index)
+    date.setHours(0, 0, 0, 0)
+
+    const nextDate = new Date(date)
+    nextDate.setDate(date.getDate() + 1)
+
+    const dayActivities = activityStore.activities.filter(activity => {
+      const activityDate = new Date(activity.created_at)
+      return activityDate >= date && activityDate < nextDate
+    })
+
+    days.push({
+      key: date.toISOString(),
+      label: new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' }).format(date),
+      stockIn: dayActivities.filter(activity => activity.type === 'in').reduce((sum, activity) => sum + activity.quantity, 0),
+      stockOut: dayActivities.filter(activity => activity.type === 'out').reduce((sum, activity) => sum + activity.quantity, 0),
+      transfer: dayActivities.filter(activity => activity.type === 'transfer').length,
+    })
+  }
+
+  return days
+})
+
+const maxTrendValue = computed(() => {
+  const maxValue = Math.max(...trendDays.value.flatMap(day => [day.stockIn, day.stockOut, day.transfer]))
+  return maxValue > 0 ? maxValue : 1
+})
+
+function barHeight(value: number) {
+  return `${Math.max(6, Math.round((value / maxTrendValue.value) * 100))}%`
+}
 </script>
 
 <template>
   <div class="p-4 lg:p-8 space-y-6">
     <!-- Header -->
-    <div>
-      <h1 class="text-2xl font-bold text-neutral-900">Analitik</h1>
-      <p class="text-neutral-600">Insight tentang inventori dan aktivitas gudang</p>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-neutral-900">Laporan operasional</h1>
+        <p class="text-neutral-600">Pantau stok, gudang, dan pergerakan barang.</p>
+      </div>
+      <div class="inline-flex rounded-xl border border-neutral-200 bg-white p-1 shadow-sm">
+        <button
+          v-for="range in [7, 14, 30]"
+          :key="range"
+          :class="['rounded-lg px-3 py-2 text-sm font-bold', selectedRange === range ? 'bg-neutral-950 text-white' : 'text-neutral-600 hover:bg-neutral-50']"
+          @click="selectedRange = range"
+        >
+          {{ range }} hari
+        </button>
+      </div>
     </div>
 
     <!-- Overview Stats -->
@@ -201,14 +252,41 @@ const productsByCategory = computed(() => {
       </div>
     </div>
 
-    <!-- Chart Placeholder -->
-    <div class="card p-6">
-      <div class="flex items-center gap-2 mb-4">
-        <BarChart3 class="w-5 h-5 text-neutral-500" />
-        <h2 class="font-semibold text-neutral-900">Tren Aktivitas</h2>
+    <!-- Activity Trend -->
+    <div class="card p-5 lg:p-6">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-2">
+          <BarChart3 class="w-5 h-5 text-neutral-500" />
+          <div>
+            <h2 class="font-semibold text-neutral-900">Tren aktivitas stok</h2>
+            <p class="text-sm text-neutral-500">Masuk, keluar, dan transfer berdasarkan tanggal.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3 text-xs font-semibold text-neutral-600">
+          <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>Masuk</span>
+          <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>Keluar</span>
+          <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-primary-500"></span>Transfer</span>
+        </div>
       </div>
-      <div class="h-64 bg-neutral-50 rounded-lg flex items-center justify-center">
-        <p class="text-neutral-400">Grafik tren akan muncul di sini</p>
+
+      <div class="mt-6 h-72 overflow-x-auto">
+        <div class="flex h-full min-w-[720px] items-end gap-3 border-b border-neutral-200 pb-8">
+          <div v-for="day in trendDays" :key="day.key" class="flex h-full min-w-10 flex-1 flex-col justify-end gap-2">
+            <div class="flex h-56 items-end justify-center gap-1 rounded-t-lg bg-neutral-50 px-1 pt-3">
+              <div class="w-2 rounded-t-full bg-emerald-500" :style="{ height: barHeight(day.stockIn) }"></div>
+              <div class="w-2 rounded-t-full bg-rose-500" :style="{ height: barHeight(day.stockOut) }"></div>
+              <div class="w-2 rounded-t-full bg-primary-500" :style="{ height: barHeight(day.transfer) }"></div>
+            </div>
+            <p class="rotate-[-35deg] text-left text-[11px] font-medium text-neutral-500">
+              {{ day.label }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="activityStore.activities.length === 0" class="mt-5 rounded-xl border border-dashed border-neutral-200 p-5 text-center">
+        <p class="font-medium text-neutral-800">Belum ada aktivitas untuk dibuat laporan.</p>
+        <p class="mt-1 text-sm text-neutral-500">Catat stok masuk atau keluar agar tren mulai terbaca.</p>
       </div>
     </div>
   </div>

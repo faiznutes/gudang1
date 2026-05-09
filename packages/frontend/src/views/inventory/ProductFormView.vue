@@ -93,7 +93,7 @@ function generateSku() {
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
-      Kembali ke Inventori
+      Kembali ke Produk
     </router-link>
 
     <!-- Header -->
@@ -101,7 +101,7 @@ function generateSku() {
       <h1 class="text-2xl font-bold text-neutral-900">
         {{ isEdit ? 'Edit Produk' : 'Tambah Produk' }}
       </h1>
-      <p class="text-neutral-600">{{ isEdit ? 'Perbarui informasi produk' : 'Tambahkan produk baru ke inventori' }}</p>
+      <p class="text-neutral-600">{{ isEdit ? 'Perbarui informasi produk' : 'Tambahkan produk baru ke daftar produk' }}</p>
     </div>
 
     <!-- Form -->

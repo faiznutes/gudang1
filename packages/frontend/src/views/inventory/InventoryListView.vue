@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
 import importExportService from '@/services/api/importExport'
@@ -19,12 +19,14 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const inventoryStore = useInventoryStore()
 const authStore = useAuthStore()
 
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedWarehouse = ref('')
+const selectedStatus = ref(typeof route.query.filter === 'string' ? route.query.filter : '')
 const showFilter = ref(false)
 const activeDropdown = ref<string | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
@@ -51,11 +53,21 @@ const products = computed(() => {
     )
   }
 
+  if (selectedStatus.value === 'low-stock') {
+    result = result.filter(p => p.low_stock)
+  } else if (selectedStatus.value === 'out-of-stock') {
+    result = result.filter(p => p.total_quantity <= 0)
+  } else if (selectedStatus.value === 'available') {
+    result = result.filter(p => p.total_quantity > 0)
+  }
+
   return result
 })
 
 const categories = computed(() => inventoryStore.categories)
 const warehouses = computed(() => inventoryStore.warehouses)
+const lowStockCount = computed(() => inventoryStore.getLowStockProducts().length)
+const outOfStockCount = computed(() => inventoryStore.productsWithInventory.filter(product => product.total_quantity <= 0).length)
 
 function getCategoryName(categoryId: string) {
   return categories.value.find(c => c.id === categoryId)?.name || '-'
@@ -64,6 +76,13 @@ function getCategoryName(categoryId: string) {
 function getStockQuantity(productId: string) {
   const product = inventoryStore.productsWithInventory.find(p => p.id === productId)
   return product?.total_quantity || 0
+}
+
+function resetFilters() {
+  searchQuery.value = ''
+  selectedCategory.value = ''
+  selectedWarehouse.value = ''
+  selectedStatus.value = ''
 }
 
 function isLowStock(productId: string) {
@@ -109,6 +128,30 @@ async function handleImport(event: Event) {
 
 <template>
   <div class="p-4 lg:p-8 space-y-6">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <button
+        :class="['rounded-xl border p-4 text-left transition', selectedStatus === '' ? 'border-primary-200 bg-primary-50 text-primary-900' : 'border-neutral-100 bg-white text-neutral-800 hover:bg-neutral-50']"
+        @click="selectedStatus = ''"
+      >
+        <p class="text-xs font-semibold text-current/70">Semua produk</p>
+        <p class="mt-1 text-xl font-bold">{{ inventoryStore.totalProducts }}</p>
+      </button>
+      <button
+        :class="['rounded-xl border p-4 text-left transition', selectedStatus === 'low-stock' ? 'border-warning-200 bg-warning-50 text-warning-900' : 'border-neutral-100 bg-white text-neutral-800 hover:bg-neutral-50']"
+        @click="selectedStatus = 'low-stock'"
+      >
+        <p class="text-xs font-semibold text-current/70">Stok menipis</p>
+        <p class="mt-1 text-xl font-bold">{{ lowStockCount }}</p>
+      </button>
+      <button
+        :class="['rounded-xl border p-4 text-left transition', selectedStatus === 'out-of-stock' ? 'border-danger-200 bg-danger-50 text-danger-900' : 'border-neutral-100 bg-white text-neutral-800 hover:bg-neutral-50']"
+        @click="selectedStatus = 'out-of-stock'"
+      >
+        <p class="text-xs font-semibold text-current/70">Stok kosong</p>
+        <p class="mt-1 text-xl font-bold">{{ outOfStockCount }}</p>
+      </button>
+    </div>
+
     <!-- Header Actions -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div class="flex items-center gap-3 flex-1">
@@ -161,6 +204,15 @@ async function handleImport(event: Event) {
     <div v-if="showFilter" class="card p-4 space-y-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
+          <label class="label">Status stok</label>
+          <select v-model="selectedStatus" class="input">
+            <option value="">Semua</option>
+            <option value="available">Ada stok</option>
+            <option value="low-stock">Stok menipis</option>
+            <option value="out-of-stock">Stok kosong</option>
+          </select>
+        </div>
+        <div>
           <label class="label">Kategori</label>
           <select v-model="selectedCategory" class="input">
             <option value="">Semua</option>
@@ -179,11 +231,36 @@ async function handleImport(event: Event) {
           </select>
         </div>
       </div>
+      <button class="btn-ghost btn-sm" @click="resetFilters">
+        Reset filter
+      </button>
     </div>
 
     <!-- Product Table -->
     <div class="card overflow-hidden">
-      <div class="overflow-x-auto">
+      <div class="divide-y divide-neutral-100 md:hidden">
+        <article v-for="product in products" :key="product.id" class="p-4">
+          <div class="flex items-start gap-3">
+            <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-100">
+              <Package class="h-5 w-5 text-neutral-400" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <button class="block truncate text-left font-semibold text-neutral-900" @click="router.push({ name: 'inventory-detail', params: { id: product.id } })">
+                {{ product.name }}
+              </button>
+              <p class="mt-0.5 truncate text-xs text-neutral-500">{{ product.sku }} - {{ getCategoryName(product.category_id) }}</p>
+              <div class="mt-3 flex items-center justify-between gap-3">
+                <span :class="['rounded-full px-2.5 py-1 text-xs font-bold', isLowStock(product.id) ? 'bg-warning-100 text-warning-800' : getStockQuantity(product.id) <= 0 ? 'bg-danger-100 text-danger-800' : 'bg-emerald-100 text-emerald-800']">
+                  Stok {{ getStockQuantity(product.id) }}
+                </span>
+                <span class="text-sm font-semibold text-neutral-800">Rp {{ product.price?.toLocaleString('id-ID') || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="hidden overflow-x-auto md:block">
         <table class="w-full">
           <thead>
             <tr class="border-b border-neutral-100">

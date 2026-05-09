@@ -12,11 +12,10 @@ import {
   MoreHorizontal,
   Warehouse,
   ArrowLeftRight,
+  ArrowUpFromLine,
   Users,
   BarChart3,
   FileText,
-  CreditCard,
-  HelpCircle,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -26,27 +25,28 @@ const featureAccess = useFeatureAccess()
 
 const leftItems = [
   { name: 'Home', icon: LayoutDashboard, route: '/app' },
-  { name: 'Inventori', icon: Package, route: '/app/inventory' },
+  { name: 'Produk', icon: Package, route: '/app/inventory' },
 ]
 
 const centerItem = computed(() => featureAccess.canAccessStockInOut()
-  ? { name: 'Tambah', icon: PlusCircle, route: '/app/stock-in', action: 'add' }
+  ? { name: 'Masuk', icon: PlusCircle, route: '/app/stock-in', action: 'add' }
   : { name: 'Tambah', icon: PlusCircle, route: '/app/inventory/new', action: 'add' }
 )
 
 const rightItems = [
-  { name: 'Aktivitas', icon: Activity, route: '/app/activity' },
+  { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
   { name: 'Lainnya', icon: MoreHorizontal, route: '', action: 'more' },
 ]
 
 const moreMenuItems = computed(() => [
-  { name: 'Gudang', icon: Warehouse, route: '/app/warehouses', color: 'bg-blue-100 text-blue-600' },
-  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement', color: 'bg-purple-100 text-purple-600' }] : []),
+  ...(featureAccess.canAccessStockInOut() ? [
+    { name: 'Stok keluar', icon: ArrowUpFromLine, route: '/app/stock-out', color: 'bg-rose-100 text-rose-600' },
+    { name: 'Riwayat stok', icon: ArrowLeftRight, route: '/app/stock-movement', color: 'bg-primary-100 text-primary-600' },
+  ] : []),
   { name: 'Supplier', icon: Users, route: '/app/suppliers', color: 'bg-green-100 text-green-600' },
-  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Analitik', icon: BarChart3, route: '/app/analytics', color: 'bg-orange-100 text-orange-600' }] : []),
-  { name: 'Billing', icon: CreditCard, route: '/app/billing', color: 'bg-pink-100 text-pink-600' },
-  { name: 'Tutorial', icon: FileText, route: '/app/tutorial', color: 'bg-cyan-100 text-cyan-600' },
-  { name: 'Bantuan', icon: HelpCircle, route: '/app/tutorial', color: 'bg-yellow-100 text-yellow-600' },
+  { name: 'Riwayat', icon: Activity, route: '/app/activity', color: 'bg-sky-100 text-sky-600' },
+  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Laporan', icon: BarChart3, route: '/app/analytics', color: 'bg-orange-100 text-orange-600' }] : []),
+  { name: 'Bantuan', icon: FileText, route: '/app/tutorial', color: 'bg-cyan-100 text-cyan-600' },
   { name: 'Pengaturan', icon: Settings, route: '/app/settings', color: 'bg-neutral-100 text-neutral-600' },
 ])
 
@@ -156,8 +156,8 @@ function handleMoreMenu(routePath: string) {
               <div class="flex justify-center mb-6">
                 <div class="w-10 h-1 bg-neutral-300 rounded-full"></div>
               </div>
-              <h3 class="text-lg font-bold text-neutral-900 mb-1">Menu Lengkap</h3>
-              <p class="text-sm text-neutral-500 mb-6">Akses semua fitur StockPilot</p>
+              <h3 class="text-lg font-bold text-neutral-900 mb-1">Menu kerja</h3>
+              <p class="text-sm text-neutral-500 mb-6">Pilih pekerjaan yang ingin dibuka.</p>
               <div class="grid grid-cols-4 gap-3">
                 <button
                   v-for="item in moreMenuItems"

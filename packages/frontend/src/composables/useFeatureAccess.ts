@@ -43,7 +43,7 @@ export function useFeatureAccess() {
 
   function getLockedFeatureMessage(feature: string): { title: string; message: string; currentPlan: string; requiredPlan: string } {
     const featureNames: Record<string, string> = {
-      stockInOut: 'Stock Masuk/Keluar',
+    stockInOut: 'Stok Masuk/Keluar',
       multiWarehouse: 'Multi Gudang',
       analytics: 'Analytics',
       exportPDF: 'Export PDF',

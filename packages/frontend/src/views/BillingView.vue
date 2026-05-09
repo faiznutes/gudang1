@@ -77,7 +77,7 @@ const shouldShowTrialCta = computed(() => {
 })
 
 const featureNames: Record<string, string> = {
-  stockInOut: 'Stock Masuk/Keluar',
+  stockInOut: 'Stok Masuk/Keluar',
   multiWarehouse: 'Multi Gudang',
   analytics: 'Analytics',
   exportPDF: 'Export PDF',
@@ -115,7 +115,7 @@ async function submitPlanRequest(planId: string) {
   successMessage.value = ''
   try {
     await billingService.changePlan(planId, selectedCycle.value)
-    successMessage.value = 'Request perubahan paket dikirim ke super admin.'
+    successMessage.value = 'Pengajuan perubahan paket sudah dikirim.'
     await loadRequests()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Request paket gagal dikirim'
@@ -130,7 +130,7 @@ async function submitAddonRequest(addon: Addon) {
   successMessage.value = ''
   try {
     await billingService.requestAddon(addon.id, selectedCycle.value)
-    successMessage.value = 'Request add-on dikirim ke super admin.'
+    successMessage.value = 'Pengajuan add-on sudah dikirim.'
     await loadRequests()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Request add-on gagal dikirim'
@@ -209,7 +209,7 @@ async function loadBilling() {
     addons.value = addonRows
     requests.value = requestRows
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Billing gagal dimuat'
+    errorMessage.value = error instanceof Error ? error.message : 'Data paket gagal dimuat'
   } finally {
     loading.value = false
   }
@@ -222,8 +222,8 @@ onMounted(loadBilling)
   <div class="p-4 lg:p-8 space-y-8">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-neutral-900">Billing & Paket</h1>
-        <p class="text-neutral-600">Semua perubahan paket dan add-on masuk review super admin sebelum aktif.</p>
+        <h1 class="text-2xl font-bold text-neutral-900">Paket & Add-on</h1>
+        <p class="text-neutral-600">Ajukan perubahan paket atau tambahan fitur. Tim StockPilot akan meninjau sebelum aktif.</p>
       </div>
       <div class="inline-flex rounded-xl border border-neutral-200 bg-white p-1 shadow-sm">
         <button :class="['rounded-lg px-4 py-2 text-sm font-bold', selectedCycle === 'monthly' ? 'bg-neutral-950 text-white' : 'text-neutral-600']" @click="selectedCycle = 'monthly'">
@@ -246,7 +246,7 @@ onMounted(loadBilling)
       <div class="rounded-2xl bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
         <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p class="text-primary-200 text-sm">Subscription saat ini</p>
+            <p class="text-primary-200 text-sm">Paket saat ini</p>
             <h2 class="mt-1 text-2xl font-bold">{{ currentPlanData?.name }}</h2>
             <p class="mt-1 text-primary-100">
               {{ currentPlan === 'free' ? 'Gratis selamanya' : `${formatPrice(currentPlanData?.price || 0)}/${currentPlanData?.period}` }}
@@ -302,8 +302,8 @@ onMounted(loadBilling)
     <section class="space-y-4">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-xl font-black text-neutral-950">Paket SaaS</h2>
-          <p class="text-sm text-neutral-500">Upgrade atau downgrade akan masuk antrean approval.</p>
+          <h2 class="text-xl font-black text-neutral-950">Pilihan paket</h2>
+          <p class="text-sm text-neutral-500">Perubahan paket akan ditinjau dahulu sebelum digunakan.</p>
         </div>
       </div>
       <div v-if="loading" class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -382,8 +382,8 @@ onMounted(loadBilling)
     <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
         <div>
-          <h2 class="text-xl font-black text-neutral-950">Add-on Marketplace</h2>
-          <p class="mt-1 text-sm text-neutral-500">Add-on aktif setelah super admin menyetujui request.</p>
+          <h2 class="text-xl font-black text-neutral-950">Tambah kapasitas & fitur</h2>
+          <p class="mt-1 text-sm text-neutral-500">Add-on aktif setelah tim StockPilot menyetujui pengajuan.</p>
         </div>
         <PackagePlus class="h-5 w-5 text-primary-700" />
       </div>
@@ -423,14 +423,14 @@ onMounted(loadBilling)
 
     <section class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
       <div class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
-        <h2 class="text-xl font-black text-neutral-950">Request Fitur Kustom</h2>
-        <p class="mt-1 text-sm text-neutral-500">Request akan dinilai dari feasibility, biaya maintenance, dan risiko skala.</p>
+        <h2 class="text-xl font-black text-neutral-950">Ajukan kebutuhan khusus</h2>
+        <p class="mt-1 text-sm text-neutral-500">Ceritakan kebutuhan operasional agar tim bisa menilai solusi yang paling aman.</p>
         <div class="mt-5 space-y-3">
           <input v-model="customDraft.title" class="input" placeholder="Judul request" />
           <textarea v-model="customDraft.notes" class="input min-h-32" placeholder="Kebutuhan operasional, integrasi, atau laporan khusus"></textarea>
           <button class="btn-primary w-full" :disabled="savingId === 'custom' || !customDraft.title.trim()" @click="submitCustomRequest">
             <Send class="h-4 w-4" />
-            Kirim Request
+            Kirim Pengajuan
           </button>
         </div>
       </div>
@@ -438,8 +438,8 @@ onMounted(loadBilling)
       <div class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
         <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
           <div>
-            <h2 class="text-xl font-black text-neutral-950">Riwayat Request</h2>
-            <p class="mt-1 text-sm text-neutral-500">Status approval paket, add-on, dan kustomisasi.</p>
+            <h2 class="text-xl font-black text-neutral-950">Riwayat pengajuan</h2>
+            <p class="mt-1 text-sm text-neutral-500">Status perubahan paket, add-on, dan kebutuhan khusus.</p>
           </div>
           <button class="text-sm font-black text-primary-700" @click="loadRequests">Refresh</button>
         </div>
@@ -501,11 +501,11 @@ onMounted(loadBilling)
             Belum yakin dengan paket?
           </h3>
           <p class="mt-1 text-sm text-primary-700">
-            Request trial akan disiapkan super admin sesuai kebutuhan operasional.
+            Trial akan disiapkan tim StockPilot sesuai kebutuhan operasional.
           </p>
         </div>
         <button class="btn-primary" @click="goToTrial">
-          Request Trial
+            Ajukan Trial
         </button>
       </div>
     </section>

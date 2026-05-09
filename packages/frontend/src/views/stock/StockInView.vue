@@ -87,7 +87,7 @@ async function handleSubmit() {
       router.push('/app/inventory')
     }, 1500)
   } catch (e) {
-    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan stock masuk'
+    errors.value.submit = e instanceof Error ? e.message : 'Gagal menyimpan stok masuk'
   } finally {
     isLoading.value = false
   }
@@ -116,7 +116,7 @@ function goToBilling() {
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
-      Kembali ke Inventori
+      Kembali ke Produk
     </router-link>
 
     <!-- Success State -->
@@ -124,14 +124,14 @@ function goToBilling() {
       <div class="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
         <CheckCircle class="w-10 h-10 text-success-600" />
       </div>
-      <h2 class="text-xl font-semibold text-neutral-900 mb-2">Stock Masuk Dicatat!</h2>
-      <p class="text-neutral-600">Mengalihkan ke halaman inventori...</p>
+      <h2 class="text-xl font-semibold text-neutral-900 mb-2">Stok Masuk Dicatat!</h2>
+      <p class="text-neutral-600">Mengalihkan ke halaman produk...</p>
     </div>
 
     <template v-else>
       <!-- Header -->
       <div>
-        <h1 class="text-2xl font-bold text-neutral-900">Stock Masuk</h1>
+        <h1 class="text-2xl font-bold text-neutral-900">Stok Masuk</h1>
         <p class="text-neutral-600">Catat barang yang masuk ke gudang</p>
       </div>
 
@@ -148,8 +148,8 @@ function goToBilling() {
               </option>
             </select>
             <p v-if="errors.product_id" class="text-xs text-danger-600 mt-1">{{ errors.product_id }}</p>
-            <p v-if="!canAccessStockInOut()" class="text-xs text-primary-600 mt-1">
-              🔒 Fitur terkunci untuk paket Free. <button type="button" @click="showLockModal = true" class="underline">Upgrade</button>
+                        <p v-if="!canAccessStockInOut()" class="text-xs text-primary-600 mt-1">
+              Fitur ini belum aktif. <button type="button" @click="showLockModal = true" class="underline">Ajukan akses</button>
             </p>
           </div>
 

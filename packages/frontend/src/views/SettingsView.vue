@@ -10,10 +10,10 @@ const inventoryStore = useInventoryStore()
 const activeTab = ref('profile')
 
 const tabs = [
-  { id: 'profile', name: 'Profil', icon: User },
-  { id: 'workspace', name: 'Workspace', icon: Building },
+  { id: 'profile', name: 'Akun', icon: User },
+  { id: 'workspace', name: 'Usaha', icon: Building },
   { id: 'notifications', name: 'Notifikasi', icon: Bell },
-  { id: 'security', name: 'Keamanan', icon: Shield },
+  { id: 'security', name: 'Akses', icon: Shield },
 ]
 
 const profileForm = ref({
@@ -48,7 +48,7 @@ async function handleSave() {
   <div class="p-4 lg:p-8 space-y-6">
     <div>
       <h1 class="text-2xl font-bold text-neutral-900">Pengaturan</h1>
-      <p class="text-neutral-600">Kelola akun dan preferensi</p>
+      <p class="text-neutral-600">Kelola akun, usaha, dan notifikasi kerja.</p>
     </div>
 
     <div class="flex flex-col lg:flex-row gap-6">
@@ -76,7 +76,7 @@ async function handleSave() {
       <div class="flex-1">
         <!-- Profile -->
         <div v-if="activeTab === 'profile'" class="card p-6">
-          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Informasi Profil</h2>
+          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Informasi akun</h2>
           
           <form @submit.prevent="handleSave" class="space-y-6">
             <div class="flex items-center gap-4">
@@ -113,11 +113,11 @@ async function handleSave() {
 
         <!-- Workspace -->
         <div v-if="activeTab === 'workspace'" class="card p-6">
-          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Pengaturan Workspace</h2>
+          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Informasi usaha</h2>
           
           <form @submit.prevent="handleSave" class="space-y-6">
             <div>
-              <label class="label">Nama Workspace</label>
+              <label class="label">Nama usaha</label>
               <input v-model="workspaceForm.name" class="input max-w-md" />
             </div>
 
@@ -150,13 +150,13 @@ async function handleSave() {
 
         <!-- Notifications -->
         <div v-if="activeTab === 'notifications'" class="card p-6">
-          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Pengaturan Notifikasi</h2>
+          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Notifikasi operasional</h2>
           
           <form @submit.prevent="handleSave" class="space-y-6">
             <div class="space-y-4">
               <label class="flex items-center justify-between">
                 <div>
-                  <p class="font-medium text-neutral-900">Alert Stok Menipis</p>
+                  <p class="font-medium text-neutral-900">Stok menipis</p>
                   <p class="text-sm text-neutral-500">Notifikasi ketika stok di bawah minimum</p>
                 </div>
                 <input
@@ -168,7 +168,7 @@ async function handleSave() {
 
               <label class="flex items-center justify-between">
                 <div>
-                  <p class="font-medium text-neutral-900">Stock Masuk/Keluar</p>
+                  <p class="font-medium text-neutral-900">Stok masuk/keluar</p>
                   <p class="text-sm text-neutral-500">Notifikasi untuk setiap aktivitas stock</p>
                 </div>
                 <input
@@ -215,7 +215,7 @@ async function handleSave() {
 
         <!-- Security -->
         <div v-if="activeTab === 'security'" class="card p-6">
-          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Keamanan</h2>
+          <h2 class="text-lg font-semibold text-neutral-900 mb-6">Akses akun</h2>
           
           <div class="space-y-6">
             <div>
@@ -226,7 +226,7 @@ async function handleSave() {
 
             <div class="pt-6 border-t border-neutral-100">
               <h3 class="font-medium text-neutral-900 mb-2">Logout dari Semua Perangkat</h3>
-              <p class="text-sm text-neutral-500 mb-4">Akeluarkan sesi dari semua perangkat</p>
+              <p class="text-sm text-neutral-500 mb-4">Keluarkan akun dari semua perangkat yang pernah dipakai.</p>
               <button class="btn-danger">Logout Semua</button>
             </div>
           </div>

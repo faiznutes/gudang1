@@ -5,28 +5,24 @@ import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
 import { useEntitlementsStore } from '@/stores/entitlements'
-import type { EntitlementResponse } from '@/services/api/auth'
-import SubscriptionCountdownCard from '@/components/SubscriptionCountdownCard.vue'
-import { labelFrom, planLabels, subscriptionStatusLabels } from '@/lib/labels'
 import {
   AlertTriangle,
   ArrowDownToLine,
+  ArrowRight,
   ArrowUpFromLine,
   BarChart3,
   CheckCircle2,
   ClipboardCheck,
-  FileText,
-  Lock,
   Package,
   Plus,
-  ShieldCheck,
+  SearchCheck,
+  Store,
   TrendingDown,
   TrendingUp,
+  Users,
   Warehouse,
   X,
 } from 'lucide-vue-next'
-
-type FeatureKey = keyof EntitlementResponse['features']
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
@@ -36,133 +32,242 @@ const entitlementsStore = useEntitlementsStore()
 
 const showOnboarding = ref(true)
 
-const entitlements = computed(() => entitlementsStore.entitlements)
+const products = computed(() => inventoryStore.productsWithInventory)
 const totalProducts = computed(() => inventoryStore.totalProducts)
 const totalWarehouses = computed(() => inventoryStore.totalWarehouses)
+const totalStock = computed(() => inventoryStore.inventory.reduce((sum, item) => sum + item.quantity, 0))
+const activeProducts = computed(() => products.value.filter(product => product.total_quantity > 0).length)
+const outOfStockProducts = computed(() => products.value.filter(product => product.total_quantity <= 0))
 const lowStockProducts = computed(() => inventoryStore.getLowStockProducts())
-const lowStockCount = computed(() => lowStockProducts.value.length)
-const recentActivities = computed(() => activityStore.recentActivities.slice(0, 5))
+const recentActivities = computed(() => activityStore.recentActivities.slice(0, 6))
+
 const activity7d = computed(() => {
   const since = Date.now() - 7 * 24 * 60 * 60 * 1000
-  return activityStore.activities.filter(item => new Date(item.created_at).getTime() >= since).length
+  return activityStore.activities.filter(item => new Date(item.created_at).getTime() >= since)
 })
 
-const totalStock = computed(() => {
-  return inventoryStore.inventory.reduce((sum, item) => sum + item.quantity, 0)
+const stockIn7d = computed(() => activity7d.value.filter(item => item.type === 'in').reduce((sum, item) => sum + item.quantity, 0))
+const stockOut7d = computed(() => activity7d.value.filter(item => item.type === 'out').reduce((sum, item) => sum + item.quantity, 0))
+const transfer7d = computed(() => activity7d.value.filter(item => item.type === 'transfer').length)
+
+const bestSellingProducts = computed(() => {
+  const totals = new Map<string, { name: string; quantity: number }>()
+  activityStore.activities
+    .filter(item => item.type === 'out')
+    .forEach(item => {
+      const current = totals.get(item.product_id) ?? { name: item.product_name, quantity: 0 }
+      current.quantity += item.quantity
+      totals.set(item.product_id, current)
+    })
+
+  return Array.from(totals.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 4)
 })
 
-const planName = computed(() => labelFrom(planLabels, entitlements.value.plan))
-const subscriptionStatus = computed(() => {
-  if (entitlements.value.subscriptionStatus === 'none') return 'Belum aktif'
-  return labelFrom(subscriptionStatusLabels, entitlements.value.subscriptionStatus)
+const slowMovingProducts = computed(() => {
+  const activeProductIds = new Set(
+    activityStore.activities
+      .filter(item => Date.now() - new Date(item.created_at).getTime() <= 30 * 24 * 60 * 60 * 1000)
+      .map(item => item.product_id)
+  )
+
+  return products.value
+    .filter(product => product.total_quantity > 0 && !activeProductIds.has(product.id))
+    .slice(0, 4)
 })
 
-const featureDefinitions: Array<{ key: FeatureKey; label: string; description: string }> = [
-  { key: 'stockInOut', label: 'Stok masuk/keluar', description: 'Operasional gudang harian' },
-  { key: 'multiWarehouse', label: 'Multi-gudang', description: 'Cabang dan lokasi terpisah' },
-  { key: 'analytics', label: 'Analitik', description: 'Ringkasan performa stok' },
-  { key: 'exportPDF', label: 'Export laporan', description: 'Dokumentasi untuk audit' },
-  { key: 'batchImport', label: 'Import massal', description: 'Setup data lebih cepat' },
-  { key: 'reports', label: 'Reporting', description: 'Pantauan manajemen' },
-]
+const topWarehouses = computed(() => {
+  const totals = new Map<string, { name: string; movements: number; quantity: number }>()
+  activity7d.value.forEach(item => {
+    const current = totals.get(item.warehouse_id) ?? { name: item.warehouse_name, movements: 0, quantity: 0 }
+    current.movements += 1
+    current.quantity += item.quantity
+    totals.set(item.warehouse_id, current)
+  })
 
-const featureChips = computed(() => {
-  return featureDefinitions.map(feature => ({
-    ...feature,
-    enabled: entitlements.value.features[feature.key],
-  }))
+  return Array.from(totals.values()).sort((a, b) => b.movements - a.movements).slice(0, 4)
 })
 
-const activeFeatureCount = computed(() => featureChips.value.filter(feature => feature.enabled).length)
-
-const usageItems = computed(() => [
+const productSummary = computed(() => [
   {
-    label: 'Produk',
-    used: Math.max(entitlements.value.usage.products, totalProducts.value),
-    limit: entitlements.value.limits.products,
-  },
-  {
-    label: 'Gudang',
-    used: Math.max(entitlements.value.usage.warehouses, totalWarehouses.value),
-    limit: entitlements.value.limits.warehouses,
-  },
-  {
-    label: 'User',
-    used: entitlements.value.usage.users,
-    limit: entitlements.value.limits.users,
-  },
-])
-
-const onboardingSteps = computed(() => [
-  { id: 1, label: 'Gudang utama dibuat', done: totalWarehouses.value > 0 },
-  { id: 2, label: 'Produk pertama aktif', done: totalProducts.value > 0 },
-  { id: 3, label: 'Stok masuk dicatat', done: activityStore.totalStockIn > 0 },
-  { id: 4, label: 'Laporan mulai terbaca', done: recentActivities.value.length > 0 },
-])
-
-const shouldShowOnboarding = computed(() => {
-  return showOnboarding.value && onboardingSteps.value.some(step => !step.done)
-})
-
-const operationCards = computed(() => [
-  {
-    label: 'Produk aktif',
+    label: 'Total produk',
     value: formatNumber(totalProducts.value),
-    caption: `${formatNumber(totalStock.value)} total stok tercatat`,
+    caption: 'SKU yang sudah dibuat',
     icon: Package,
     tone: 'bg-primary-50 text-primary-700',
   },
   {
-    label: 'Gudang',
-    value: formatNumber(totalWarehouses.value),
-    caption: 'Lokasi penyimpanan tenant',
-    icon: Warehouse,
+    label: 'Produk aktif',
+    value: formatNumber(activeProducts.value),
+    caption: 'Masih punya stok',
+    icon: CheckCircle2,
     tone: 'bg-emerald-50 text-emerald-700',
   },
   {
-    label: 'Stok menipis',
-    value: formatNumber(lowStockCount.value),
-    caption: 'Perlu follow-up pengadaan',
-    icon: AlertTriangle,
-    tone: lowStockCount.value > 0 ? 'bg-rose-50 text-rose-700' : 'bg-neutral-100 text-neutral-600',
+    label: 'Stok kosong',
+    value: formatNumber(outOfStockProducts.value.length),
+    caption: 'Perlu dicek atau restok',
+    icon: Store,
+    tone: outOfStockProducts.value.length > 0 ? 'bg-rose-50 text-rose-700' : 'bg-neutral-100 text-neutral-600',
   },
   {
-    label: 'Mutasi 7 hari',
-    value: formatNumber(activity7d.value),
-    caption: 'Masuk, keluar, dan transfer',
-    icon: TrendingUp,
-    tone: 'bg-amber-50 text-amber-700',
+    label: 'Stok menipis',
+    value: formatNumber(lowStockProducts.value.length),
+    caption: 'Di bawah batas minimum',
+    icon: AlertTriangle,
+    tone: lowStockProducts.value.length > 0 ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-600',
   },
 ])
+
+const warehouseSummary = computed(() => [
+  {
+    label: 'Gudang',
+    value: formatNumber(totalWarehouses.value),
+    caption: 'Lokasi penyimpanan',
+    icon: Warehouse,
+    tone: 'bg-sky-50 text-sky-700',
+  },
+  {
+    label: 'Total stok',
+    value: formatNumber(totalStock.value),
+    caption: `${formatNumber(transfer7d.value)} transfer dalam 7 hari`,
+    icon: ClipboardCheck,
+    tone: 'bg-indigo-50 text-indigo-700',
+  },
+  {
+    label: 'Masuk 7 hari',
+    value: formatNumber(stockIn7d.value),
+    caption: 'Unit diterima',
+    icon: ArrowDownToLine,
+    tone: 'bg-emerald-50 text-emerald-700',
+  },
+  {
+    label: 'Keluar 7 hari',
+    value: formatNumber(stockOut7d.value),
+    caption: 'Unit keluar',
+    icon: ArrowUpFromLine,
+    tone: 'bg-rose-50 text-rose-700',
+  },
+])
+
+const criticalAlerts = computed(() => {
+  const alerts = []
+
+  if (lowStockProducts.value.length > 0) {
+    alerts.push({
+      title: 'Stok menipis',
+      message: `${lowStockProducts.value.length} produk perlu restok atau pengecekan minimum stok.`,
+      path: '/app/inventory?filter=low-stock',
+      icon: AlertTriangle,
+      tone: 'border-amber-100 bg-amber-50 text-amber-900',
+    })
+  }
+
+  if (outOfStockProducts.value.length > 0) {
+    alerts.push({
+      title: 'Stok kosong',
+      message: `${outOfStockProducts.value.length} produk belum punya stok tersedia.`,
+      path: '/app/inventory?filter=out-of-stock',
+      icon: Store,
+      tone: 'border-rose-100 bg-rose-50 text-rose-900',
+    })
+  }
+
+  if (totalWarehouses.value === 0) {
+    alerts.push({
+      title: 'Gudang belum dibuat',
+      message: 'Buat gudang pertama sebelum mulai mencatat stok.',
+      path: '/app/warehouses/new',
+      icon: Warehouse,
+      tone: 'border-primary-100 bg-primary-50 text-primary-900',
+    })
+  }
+
+  if (activity7d.value.length === 0 && totalProducts.value > 0) {
+    alerts.push({
+      title: 'Belum ada aktivitas minggu ini',
+      message: 'Catat stok masuk atau keluar agar laporan tetap akurat.',
+      path: entitlementsStore.entitlements.features.stockInOut ? '/app/stock-in' : '/app/activity',
+      icon: ClipboardCheck,
+      tone: 'border-neutral-100 bg-neutral-50 text-neutral-900',
+    })
+  }
+
+  return alerts
+})
+
+const onboardingSteps = computed(() => [
+  {
+    title: 'Buat gudang pertama',
+    caption: 'Tempat penyimpanan utama untuk stok.',
+    done: totalWarehouses.value > 0,
+    path: '/app/warehouses/new',
+  },
+  {
+    title: 'Tambah produk pertama',
+    caption: 'Isi nama, SKU, harga, dan stok minimum.',
+    done: totalProducts.value > 0,
+    path: '/app/inventory/new',
+  },
+  {
+    title: 'Catat stok masuk',
+    caption: 'Mulai dari penerimaan barang awal.',
+    done: activityStore.totalStockIn > 0,
+    path: '/app/stock-in',
+    locked: !entitlementsStore.entitlements.features.stockInOut,
+  },
+  {
+    title: 'Cek laporan stok',
+    caption: 'Pantau produk menipis dan pergerakan gudang.',
+    done: activityStore.activities.length > 0,
+    path: '/app/analytics',
+    locked: !entitlementsStore.entitlements.features.analytics,
+  },
+])
+
+const shouldShowOnboarding = computed(() => showOnboarding.value && onboardingSteps.value.some(step => !step.done))
 
 const quickActions = computed(() => [
   {
     label: 'Tambah produk',
-    caption: 'Buat SKU dan batas minimum stok',
+    caption: 'Buat item baru',
     path: '/app/inventory/new',
     icon: Plus,
     disabled: authStore.isActivitySessionExpired,
   },
   {
     label: 'Stok masuk',
-    caption: 'Catat penerimaan barang',
+    caption: 'Catat barang diterima',
     path: '/app/stock-in',
     icon: ArrowDownToLine,
-    disabled: authStore.isActivitySessionExpired || !entitlements.value.features.stockInOut,
+    disabled: authStore.isActivitySessionExpired || !entitlementsStore.entitlements.features.stockInOut,
   },
   {
     label: 'Stok keluar',
-    caption: 'Catat pemakaian atau penjualan',
+    caption: 'Catat pemakaian barang',
     path: '/app/stock-out',
     icon: ArrowUpFromLine,
-    disabled: authStore.isActivitySessionExpired || !entitlements.value.features.stockInOut,
+    disabled: authStore.isActivitySessionExpired || !entitlementsStore.entitlements.features.stockInOut,
+  },
+  {
+    label: 'Tambah gudang',
+    caption: 'Buat lokasi stok',
+    path: '/app/warehouses/new',
+    icon: Warehouse,
+    disabled: authStore.isActivitySessionExpired,
+  },
+  {
+    label: 'Tambah supplier',
+    caption: 'Simpan kontak pemasok',
+    path: '/app/suppliers/new',
+    icon: Users,
+    disabled: authStore.isActivitySessionExpired,
   },
   {
     label: 'Lihat laporan',
-    caption: 'Pantau ringkasan operasional',
+    caption: 'Pantau tren stok',
     path: '/app/analytics',
     icon: BarChart3,
-    disabled: !entitlements.value.features.analytics,
+    disabled: !entitlementsStore.entitlements.features.analytics,
   },
 ])
 
@@ -170,9 +275,9 @@ function dismissOnboarding() {
   showOnboarding.value = false
 }
 
-function openQuickAction(action: { path: string; disabled: boolean }) {
-  if (action.disabled) return
-  router.push(action.path)
+function navigateTo(path: string, disabled = false) {
+  if (disabled) return
+  router.push(path)
 }
 
 function formatDate(dateStr: string) {
@@ -188,82 +293,43 @@ function formatDate(dateStr: string) {
 function formatNumber(value: number) {
   return new Intl.NumberFormat('id-ID').format(value)
 }
-
-function formatLimit(value: number) {
-  if (value === 999 || value >= 99999) return 'Unlimited'
-  return formatNumber(value)
-}
-
-function usageProgress(used: number, limit: number) {
-  if (limit <= 0 || limit >= 99999) return 100
-  return Math.min(100, Math.round((used / limit) * 100))
-}
 </script>
 
 <template>
-  <div class="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#f7fafc_46%,#ffffff_100%)] p-4 lg:p-8">
+  <div class="min-h-screen bg-neutral-50 p-4 lg:p-8">
     <div class="mx-auto max-w-7xl space-y-6">
-      <section class="overflow-hidden rounded-3xl border border-white/80 bg-white/90 shadow-xl shadow-sky-900/5">
-        <div class="grid gap-6 p-5 lg:grid-cols-[1.15fr_0.85fr] lg:p-7">
-          <div>
-            <div class="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-primary-700">
-              <ShieldCheck class="h-4 w-4" />
-              Tenant workspace
-            </div>
-            <h2 class="mt-5 text-3xl font-black tracking-tight text-neutral-950 lg:text-4xl">
-              {{ authStore.workspace?.name || 'Workspace Operasional' }}
+      <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-7">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-sm font-semibold text-primary-700">{{ authStore.workspace?.name || 'Workspace' }}</p>
+            <h2 class="mt-2 text-2xl font-bold tracking-tight text-neutral-950 lg:text-3xl">
+              Ringkasan operasional hari ini
             </h2>
-            <p class="mt-3 max-w-3xl text-base leading-7 text-neutral-600">
-              Kelola stok, gudang, supplier, approval kerja, dan laporan sesuai paket aktif. Semua aksi penting mengikuti permission tenant.
+            <p class="mt-2 text-sm leading-6 text-neutral-600 lg:text-base">
+              Pantau produk, stok, gudang, dan aktivitas terakhir dari satu tempat.
             </p>
-
-            <div class="mt-6 grid gap-3 sm:grid-cols-3">
-              <div class="rounded-2xl border border-neutral-100 bg-[#fbfdff] p-4">
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-neutral-400">Paket aktif</p>
-                <p class="mt-2 text-xl font-black text-neutral-950">{{ planName }}</p>
-                <p class="mt-1 text-sm text-neutral-500">{{ subscriptionStatus }}</p>
-              </div>
-              <div class="rounded-2xl border border-neutral-100 bg-[#fbfdff] p-4">
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-neutral-400">Fitur aktif</p>
-                <p class="mt-2 text-xl font-black text-neutral-950">{{ activeFeatureCount }}/{{ featureChips.length }}</p>
-                <p class="mt-1 text-sm text-neutral-500">Diatur oleh paket tenant</p>
-              </div>
-              <div class="rounded-2xl border border-neutral-100 bg-[#fbfdff] p-4">
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-neutral-400">Mode akses</p>
-                <p class="mt-2 text-xl font-black text-neutral-950">{{ authStore.sessionPolicy.lock_actions_after_expiry ? (authStore.activitySessionCountdown || 'Aktif') : 'Sesi penuh' }}</p>
-                <p class="mt-1 text-sm text-neutral-500">{{ authStore.sessionPolicy.lock_actions_after_expiry ? (authStore.isActivitySessionExpired ? 'Mode laporan saja' : 'Aksi operasional tersedia') : 'Aksi operasional mengikuti login' }}</p>
-              </div>
-            </div>
           </div>
-
-          <div class="rounded-2xl border border-neutral-100 bg-[linear-gradient(135deg,#eef8ff,#ffffff)] p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-bold text-neutral-500">Permission & usage</p>
-                <p class="mt-1 text-2xl font-black text-neutral-950">Kontrol paket</p>
-              </div>
-              <div :class="['flex h-12 w-12 items-center justify-center rounded-2xl', authStore.isActivitySessionExpired ? 'bg-danger-50 text-danger-700' : 'bg-emerald-50 text-emerald-700']">
-                <Lock v-if="authStore.isActivitySessionExpired" class="h-6 w-6" />
-                <CheckCircle2 v-else class="h-6 w-6" />
-              </div>
-            </div>
-
-            <div class="mt-5 space-y-4">
-              <div v-for="item in usageItems" :key="item.label">
-                <div class="mb-2 flex items-center justify-between text-sm">
-                  <span class="font-bold text-neutral-700">{{ item.label }}</span>
-                  <span class="font-semibold text-neutral-500">{{ formatNumber(item.used) }} / {{ formatLimit(item.limit) }}</span>
-                </div>
-                <div class="h-2 overflow-hidden rounded-full bg-neutral-100">
-                  <div class="h-full rounded-full bg-primary-600 transition-all" :style="{ width: `${usageProgress(item.used, item.limit)}%` }"></div>
-                </div>
-              </div>
-            </div>
+          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <button
+              v-for="action in quickActions.slice(0, 3)"
+              :key="action.label"
+              :disabled="action.disabled"
+              :class="[
+                'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition',
+                action.disabled
+                  ? 'cursor-not-allowed bg-neutral-100 text-neutral-400'
+                  : action.label === 'Tambah produk'
+                    ? 'bg-primary-600 text-white hover:bg-primary-700'
+                    : 'border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50'
+              ]"
+              @click="navigateTo(action.path, action.disabled)"
+            >
+              <component :is="action.icon" class="h-4 w-4" />
+              <span>{{ action.label }}</span>
+            </button>
           </div>
         </div>
       </section>
-
-      <SubscriptionCountdownCard />
 
       <transition
         enter-active-class="transition ease-out duration-300"
@@ -273,172 +339,149 @@ function usageProgress(used: number, limit: number) {
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 -translate-y-2"
       >
-        <section v-if="shouldShowOnboarding" class="rounded-3xl border border-primary-100 bg-primary-50/80 p-5 shadow-sm lg:p-6">
+        <section v-if="shouldShowOnboarding" class="rounded-2xl border border-primary-100 bg-primary-50 p-5 lg:p-6">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
-              <h3 class="text-lg font-black text-primary-950">Setup awal operasional</h3>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-primary-800">
-                Lengkapi struktur dasar agar stok, gudang, dan laporan tenant bisa dipakai tim dengan rapi.
+              <h3 class="text-lg font-bold text-primary-950">Mulai dari langkah paling penting</h3>
+              <p class="mt-1 text-sm leading-6 text-primary-800">
+                Lengkapi dasar operasional agar tim bisa langsung mencatat stok dengan rapi.
               </p>
-              <div class="mt-4 flex flex-wrap gap-3">
-                <div
+              <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <button
                   v-for="step in onboardingSteps"
-                  :key="step.id"
+                  :key="step.title"
+                  :disabled="step.done || step.locked"
                   :class="[
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold',
-                    step.done ? 'bg-success-100 text-success-800' : 'border border-primary-200 bg-white text-neutral-700'
+                    'rounded-xl border p-4 text-left transition',
+                    step.done
+                      ? 'border-emerald-100 bg-white text-emerald-800'
+                      : step.locked
+                        ? 'cursor-not-allowed border-primary-100 bg-white/70 text-neutral-400'
+                        : 'border-primary-100 bg-white text-neutral-800 hover:-translate-y-0.5 hover:shadow-soft'
                   ]"
+                  @click="navigateTo(step.path, step.done || step.locked)"
                 >
-                  <CheckCircle2 v-if="step.done" class="h-4 w-4" />
-                  <span>{{ step.id }}. {{ step.label }}</span>
-                </div>
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-bold">{{ step.title }}</p>
+                      <p class="mt-1 text-xs leading-5 opacity-80">{{ step.caption }}</p>
+                    </div>
+                    <CheckCircle2 v-if="step.done" class="h-5 w-5 flex-shrink-0" />
+                    <ArrowRight v-else class="h-5 w-5 flex-shrink-0" />
+                  </div>
+                </button>
               </div>
             </div>
-            <button class="rounded-xl p-2 text-primary-700 transition hover:bg-primary-100" aria-label="Tutup setup awal" @click="dismissOnboarding">
+            <button class="rounded-xl p-2 text-primary-700 transition hover:bg-primary-100" aria-label="Tutup panduan awal" @click="dismissOnboarding">
               <X class="h-5 w-5" />
             </button>
           </div>
         </section>
       </transition>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article v-for="card in operationCards" :key="card.label" class="rounded-3xl border border-white bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-900/5">
-          <div :class="['flex h-12 w-12 items-center justify-center rounded-2xl', card.tone]">
-            <component :is="card.icon" class="h-6 w-6" />
-          </div>
-          <p class="mt-5 text-3xl font-black text-neutral-950">{{ card.value }}</p>
-          <p class="mt-1 text-sm font-bold text-neutral-700">{{ card.label }}</p>
-          <p class="mt-2 text-sm leading-5 text-neutral-500">{{ card.caption }}</p>
-        </article>
-      </div>
-
-      <div class="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
-          <div class="flex flex-col gap-3 border-b border-neutral-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 class="text-xl font-black text-neutral-950">Fitur aktif berdasarkan paket</h3>
-              <p class="mt-1 text-sm text-neutral-500">Fitur ini mengikuti entitlement tenant dan dibatasi oleh route guard.</p>
+      <section>
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-base font-bold text-neutral-950">Produk</h3>
+          <router-link to="/app/inventory" class="text-sm font-bold text-primary-700 hover:text-primary-900">
+            Lihat semua
+          </router-link>
+        </div>
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <article v-for="card in productSummary" :key="card.label" class="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm lg:p-5">
+            <div :class="['flex h-11 w-11 items-center justify-center rounded-xl', card.tone]">
+              <component :is="card.icon" class="h-5 w-5" />
             </div>
-            <router-link to="/app/billing" class="text-sm font-black text-primary-700 transition hover:text-primary-900">
-              Lihat paket
-            </router-link>
-          </div>
-          <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <article v-for="feature in featureChips" :key="feature.key" :class="['rounded-2xl border p-4', feature.enabled ? 'border-emerald-100 bg-emerald-50/70' : 'border-neutral-100 bg-neutral-50']">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="text-sm font-black text-neutral-950">{{ feature.label }}</p>
-                  <p class="mt-1 text-xs leading-5 text-neutral-500">{{ feature.description }}</p>
-                </div>
-                <CheckCircle2 v-if="feature.enabled" class="h-5 w-5 text-emerald-700" />
-                <Lock v-else class="h-5 w-5 text-neutral-400" />
-              </div>
-            </article>
-          </div>
-        </section>
+            <p class="mt-4 text-2xl font-bold text-neutral-950">{{ card.value }}</p>
+            <p class="mt-1 text-sm font-semibold text-neutral-800">{{ card.label }}</p>
+            <p class="mt-1 text-xs leading-5 text-neutral-500">{{ card.caption }}</p>
+          </article>
+        </div>
+      </section>
 
-        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
-          <div class="flex items-center gap-3 border-b border-neutral-100 pb-5">
-            <ClipboardCheck class="h-5 w-5 text-primary-700" />
-            <div>
-              <h3 class="text-xl font-black text-neutral-950">Prioritas hari ini</h3>
-              <p class="mt-1 text-sm text-neutral-500">Sinyal yang perlu ditindaklanjuti.</p>
+      <section>
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-base font-bold text-neutral-950">Gudang dan stok</h3>
+          <router-link to="/app/stock-movement" class="text-sm font-bold text-primary-700 hover:text-primary-900">
+            Riwayat stok
+          </router-link>
+        </div>
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <article v-for="card in warehouseSummary" :key="card.label" class="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm lg:p-5">
+            <div :class="['flex h-11 w-11 items-center justify-center rounded-xl', card.tone]">
+              <component :is="card.icon" class="h-5 w-5" />
             </div>
-          </div>
-          <div class="mt-5 space-y-3">
-            <router-link :to="{ path: '/app/inventory', query: { filter: 'low-stock' } }" class="block rounded-2xl border border-warning-100 bg-warning-50 p-4 transition hover:-translate-y-0.5 hover:shadow-soft">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-black text-warning-900">Stok menipis</p>
-                  <p class="mt-1 text-xs text-warning-800">{{ lowStockCount }} produk perlu dicek ulang</p>
-                </div>
-                <AlertTriangle class="h-5 w-5 text-warning-700" />
-              </div>
-            </router-link>
-            <router-link to="/app/activity" class="block rounded-2xl border border-primary-100 bg-primary-50 p-4 transition hover:-translate-y-0.5 hover:shadow-soft">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-black text-primary-900">Aktivitas tim</p>
-                  <p class="mt-1 text-xs text-primary-800">{{ recentActivities.length }} aktivitas terakhir tersedia</p>
-                </div>
-                <FileText class="h-5 w-5 text-primary-700" />
-              </div>
-            </router-link>
-            <router-link to="/app/analytics" class="block rounded-2xl border border-neutral-100 bg-neutral-50 p-4 transition hover:-translate-y-0.5 hover:shadow-soft">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-black text-neutral-900">Laporan operasional</p>
-                  <p class="mt-1 text-xs text-neutral-600">Pantau performa stok dan gudang</p>
-                </div>
-                <BarChart3 class="h-5 w-5 text-neutral-700" />
-              </div>
-            </router-link>
-          </div>
-        </section>
-      </div>
+            <p class="mt-4 text-2xl font-bold text-neutral-950">{{ card.value }}</p>
+            <p class="mt-1 text-sm font-semibold text-neutral-800">{{ card.label }}</p>
+            <p class="mt-1 text-xs leading-5 text-neutral-500">{{ card.caption }}</p>
+          </article>
+        </div>
+      </section>
 
-      <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
-          <div class="flex items-center justify-between border-b border-neutral-100 pb-5">
+      <div class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
+          <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
             <div>
-              <h3 class="text-xl font-black text-neutral-950">Aksi cepat</h3>
-              <p class="mt-1 text-sm text-neutral-500">Aksi akan nonaktif jika paket atau sesi tidak mengizinkan.</p>
+              <h3 class="text-lg font-bold text-neutral-950">Perlu perhatian</h3>
+              <p class="mt-1 text-sm text-neutral-500">Masalah stok dan setup yang perlu dicek dulu.</p>
             </div>
+            <SearchCheck class="h-5 w-5 text-neutral-500" />
           </div>
-          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+
+          <div v-if="criticalAlerts.length === 0" class="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-5">
+            <p class="font-bold text-emerald-900">Tidak ada alert penting.</p>
+            <p class="mt-1 text-sm text-emerald-800">Stok dan setup utama terlihat aman.</p>
+          </div>
+
+          <div v-else class="mt-5 space-y-3">
             <button
-              v-for="action in quickActions"
-              :key="action.label"
-              :class="[
-                'group rounded-2xl border p-4 text-left transition',
-                action.disabled
-                  ? 'cursor-not-allowed border-neutral-100 bg-neutral-50 text-neutral-400'
-                  : 'border-neutral-100 bg-[#fbfdff] hover:-translate-y-1 hover:border-primary-100 hover:bg-white hover:shadow-soft'
-              ]"
-              :disabled="action.disabled"
-              @click="openQuickAction(action)"
+              v-for="alert in criticalAlerts"
+              :key="alert.title"
+              :class="['w-full rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-soft', alert.tone]"
+              @click="navigateTo(alert.path)"
             >
-              <div class="flex items-start justify-between gap-3">
-                <component :is="action.icon" :class="['h-6 w-6 transition', action.disabled ? 'text-neutral-400' : 'text-primary-700 group-hover:scale-110']" />
-                <span v-if="action.disabled" class="rounded-full bg-white px-2 py-1 text-xs font-black text-neutral-500">X</span>
+              <div class="flex items-start gap-3">
+                <component :is="alert.icon" class="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <p class="font-bold">{{ alert.title }}</p>
+                  <p class="mt-1 text-sm leading-5 opacity-80">{{ alert.message }}</p>
+                </div>
+                <ArrowRight class="mt-0.5 h-5 w-5 flex-shrink-0" />
               </div>
-              <p class="mt-4 text-sm font-black text-neutral-950">{{ action.label }}</p>
-              <p class="mt-1 text-xs leading-5 text-neutral-500">{{ action.caption }}</p>
             </button>
           </div>
         </section>
 
-        <section class="rounded-3xl border border-white bg-white p-5 shadow-sm lg:p-6">
-          <div class="flex items-center justify-between border-b border-neutral-100 pb-5">
+        <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
+          <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
             <div>
-              <h3 class="text-xl font-black text-neutral-950">Aktivitas terbaru</h3>
-              <p class="mt-1 text-sm text-neutral-500">Mutasi stok dan pekerjaan tim yang baru tercatat.</p>
+              <h3 class="text-lg font-bold text-neutral-950">Aktivitas terbaru</h3>
+              <p class="mt-1 text-sm text-neutral-500">Mutasi stok dan pekerjaan tim terakhir.</p>
             </div>
-            <router-link to="/app/activity" class="text-sm font-black text-primary-700 transition hover:text-primary-900">
+            <router-link to="/app/activity" class="text-sm font-bold text-primary-700 hover:text-primary-900">
               Lihat semua
             </router-link>
           </div>
 
-          <div v-if="recentActivities.length === 0" class="mt-5 rounded-2xl border border-dashed border-neutral-200 p-8 text-center">
-            <Package class="mx-auto h-12 w-12 text-neutral-300" />
-            <p class="mt-3 font-bold text-neutral-700">Belum ada aktivitas stok.</p>
-            <p class="mt-1 text-sm text-neutral-500">Catat stok masuk atau keluar agar laporan mulai terisi.</p>
+          <div v-if="recentActivities.length === 0" class="mt-5 rounded-xl border border-dashed border-neutral-200 p-8 text-center">
+            <ClipboardCheck class="mx-auto h-12 w-12 text-neutral-300" />
+            <p class="mt-3 font-bold text-neutral-800">Belum ada aktivitas stok.</p>
+            <p class="mt-1 text-sm text-neutral-500">Mulai dari stok masuk setelah produk dan gudang dibuat.</p>
           </div>
 
-          <div v-else class="mt-5 divide-y divide-neutral-100">
+          <div v-else class="mt-2 divide-y divide-neutral-100">
             <div v-for="activity in recentActivities" :key="activity.id" class="flex items-center gap-4 py-4">
               <div
                 :class="[
-                  'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl',
-                  activity.type === 'in' ? 'bg-success-50' : activity.type === 'out' ? 'bg-danger-50' : 'bg-primary-50'
+                  'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl',
+                  activity.type === 'in' ? 'bg-emerald-50' : activity.type === 'out' ? 'bg-rose-50' : 'bg-primary-50'
                 ]"
               >
-                <TrendingUp v-if="activity.type === 'in'" class="h-5 w-5 text-success-600" />
-                <TrendingDown v-else-if="activity.type === 'out'" class="h-5 w-5 text-danger-600" />
-                <Package v-else class="h-5 w-5 text-primary-600" />
+                <TrendingUp v-if="activity.type === 'in'" class="h-5 w-5 text-emerald-700" />
+                <TrendingDown v-else-if="activity.type === 'out'" class="h-5 w-5 text-rose-700" />
+                <Package v-else class="h-5 w-5 text-primary-700" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-black text-neutral-950">{{ activity.product_name }}</p>
+                <p class="truncate text-sm font-bold text-neutral-950">{{ activity.product_name }}</p>
                 <p class="truncate text-xs text-neutral-500">
                   {{ activity.type === 'in' ? 'Masuk' : activity.type === 'out' ? 'Keluar' : 'Transfer' }}
                   {{ activity.type === 'transfer' ? `ke ${activity.to_warehouse_name}` : '' }}
@@ -448,13 +491,107 @@ function usageProgress(used: number, limit: number) {
               <div class="text-right">
                 <p
                   :class="[
-                    'text-sm font-black',
-                    activity.type === 'in' ? 'text-success-600' : activity.type === 'out' ? 'text-danger-600' : 'text-primary-600'
+                    'text-sm font-bold',
+                    activity.type === 'in' ? 'text-emerald-700' : activity.type === 'out' ? 'text-rose-700' : 'text-primary-700'
                   ]"
                 >
                   {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '' }}{{ activity.quantity }}
                 </p>
                 <p class="text-xs text-neutral-500">{{ formatDate(activity.created_at) }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
+          <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
+            <div>
+              <h3 class="text-lg font-bold text-neutral-950">Aksi harian</h3>
+              <p class="mt-1 text-sm text-neutral-500">Shortcut pekerjaan yang paling sering dipakai.</p>
+            </div>
+          </div>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <button
+              v-for="action in quickActions"
+              :key="action.label"
+              :disabled="action.disabled"
+              :class="[
+                'rounded-xl border p-4 text-left transition',
+                action.disabled
+                  ? 'cursor-not-allowed border-neutral-100 bg-neutral-50 text-neutral-400'
+                  : 'border-neutral-100 bg-white hover:-translate-y-0.5 hover:border-primary-100 hover:shadow-soft'
+              ]"
+              @click="navigateTo(action.path, action.disabled)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <component :is="action.icon" :class="['h-5 w-5', action.disabled ? 'text-neutral-400' : 'text-primary-700']" />
+                <ArrowRight v-if="!action.disabled" class="h-4 w-4 text-neutral-400" />
+              </div>
+              <p class="mt-4 text-sm font-bold text-neutral-950">{{ action.label }}</p>
+              <p class="mt-1 text-xs leading-5 text-neutral-500">{{ action.caption }}</p>
+            </button>
+          </div>
+        </section>
+
+        <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
+          <div class="border-b border-neutral-100 pb-4">
+            <h3 class="text-lg font-bold text-neutral-950">Insight stok</h3>
+            <p class="mt-1 text-sm text-neutral-500">Bantu putuskan produk mana yang perlu ditindaklanjuti.</p>
+          </div>
+
+          <div class="mt-5 space-y-5">
+            <div>
+              <div class="mb-3 flex items-center justify-between">
+                <p class="text-sm font-bold text-neutral-800">Produk paling sering keluar</p>
+                <span class="text-xs text-neutral-500">Top 4</span>
+              </div>
+              <div v-if="bestSellingProducts.length === 0" class="rounded-xl border border-dashed border-neutral-200 p-4 text-sm text-neutral-500">
+                Belum ada stok keluar.
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="product in bestSellingProducts" :key="product.name" class="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2">
+                  <span class="truncate text-sm font-semibold text-neutral-800">{{ product.name }}</span>
+                  <span class="text-sm font-bold text-rose-700">{{ formatNumber(product.quantity) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="mb-3 flex items-center justify-between">
+                <p class="text-sm font-bold text-neutral-800">Stok jarang bergerak</p>
+                <span class="text-xs text-neutral-500">30 hari</span>
+              </div>
+              <div v-if="slowMovingProducts.length === 0" class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
+                Tidak ada stok diam yang perlu perhatian.
+              </div>
+              <div v-else class="space-y-2">
+                <router-link
+                  v-for="product in slowMovingProducts"
+                  :key="product.id"
+                  :to="`/app/inventory/${product.id}`"
+                  class="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2 transition hover:bg-neutral-100"
+                >
+                  <span class="truncate text-sm font-semibold text-neutral-800">{{ product.name }}</span>
+                  <span class="text-sm font-bold text-neutral-700">{{ formatNumber(product.total_quantity) }}</span>
+                </router-link>
+              </div>
+            </div>
+
+            <div>
+              <div class="mb-3 flex items-center justify-between">
+                <p class="text-sm font-bold text-neutral-800">Gudang paling aktif</p>
+                <span class="text-xs text-neutral-500">7 hari</span>
+              </div>
+              <div v-if="topWarehouses.length === 0" class="rounded-xl border border-dashed border-neutral-200 p-4 text-sm text-neutral-500">
+                Aktivitas gudang belum tersedia.
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="warehouse in topWarehouses" :key="warehouse.name" class="flex items-center justify-between rounded-xl bg-neutral-50 px-3 py-2">
+                  <span class="truncate text-sm font-semibold text-neutral-800">{{ warehouse.name }}</span>
+                  <span class="text-sm font-bold text-primary-700">{{ warehouse.movements }} aktivitas</span>
+                </div>
               </div>
             </div>
           </div>

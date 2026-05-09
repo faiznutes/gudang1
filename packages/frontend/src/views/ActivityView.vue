@@ -28,7 +28,7 @@ const activities = computed(() => {
   if (selectedDate.value) {
     const today = new Date()
     const filterDate = new Date()
-    
+
     if (selectedDate.value === 'today') {
       filterDate.setHours(0, 0, 0, 0)
       result = result.filter(a => new Date(a.created_at) >= filterDate)
@@ -67,26 +67,24 @@ function getTypeLabel(type: string) {
 <template>
   <div class="p-4 lg:p-8 space-y-6">
     <!-- Header Actions -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div class="flex items-center gap-3 flex-1">
-        <div class="relative flex-1 max-w-md">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari aktivitas..."
-            class="input pl-9"
-          />
-        </div>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="relative flex-1 max-w-xl">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari produk, SKU, atau petugas..."
+          class="input pl-9"
+        />
       </div>
-      <div class="flex gap-2">
-        <select v-model="selectedType" class="input w-auto">
+      <div class="grid grid-cols-2 gap-2 sm:flex">
+        <select v-model="selectedType" class="input w-full sm:w-auto">
           <option value="">Semua Tipe</option>
-          <option value="in">Stock Masuk</option>
-          <option value="out">Stock Keluar</option>
+          <option value="in">Stok Masuk</option>
+          <option value="out">Stok Keluar</option>
           <option value="transfer">Transfer</option>
         </select>
-        <select v-model="selectedDate" class="input w-auto">
+        <select v-model="selectedDate" class="input w-full sm:w-auto">
           <option value="">Semua Waktu</option>
           <option value="today">Hari Ini</option>
           <option value="week">Minggu Ini</option>
@@ -96,14 +94,14 @@ function getTypeLabel(type: string) {
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <div class="card p-4">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
             <TrendingUp class="w-5 h-5 text-success-600" />
           </div>
           <div>
-            <p class="text-xs text-neutral-500">Stock Masuk</p>
+            <p class="text-xs text-neutral-500">Stok Masuk</p>
             <p class="text-xl font-bold text-neutral-900">{{ activityStore.totalStockIn }}</p>
           </div>
         </div>
@@ -114,7 +112,7 @@ function getTypeLabel(type: string) {
             <TrendingDown class="w-5 h-5 text-danger-600" />
           </div>
           <div>
-            <p class="text-xs text-neutral-500">Stock Keluar</p>
+            <p class="text-xs text-neutral-500">Stok Keluar</p>
             <p class="text-xl font-bold text-neutral-900">{{ activityStore.totalStockOut }}</p>
           </div>
         </div>
@@ -125,7 +123,7 @@ function getTypeLabel(type: string) {
             <ArrowLeftRight class="w-5 h-5 text-primary-600" />
           </div>
           <div>
-            <p class="text-xs text-neutral-500">Total Transfer</p>
+            <p class="text-xs text-neutral-500">Transfer</p>
             <p class="text-xl font-bold text-neutral-900">
               {{ activityStore.activities.filter(a => a.type === 'transfer').length }}
             </p>
@@ -146,9 +144,9 @@ function getTypeLabel(type: string) {
     </div>
 
     <!-- Activity List -->
-    <div class="card">
+    <div class="card overflow-hidden">
       <div class="p-4 border-b border-neutral-100">
-        <h2 class="font-semibold text-neutral-900">Riwayat Aktivitas</h2>
+        <h2 class="font-semibold text-neutral-900">Riwayat aktivitas</h2>
       </div>
       <div class="divide-y divide-neutral-100">
         <div
@@ -159,7 +157,7 @@ function getTypeLabel(type: string) {
           <div
             :class="[
               'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-              activity.type === 'in' ? 'bg-success-100' : 
+              activity.type === 'in' ? 'bg-success-100' :
               activity.type === 'out' ? 'bg-danger-100' : 'bg-primary-100'
             ]"
           >
@@ -168,12 +166,12 @@ function getTypeLabel(type: string) {
             <ArrowLeftRight v-else class="w-5 h-5 text-primary-600" />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <p class="font-medium text-neutral-900">{{ activity.product_name }}</p>
               <span
                 :class="[
                   'badge text-xs',
-                  activity.type === 'in' ? 'badge-success' : 
+                  activity.type === 'in' ? 'badge-success' :
                   activity.type === 'out' ? 'badge-danger' : 'badge-primary'
                 ]"
               >
@@ -182,13 +180,13 @@ function getTypeLabel(type: string) {
             </div>
             <p class="text-sm text-neutral-500">
               {{ activity.warehouse_name }}
-              <span v-if="activity.to_warehouse_name"> → {{ activity.to_warehouse_name }}</span>
-              · {{ activity.notes || '-' }}
+              <span v-if="activity.to_warehouse_name"> ke {{ activity.to_warehouse_name }}</span>
+              - {{ activity.notes || '-' }}
             </p>
           </div>
           <div class="text-right">
             <p :class="['font-semibold', activity.type === 'in' ? 'text-success-600' : activity.type === 'out' ? 'text-danger-600' : 'text-primary-600']">
-              {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '→' }}{{ activity.quantity }}
+              {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '' }}{{ activity.quantity }}
             </p>
             <p class="text-xs text-neutral-500">{{ formatDate(activity.created_at) }}</p>
             <p class="text-xs text-neutral-400">{{ activity.user_name }}</p>
@@ -198,7 +196,7 @@ function getTypeLabel(type: string) {
         <div v-if="activities.length === 0" class="p-12 text-center">
           <Package class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
           <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada aktivitas</h3>
-          <p class="text-neutral-500">Aktivitas akan muncul di sini</p>
+          <p class="text-neutral-500">Riwayat stok akan muncul setelah ada transaksi.</p>
         </div>
       </div>
     </div>

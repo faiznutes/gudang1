@@ -47,7 +47,7 @@ function formatCurrency(amount: number) {
       class="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
     >
       <ArrowLeft class="w-4 h-4" />
-      Kembali ke Inventori
+      Kembali ke Produk
     </router-link>
 
     <div v-if="product" class="space-y-6">
@@ -128,11 +128,11 @@ function formatCurrency(amount: number) {
         <div class="mt-4 flex gap-3">
           <router-link to="/app/stock-in" class="btn-primary btn-sm">
             <ArrowDownToLine class="w-4 h-4" />
-            Stock Masuk
+            Stok Masuk
           </router-link>
           <router-link to="/app/stock-out" class="btn-secondary btn-sm">
             <ArrowUpFromLine class="w-4 h-4" />
-            Stock Keluar
+            Stok Keluar
           </router-link>
         </div>
       </div>
@@ -159,10 +159,10 @@ function formatCurrency(amount: number) {
             </div>
             <div class="flex-1">
               <p class="font-medium text-neutral-900">
-                {{ activity.type === 'in' ? 'Stock Masuk' : 'Stock Keluar' }}
+                {{ activity.type === 'in' ? 'Stok Masuk' : 'Stok Keluar' }}
               </p>
               <p class="text-sm text-neutral-500">
-                {{ activity.warehouse_name }} · {{ activity.notes || '-' }}
+                {{ activity.warehouse_name }} - {{ activity.notes || '-' }}
               </p>
             </div>
             <div class="text-right">
@@ -185,7 +185,7 @@ function formatCurrency(amount: number) {
       <Package class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
       <h2 class="text-lg font-medium text-neutral-900 mb-2">Produk tidak ditemukan</h2>
       <router-link to="/app/inventory" class="btn-primary mt-4">
-        Kembali ke Inventori
+        Kembali ke Produk
       </router-link>
     </div>
   </div>

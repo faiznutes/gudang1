@@ -13,7 +13,6 @@ import {
   BarChart3,
   Settings,
   HelpCircle,
-  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -34,17 +33,16 @@ const featureAccess = useFeatureAccess()
 
 const navItems = computed(() => [
   { name: 'Dashboard', icon: LayoutDashboard, route: '/app' },
-  { name: 'Inventori', icon: Package, route: '/app/inventory' },
+  { name: 'Produk', icon: Package, route: '/app/inventory' },
+  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Stok', icon: ArrowLeftRight, route: '/app/stock-movement' }] : []),
   { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
-  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Mutasi', icon: ArrowLeftRight, route: '/app/stock-movement' }] : []),
   { name: 'Supplier', icon: Users, route: '/app/suppliers' },
-  { name: 'Aktivitas', icon: Activity, route: '/app/activity' },
-  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Analitik', icon: BarChart3, route: '/app/analytics' }] : []),
+  { name: 'Riwayat', icon: Activity, route: '/app/activity' },
+  ...(featureAccess.canAccessAnalytics() ? [{ name: 'Laporan', icon: BarChart3, route: '/app/analytics' }] : []),
 ])
 
 const bottomNavItems = computed(() => [
   { name: 'Pengaturan', icon: Settings, route: '/app/settings' },
-  { name: 'Billing', icon: CreditCard, route: '/app/billing' },
   { name: 'Bantuan', icon: HelpCircle, route: '/app/tutorial' },
 ])
 

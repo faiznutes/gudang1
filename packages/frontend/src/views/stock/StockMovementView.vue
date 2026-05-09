@@ -58,26 +58,24 @@ function getTypeLabel(type: string) {
 <template>
   <div class="p-4 lg:p-8 space-y-6">
     <!-- Header Actions -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div class="flex items-center gap-3 flex-1">
-        <div class="relative flex-1 max-w-md">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari produk atau SKU..."
-            class="input pl-9"
-          />
-        </div>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="relative flex-1 max-w-xl">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari produk atau SKU..."
+          class="input pl-9"
+        />
       </div>
-      <div class="flex gap-2">
-        <select v-model="selectedType" class="input w-auto">
+      <div class="grid grid-cols-2 gap-2 sm:flex">
+        <select v-model="selectedType" class="input w-full sm:w-auto">
           <option value="">Semua Tipe</option>
-          <option value="in">Stock Masuk</option>
-          <option value="out">Stock Keluar</option>
+          <option value="in">Stok Masuk</option>
+          <option value="out">Stok Keluar</option>
           <option value="transfer">Transfer</option>
         </select>
-        <select v-model="selectedWarehouse" class="input w-auto">
+        <select v-model="selectedWarehouse" class="input w-full sm:w-auto">
           <option value="">Semua Gudang</option>
           <option v-for="w in warehouses" :key="w.id" :value="w.id">
             {{ w.name }}
@@ -88,7 +86,31 @@ function getTypeLabel(type: string) {
 
     <!-- Activity List -->
     <div class="card overflow-hidden">
-      <div class="overflow-x-auto">
+      <div class="divide-y divide-neutral-100 md:hidden">
+        <article v-for="activity in activities" :key="activity.id" class="p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate font-semibold text-neutral-900">{{ activity.product_name }}</p>
+              <p class="mt-1 text-sm text-neutral-500">
+                {{ getTypeLabel(activity.type) }} - {{ activity.warehouse_name }}
+                <span v-if="activity.to_warehouse_name"> ke {{ activity.to_warehouse_name }}</span>
+              </p>
+              <p class="mt-1 text-xs text-neutral-400">{{ formatDate(activity.created_at) }}</p>
+            </div>
+            <span
+              :class="[
+                'rounded-full px-2.5 py-1 text-xs font-bold',
+                activity.type === 'in' ? 'bg-success-100 text-success-800' :
+                activity.type === 'out' ? 'bg-danger-100 text-danger-800' : 'bg-primary-100 text-primary-800'
+              ]"
+            >
+              {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '' }}{{ activity.quantity }}
+            </span>
+          </div>
+        </article>
+      </div>
+
+      <div class="hidden overflow-x-auto md:block">
         <table class="w-full">
           <thead>
             <tr class="border-b border-neutral-100">
@@ -127,7 +149,7 @@ function getTypeLabel(type: string) {
                 <div>
                   <p class="text-neutral-900">{{ activity.warehouse_name }}</p>
                   <p v-if="activity.to_warehouse_name" class="text-xs text-neutral-500">
-                    → {{ activity.to_warehouse_name }}
+                    ke {{ activity.to_warehouse_name }}
                   </p>
                 </div>
               </td>
@@ -139,7 +161,7 @@ function getTypeLabel(type: string) {
                     activity.type === 'out' ? 'text-danger-600' : 'text-primary-600'
                   ]"
                 >
-                  {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '→' }}{{ activity.quantity }}
+                  {{ activity.type === 'in' ? '+' : activity.type === 'out' ? '-' : '' }}{{ activity.quantity }}
                 </span>
               </td>
               <td class="table-cell text-neutral-500">
@@ -156,8 +178,8 @@ function getTypeLabel(type: string) {
       <!-- Empty State -->
       <div v-if="activities.length === 0" class="p-12 text-center">
         <ArrowLeftRight class="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-        <h3 class="text-lg font-medium text-neutral-900 mb-2">Tidak ada aktivitas</h3>
-        <p class="text-neutral-500">Aktivitas stock akan muncul di sini</p>
+        <h3 class="text-lg font-medium text-neutral-900 mb-2">Belum ada pergerakan stok</h3>
+        <p class="text-neutral-500">Stok masuk, keluar, dan transfer akan tampil di sini.</p>
       </div>
     </div>
   </div>
