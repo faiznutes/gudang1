@@ -44,6 +44,11 @@ const routes = [
     component: () => import('@/views/inventory/ProductFormView.vue'),
   },
   {
+    path: '/app/categories',
+    name: 'categories',
+    component: () => import('@/views/inventory/CategoryListView.vue'),
+  },
+  {
     path: '/app/inventory/:id',
     name: 'inventory-detail',
     component: () => import('@/views/inventory/ProductDetailView.vue'),

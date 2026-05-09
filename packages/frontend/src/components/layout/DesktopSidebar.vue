@@ -8,6 +8,8 @@ import {
   Package,
   Warehouse,
   ArrowLeftRight,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Users,
   Activity,
   BarChart3,
@@ -16,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Tags,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -34,7 +37,12 @@ const featureAccess = useFeatureAccess()
 const navItems = computed(() => [
   { name: 'Dashboard', icon: LayoutDashboard, route: '/app' },
   { name: 'Produk', icon: Package, route: '/app/inventory' },
-  ...(featureAccess.canAccessStockInOut() ? [{ name: 'Stok', icon: ArrowLeftRight, route: '/app/stock-movement' }] : []),
+  { name: 'Kategori', icon: Tags, route: '/app/categories' },
+  ...(featureAccess.canAccessStockInOut() ? [
+    { name: 'Stok Masuk', icon: ArrowDownToLine, route: '/app/stock-in' },
+    { name: 'Stok Keluar', icon: ArrowUpFromLine, route: '/app/stock-out' },
+    { name: 'Riwayat Stok', icon: ArrowLeftRight, route: '/app/stock-movement' },
+  ] : []),
   { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
   { name: 'Supplier', icon: Users, route: '/app/suppliers' },
   { name: 'Riwayat', icon: Activity, route: '/app/activity' },
@@ -47,7 +55,7 @@ const bottomNavItems = computed(() => [
 ])
 
 function isActive(routeName: string) {
-  return route.path.startsWith(routeName)
+  return routeName === '/app' ? route.path === '/app' : route.path.startsWith(routeName)
 }
 
 function navigate(routePath: string) {

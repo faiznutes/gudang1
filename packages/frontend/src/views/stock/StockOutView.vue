@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
-import { ArrowLeft, ArrowUpFromLine, CheckCircle, AlertTriangle } from 'lucide-vue-next'
+import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, CheckCircle, AlertTriangle, Package, Warehouse } from 'lucide-vue-next'
 import FeatureLockModal from '@/components/FeatureLockModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const inventoryStore = useInventoryStore()
 const activityStore = useActivityStore()
 const authStore = useAuthStore()
@@ -16,9 +17,10 @@ const { canAccessStockInOut, getLockedFeatureMessage } = useFeatureAccess()
 
 const showLockModal = ref(false)
 const lockedInfo = computed(() => getLockedFeatureMessage('stockInOut'))
+const initialProductId = typeof route.query.product_id === 'string' ? route.query.product_id : ''
 
 const form = ref({
-  product_id: '',
+  product_id: initialProductId,
   warehouse_id: '',
   quantity: 1,
   notes: '',
@@ -33,6 +35,10 @@ const warehouses = computed(() => inventoryStore.warehouses)
 
 const selectedProduct = computed(() => {
   return inventoryStore.getProductById(form.value.product_id)
+})
+
+const selectedWarehouse = computed(() => {
+  return inventoryStore.getWarehouseById(form.value.warehouse_id)
 })
 
 const currentStock = computed(() => {
@@ -136,7 +142,7 @@ function goToBilling() {
 </script>
 
 <template>
-  <div class="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
+  <div class="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
     <!-- Back -->
     <router-link
       :to="'/app/inventory'"
@@ -162,6 +168,20 @@ function goToBilling() {
         <p class="text-neutral-600">Catat barang yang keluar dari gudang</p>
       </div>
 
+      <div class="grid grid-cols-3 gap-2 rounded-xl border border-neutral-100 bg-white p-2">
+        <router-link to="/app/stock-in" class="btn-secondary justify-center">
+          <ArrowDownToLine class="h-4 w-4" />
+          Masuk
+        </router-link>
+        <router-link to="/app/stock-out" class="btn-primary justify-center">
+          <ArrowUpFromLine class="h-4 w-4" />
+          Keluar
+        </router-link>
+        <router-link to="/app/stock-movement" class="btn-secondary justify-center">
+          Riwayat
+        </router-link>
+      </div>
+
       <!-- Stock Warning -->
       <div v-if="selectedProduct && currentStock > 0 && currentStock <= selectedProduct.min_stock" class="card p-4 bg-warning-50 border-warning-300">
         <div class="flex items-start gap-3">
@@ -174,6 +194,7 @@ function goToBilling() {
       </div>
 
       <!-- Form -->
+      <div class="grid gap-4 lg:grid-cols-[1fr_18rem]">
       <div class="card p-6">
         <form @submit.prevent="handleSubmit" class="space-y-6" novalidate>
           <!-- Product -->
@@ -245,6 +266,36 @@ function goToBilling() {
             </button>
           </div>
         </form>
+      </div>
+      <aside class="space-y-4">
+        <div class="rounded-xl border border-neutral-100 bg-white p-4">
+          <h2 class="font-semibold text-neutral-900">Ringkasan</h2>
+          <div class="mt-4 space-y-3">
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                <Package class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-neutral-500">Produk</p>
+                <p class="truncate text-sm font-medium text-neutral-900">{{ selectedProduct?.name || 'Belum dipilih' }}</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                <Warehouse class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-neutral-500">Gudang asal</p>
+                <p class="truncate text-sm font-medium text-neutral-900">{{ selectedWarehouse?.name || 'Belum dipilih' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 rounded-lg bg-neutral-50 p-3">
+            <p class="text-xs font-semibold text-neutral-500">Stok tersedia</p>
+            <p class="mt-1 text-2xl font-bold text-neutral-900">{{ currentStock }}</p>
+          </div>
+        </div>
+      </aside>
       </div>
     </template>
 

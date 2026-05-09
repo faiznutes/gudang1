@@ -28,7 +28,7 @@ const inventoryStore = useInventoryStore()
 const authStore = useAuthStore()
 
 const searchQuery = ref('')
-const selectedCategory = ref('')
+const selectedCategory = ref(typeof route.query.category_id === 'string' ? route.query.category_id : '')
 const selectedWarehouse = ref('')
 const selectedStatus = ref(typeof route.query.filter === 'string' ? route.query.filter : '')
 const showFilter = ref(false)
@@ -510,7 +510,7 @@ async function handleImport(event: Event) {
                 </button>
                 <router-link
                   class="btn-secondary justify-center"
-                  to="/app/stock-in"
+                  :to="{ path: '/app/stock-in', query: { product_id: selectedProduct.id } }"
                   @click="closeProductDrawer"
                 >
                   <ArrowDownToLine class="h-4 w-4" />
@@ -518,7 +518,7 @@ async function handleImport(event: Event) {
                 </router-link>
                 <router-link
                   class="btn-secondary justify-center"
-                  to="/app/stock-out"
+                  :to="{ path: '/app/stock-out', query: { product_id: selectedProduct.id } }"
                   @click="closeProductDrawer"
                 >
                   <ArrowUpFromLine class="h-4 w-4" />

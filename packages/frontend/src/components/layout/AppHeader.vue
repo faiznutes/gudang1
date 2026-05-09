@@ -20,6 +20,7 @@ const pageTitle = () => {
     'inventory-detail': 'Detail Produk',
     'inventory-new': 'Tambah Produk',
     'inventory-edit': 'Edit Produk',
+    categories: 'Kategori',
     warehouses: 'Gudang',
     'warehouse-new': 'Tambah Gudang',
     'warehouse-edit': 'Edit Gudang',
@@ -42,6 +43,7 @@ const pageSubtitle = () => {
   const subtitles: Record<string, string> = {
     dashboard: 'Ringkasan kerja harian',
     inventory: 'Cari, cek, dan tambah produk',
+    categories: 'Kelola kelompok produk',
     warehouses: 'Kelola lokasi gudang',
     suppliers: 'Kelola data supplier',
     activity: 'Catatan pergerakan stok',

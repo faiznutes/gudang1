@@ -7,20 +7,25 @@ import {
   LayoutDashboard,
   Package,
   PlusCircle,
+  PackagePlus,
   Activity,
   Settings,
   MoreHorizontal,
   Warehouse,
   ArrowLeftRight,
+  ArrowDownToLine,
   ArrowUpFromLine,
   Users,
   BarChart3,
   FileText,
+  Tags,
+  X,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const showMoreMenu = ref(false)
+const showQuickActionMenu = ref(false)
 const featureAccess = useFeatureAccess()
 
 const leftItems = [
@@ -28,10 +33,7 @@ const leftItems = [
   { name: 'Produk', icon: Package, route: '/app/inventory' },
 ]
 
-const centerItem = computed(() => featureAccess.canAccessStockInOut()
-  ? { name: 'Masuk', icon: PlusCircle, route: '/app/stock-in', action: 'add' }
-  : { name: 'Tambah', icon: PlusCircle, route: '/app/inventory/new', action: 'add' }
-)
+const centerItem = { name: 'Tambah', icon: PlusCircle, route: '', action: 'quick-add' }
 
 const rightItems = [
   { name: 'Gudang', icon: Warehouse, route: '/app/warehouses' },
@@ -39,8 +41,8 @@ const rightItems = [
 ]
 
 const moreMenuItems = computed(() => [
+  { name: 'Kategori', icon: Tags, route: '/app/categories', color: 'bg-violet-100 text-violet-600' },
   ...(featureAccess.canAccessStockInOut() ? [
-    { name: 'Stok keluar', icon: ArrowUpFromLine, route: '/app/stock-out', color: 'bg-rose-100 text-rose-600' },
     { name: 'Riwayat stok', icon: ArrowLeftRight, route: '/app/stock-movement', color: 'bg-primary-100 text-primary-600' },
   ] : []),
   { name: 'Supplier', icon: Users, route: '/app/suppliers', color: 'bg-green-100 text-green-600' },
@@ -50,15 +52,25 @@ const moreMenuItems = computed(() => [
   { name: 'Pengaturan', icon: Settings, route: '/app/settings', color: 'bg-neutral-100 text-neutral-600' },
 ])
 
+const quickActionItems = computed(() => [
+  { name: 'Tambah produk', description: 'Buat item baru', icon: PackagePlus, route: '/app/inventory/new', color: 'bg-primary-100 text-primary-600' },
+  ...(featureAccess.canAccessStockInOut() ? [
+    { name: 'Stok masuk', description: 'Barang datang ke gudang', icon: ArrowDownToLine, route: '/app/stock-in', color: 'bg-emerald-100 text-emerald-600' },
+    { name: 'Stok keluar', description: 'Barang keluar dari gudang', icon: ArrowUpFromLine, route: '/app/stock-out', color: 'bg-rose-100 text-rose-600' },
+  ] : []),
+])
+
 function isActive(routePath: string) {
-  return route.path.startsWith(routePath)
+  return routePath === '/app' ? route.path === '/app' : route.path.startsWith(routePath)
 }
 
 function handleNav(item: any) {
   if (item.action === 'more') {
+    showQuickActionMenu.value = false
     showMoreMenu.value = true
-  } else if (item.action === 'add') {
-    router.push(item.route)
+  } else if (item.action === 'quick-add') {
+    showMoreMenu.value = false
+    showQuickActionMenu.value = true
   } else if (item.route) {
     router.push(item.route)
   }
@@ -66,6 +78,11 @@ function handleNav(item: any) {
 
 function handleMoreMenu(routePath: string) {
   showMoreMenu.value = false
+  router.push(routePath)
+}
+
+function handleQuickAction(routePath: string) {
+  showQuickActionMenu.value = false
   router.push(routePath)
 }
 </script>
@@ -102,6 +119,7 @@ function handleMoreMenu(routePath: string) {
       <li class="relative -mt-10 z-30">
         <button
           @click="handleNav(centerItem)"
+          aria-label="Buka tambah cepat"
           class="w-16 h-16 bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 rounded-2xl flex items-center justify-center shadow-xl shadow-primary-400 hover:scale-110 active:scale-95 transition-all duration-200"
         >
           <component :is="centerItem.icon" class="w-9 h-9 text-white" />
@@ -177,6 +195,55 @@ function handleMoreMenu(routePath: string) {
               >
                 Tutup
               </button>
+            </div>
+            <div class="h-8 bg-neutral-50"></div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="fade">
+      <div
+        v-if="showQuickActionMenu"
+        class="fixed inset-0 z-50 lg:hidden"
+        @click="showQuickActionMenu = false"
+      >
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+        <Transition name="slide-up" appear>
+          <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl overflow-hidden" @click.stop>
+            <div class="p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h3 class="text-lg font-bold text-neutral-900">Tambah cepat</h3>
+                  <p class="text-sm text-neutral-500">Pilih pekerjaan harian yang mau dibuat.</p>
+                </div>
+                <button
+                  class="rounded-xl p-2 text-neutral-500 hover:bg-neutral-100"
+                  aria-label="Tutup tambah cepat"
+                  @click="showQuickActionMenu = false"
+                >
+                  <X class="h-5 w-5" />
+                </button>
+              </div>
+
+              <div class="mt-5 grid gap-3">
+                <button
+                  v-for="item in quickActionItems"
+                  :key="item.route"
+                  class="flex items-center gap-3 rounded-2xl border border-neutral-100 p-4 text-left transition hover:bg-neutral-50 active:scale-[0.98]"
+                  @click="handleQuickAction(item.route)"
+                >
+                  <div :class="['flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl', item.color]">
+                    <component :is="item.icon" class="h-6 w-6" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-semibold text-neutral-900">{{ item.name }}</p>
+                    <p class="text-sm text-neutral-500">{{ item.description }}</p>
+                  </div>
+                </button>
+              </div>
             </div>
             <div class="h-8 bg-neutral-50"></div>
           </div>

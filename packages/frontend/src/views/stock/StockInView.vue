@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
-import { ArrowLeft, ArrowDownToLine, CheckCircle } from 'lucide-vue-next'
+import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, CheckCircle, Package, Warehouse } from 'lucide-vue-next'
 import FeatureLockModal from '@/components/FeatureLockModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const inventoryStore = useInventoryStore()
 const activityStore = useActivityStore()
 const authStore = useAuthStore()
@@ -16,9 +17,10 @@ const { canAccessStockInOut, getLockedFeatureMessage } = useFeatureAccess()
 
 const showLockModal = ref(false)
 const lockedInfo = computed(() => getLockedFeatureMessage('stockInOut'))
+const initialProductId = typeof route.query.product_id === 'string' ? route.query.product_id : ''
 
 const form = ref({
-  product_id: '',
+  product_id: initialProductId,
   warehouse_id: '',
   quantity: 1,
   notes: '',
@@ -30,6 +32,8 @@ const isSuccess = ref(false)
 
 const products = computed(() => inventoryStore.products)
 const warehouses = computed(() => inventoryStore.warehouses)
+const selectedProduct = computed(() => inventoryStore.getProductById(form.value.product_id))
+const selectedWarehouse = computed(() => inventoryStore.getWarehouseById(form.value.warehouse_id))
 
 function validate() {
   errors.value = {}
@@ -109,7 +113,7 @@ function goToBilling() {
 </script>
 
 <template>
-  <div class="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
+  <div class="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
     <!-- Back -->
     <router-link
       :to="'/app/inventory'"
@@ -135,7 +139,22 @@ function goToBilling() {
         <p class="text-neutral-600">Catat barang yang masuk ke gudang</p>
       </div>
 
+      <div class="grid grid-cols-3 gap-2 rounded-xl border border-neutral-100 bg-white p-2">
+        <router-link to="/app/stock-in" class="btn-primary justify-center">
+          <ArrowDownToLine class="h-4 w-4" />
+          Masuk
+        </router-link>
+        <router-link to="/app/stock-out" class="btn-secondary justify-center">
+          <ArrowUpFromLine class="h-4 w-4" />
+          Keluar
+        </router-link>
+        <router-link to="/app/stock-movement" class="btn-secondary justify-center">
+          Riwayat
+        </router-link>
+      </div>
+
       <!-- Form -->
+      <div class="grid gap-4 lg:grid-cols-[1fr_18rem]">
       <div class="card p-6">
         <form @submit.prevent="handleSubmit" class="space-y-6">
           <!-- Product -->
@@ -203,6 +222,35 @@ function goToBilling() {
             </button>
           </div>
         </form>
+      </div>
+      <aside class="space-y-4">
+        <div class="rounded-xl border border-neutral-100 bg-white p-4">
+          <h2 class="font-semibold text-neutral-900">Ringkasan</h2>
+          <div class="mt-4 space-y-3">
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                <Package class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-neutral-500">Produk</p>
+                <p class="truncate text-sm font-medium text-neutral-900">{{ selectedProduct?.name || 'Belum dipilih' }}</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <Warehouse class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-neutral-500">Gudang tujuan</p>
+                <p class="truncate text-sm font-medium text-neutral-900">{{ selectedWarehouse?.name || 'Belum dipilih' }}</p>
+              </div>
+            </div>
+          </div>
+          <p class="mt-4 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-600">
+            Stok masuk akan menambah jumlah barang di gudang tujuan.
+          </p>
+        </div>
+      </aside>
       </div>
     </template>
 
