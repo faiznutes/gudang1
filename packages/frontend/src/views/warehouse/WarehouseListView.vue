@@ -9,14 +9,12 @@ import {
   MapPin,
   Pencil,
   Trash2,
-  MoreVertical,
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
 
 const searchQuery = ref('')
-const activeDropdown = ref<string | null>(null)
 
 const warehouses = computed(() => {
   let result = inventoryStore.warehouses
@@ -32,15 +30,10 @@ const warehouses = computed(() => {
   return result
 })
 
-function toggleDropdown(id: string) {
-  activeDropdown.value = activeDropdown.value === id ? null : id
-}
-
 async function deleteWarehouse(id: string) {
   if (confirm('Yakin hapus gudang ini?')) {
     await inventoryStore.deleteWarehouse(id)
   }
-  activeDropdown.value = null
 }
 </script>
 
@@ -68,57 +61,40 @@ async function deleteWarehouse(id: string) {
       <div
         v-for="warehouse in warehouses"
         :key="warehouse.id"
-        class="card-hover p-5 relative"
+        class="card-hover flex flex-col p-5"
       >
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex items-start gap-3">
           <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <Warehouse class="w-6 h-6 text-primary-600" />
           </div>
-          <div class="relative">
-            <button
-              @click="toggleDropdown(warehouse.id)"
-              class="p-1.5 rounded-lg hover:bg-neutral-100"
-            >
-              <MoreVertical class="w-4 h-4 text-neutral-400" />
-            </button>
-            <transition
-              enter-active-class="transition ease-out duration-100"
-              enter-from-class="transform opacity-0 scale-95"
-              enter-to-class="transform opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-75"
-              leave-from-class="transform opacity-100 scale-100"
-              leave-to-class="transform opacity-0 scale-95"
-            >
-              <div
-                v-if="activeDropdown === warehouse.id"
-                class="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-dropdown border border-neutral-100 py-1 z-10"
-              >
-                <button
-                  @click="router.push({ name: 'warehouse-edit', params: { id: warehouse.id } })"
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
-                >
-                  <Pencil class="w-4 h-4" />
-                  Edit
-                </button>
-                <button
-                  @click="deleteWarehouse(warehouse.id)"
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
-                >
-                  <Trash2 class="w-4 h-4" />
-                  Hapus
-                </button>
-              </div>
-            </transition>
+          <div class="min-w-0 flex-1">
+            <h3 class="truncate font-semibold text-neutral-900">{{ warehouse.name }}</h3>
+            <div v-if="warehouse.is_default" class="mt-2">
+              <span class="badge-primary">Gudang Utama</span>
+            </div>
           </div>
         </div>
 
-        <h3 class="font-semibold text-neutral-900 mt-4">{{ warehouse.name }}</h3>
-        <div v-if="warehouse.address" class="flex items-start gap-2 mt-2 text-sm text-neutral-500">
+        <div v-if="warehouse.address" class="mt-4 flex flex-1 items-start gap-2 text-sm text-neutral-500">
           <MapPin class="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{{ warehouse.address }}</span>
         </div>
-        <div v-if="warehouse.is_default" class="mt-3">
-          <span class="badge-primary">Gudang Utama</span>
+
+        <div class="mt-5 grid grid-cols-2 gap-2">
+          <button
+            class="btn-secondary btn-sm justify-center"
+            @click="router.push({ name: 'warehouse-edit', params: { id: warehouse.id } })"
+          >
+            <Pencil class="w-4 h-4" />
+            Edit
+          </button>
+          <button
+            class="btn-secondary btn-sm justify-center text-danger-600"
+            @click="deleteWarehouse(warehouse.id)"
+          >
+            <Trash2 class="w-4 h-4" />
+            Hapus
+          </button>
         </div>
       </div>
     </div>

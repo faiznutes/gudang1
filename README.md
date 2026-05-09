@@ -35,3 +35,4 @@ pnpm build:all
 
 See `docs/backend-pwa-plan.md` for the backend, entitlement, access-control, and PWA offline-sync plan.
 See `docs/stockpilot-saas-wms-audit.md` for the SaaS WMS Lite product audit, monetization foundation notes, and `docs/stockpilot-module-roadmap.md` for module guardrails.
+See `docs/full-erp-ux-audit-2026-05-09.md` for the tenant UX, reporting, category, visualization, and deployment readiness audit.
