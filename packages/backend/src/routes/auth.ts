@@ -63,7 +63,7 @@ function setRefreshCookie(_app: FastifyInstance, reply: any, payload: object) {
 
 function sessionDto(policy: Awaited<ReturnType<typeof getSessionPolicy>>) {
   return {
-    activity_session_expires_at: policy.expiresAt.toISOString(),
+    activity_session_expires_at: policy.lockActionsAfterExpiry ? policy.expiresAt.toISOString() : null,
     session_policy: {
       timeout_minutes: policy.timeoutMinutes,
       lock_actions_after_expiry: policy.lockActionsAfterExpiry,
@@ -172,7 +172,7 @@ export async function authRoutes(app: FastifyInstance) {
       workspace_role: member.role,
       workspace: workspaceDto(member.workspace),
       entitlements: await getEntitlements(app, ctx.workspaceId),
-      activity_session_expires_at: ctx.sessionExpiresAt?.toISOString() ?? null,
+      activity_session_expires_at: settings.lockActionsAfterSessionExpiry ? ctx.sessionExpiresAt?.toISOString() ?? null : null,
       session_policy: {
         timeout_minutes: settings.sessionTimeoutMinutes,
         lock_actions_after_expiry: settings.lockActionsAfterSessionExpiry,

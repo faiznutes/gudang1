@@ -41,7 +41,7 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.post('/suppliers', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const body = supplierSchema.parse(request.body)
     return runIdempotent(app, ctx, idempotencyKey(request), 'supplier.create', body, async () => {
       const supplier = await app.prisma.supplier.create({
@@ -68,7 +68,7 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.put('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = supplierSchema.partial().parse(request.body)
     const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
@@ -96,7 +96,7 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.delete('/suppliers/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const current = await app.prisma.supplier.findFirst({ where: { id: params.id, workspaceId: ctx.workspaceId, disabledAt: null } })
     if (!current) throw new AppError('not_found', 'Supplier tidak ditemukan')

@@ -93,7 +93,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/products', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const body = productSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
     if (entitlements.usage.products >= entitlements.limits.products) {
@@ -129,7 +129,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.put('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = productUpdateSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
@@ -162,7 +162,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.delete('/products/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
     await app.prisma.product.update({ where: { id: params.id }, data: { disabledAt: new Date() } })
@@ -186,7 +186,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const body = categorySchema.parse(request.body)
     const category = await app.prisma.category.create({
       data: { workspaceId: ctx.workspaceId, name: body.name, description: body.description },
@@ -220,7 +220,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/warehouses', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const body = warehouseSchema.parse(request.body)
     const entitlements = await getEntitlements(app, ctx.workspaceId)
     if (entitlements.usage.warehouses >= entitlements.limits.warehouses) {
@@ -256,7 +256,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.put('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = warehouseSchema.partial().parse(request.body)
     await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
@@ -279,7 +279,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.delete('/warehouses/:id', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const warehouse = await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
     if (warehouse.isDefault) {
@@ -308,7 +308,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/stock-in', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, body.product_id)
@@ -360,7 +360,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/stock-out', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     await requireFeature(app, ctx, 'stockInOut')
     const body = stockSchema.parse(request.body)
     await ensureWorkspaceProduct(app, ctx.workspaceId, body.product_id)
@@ -419,7 +419,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post('/stock-transfer', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     await requireFeature(app, ctx, 'stockInOut')
     await requireFeature(app, ctx, 'multiWarehouse')
     const body = transferSchema.parse(request.body)

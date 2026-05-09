@@ -36,7 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
   const initialized = ref(false)
   const activitySessionExpiresAt = ref<string | null>(localStorage.getItem('activity_session_expires_at'))
-  const sessionPolicy = ref<SessionPolicy>({ timeout_minutes: null, lock_actions_after_expiry: true })
+  const sessionPolicy = ref<SessionPolicy>({ timeout_minutes: null, lock_actions_after_expiry: false })
   const sessionTick = ref(Date.now())
   let countdownTimer: number | null = null
   const trialStore = useTrialStore()
@@ -142,11 +142,17 @@ export const useAuthStore = defineStore('auth', () => {
         trialStore.endTrial()
       }
     }
-    activitySessionExpiresAt.value = data.activity_session_expires_at ?? activitySessionExpiresAt.value
-    sessionPolicy.value = data.session_policy ?? sessionPolicy.value
+    const nextPolicy = data.session_policy ?? sessionPolicy.value
+    activitySessionExpiresAt.value = nextPolicy.lock_actions_after_expiry
+      ? data.activity_session_expires_at ?? activitySessionExpiresAt.value
+      : null
+    sessionPolicy.value = nextPolicy
     if (activitySessionExpiresAt.value) {
       localStorage.setItem('activity_session_expires_at', activitySessionExpiresAt.value)
       startCountdown()
+    } else {
+      localStorage.removeItem('activity_session_expires_at')
+      stopCountdown()
     }
     cacheSession(data)
   }
@@ -233,7 +239,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     initialized.value = false
     activitySessionExpiresAt.value = null
-    sessionPolicy.value = { timeout_minutes: null, lock_actions_after_expiry: true }
+    sessionPolicy.value = { timeout_minutes: null, lock_actions_after_expiry: false }
     stopCountdown()
     entitlementsStore.reset()
     localStorage.removeItem('token')

@@ -59,7 +59,7 @@ const emailSettings = ref({
 const securitySettings = ref({
   twoFactorRequired: false,
   sessionTimeout: '30',
-  lockActionsAfterSessionExpiry: true,
+  lockActionsAfterSessionExpiry: false,
   passwordMinLength: '8',
   maxLoginAttempts: '5',
   ipWhitelistEnabled: false,
@@ -103,7 +103,7 @@ function settingValue(settings: Array<{ key: string; value: string }>, key: stri
 async function loadSettings() {
   const settings = await adminService.getSystemSettings()
   securitySettings.value.sessionTimeout = settingValue(settings, 'session_timeout_minutes', securitySettings.value.sessionTimeout)
-  securitySettings.value.lockActionsAfterSessionExpiry = settingValue(settings, 'lock_actions_after_session_expiry', 'true') === 'true'
+  securitySettings.value.lockActionsAfterSessionExpiry = settingValue(settings, 'lock_actions_after_session_expiry', 'false') === 'true'
   notificationSettings.value.lowStockAlerts = settingValue(settings, 'low_stock_alerts_enabled', 'true') === 'true'
   notificationSettings.value.subscriptionReminders = settingValue(settings, 'subscription_reminders_enabled', 'true') === 'true'
   notificationSettings.value.subscriptionReminderDays = settingValue(settings, 'subscription_reminder_days', '7')

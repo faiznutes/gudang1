@@ -10,7 +10,7 @@ export interface PlatformSettings {
 
 const DEFAULT_SETTINGS: PlatformSettings = {
   sessionTimeoutMinutes: 30,
-  lockActionsAfterSessionExpiry: true,
+  lockActionsAfterSessionExpiry: false,
   lowStockAlertsEnabled: true,
   subscriptionRemindersEnabled: true,
   subscriptionReminderDays: 7,

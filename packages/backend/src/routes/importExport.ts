@@ -237,7 +237,7 @@ export async function importExportRoutes(app: FastifyInstance) {
   app.post('/import/:type', async (request) => {
     const ctx = await requireAuth(app, request)
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     await requireFeature(app, ctx, 'batchImport')
     const params = z.object({ type: z.enum(DATA_TYPES) }).parse(request.params)
     const body = importBodySchema.parse(request.body)

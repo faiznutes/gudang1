@@ -156,17 +156,37 @@ describe('requireTenantRole', () => {
 })
 
 describe('requireActiveSession', () => {
-  it('allows tenant actions before the activity session expires', () => {
-    expect(() => requireActiveSession(context('admin'))).not.toThrow()
+  function settingsApp(lockActionsAfterSessionExpiry: boolean) {
+    return {
+      prisma: {
+        workspace: {
+          findUnique: vi.fn().mockResolvedValue({ id: 'platform-admin-workspace' }),
+        },
+        systemSetting: {
+          findMany: vi.fn().mockResolvedValue([
+            { key: 'lock_actions_after_session_expiry', value: String(lockActionsAfterSessionExpiry) },
+          ]),
+        },
+      },
+    } as any
+  }
+
+  it('allows tenant actions before the activity session expires', async () => {
+    await expect(requireActiveSession(settingsApp(true), context('admin'))).resolves.toBeUndefined()
   })
 
-  it('blocks tenant actions after the activity session expires', () => {
+  it('blocks tenant actions after the activity session expires when action lock is enabled', async () => {
     const ctx = { ...context('admin'), sessionExpiresAt: new Date(Date.now() - 1000) }
-    expect(() => requireActiveSession(ctx)).toThrow(AppError)
+    await expect(requireActiveSession(settingsApp(true), ctx)).rejects.toBeInstanceOf(AppError)
   })
 
-  it('does not block platform super admin maintenance actions', () => {
+  it('does not block tenant actions when activity lock is disabled', async () => {
+    const ctx = { ...context('admin'), sessionExpiresAt: new Date(Date.now() - 1000) }
+    await expect(requireActiveSession(settingsApp(false), ctx)).resolves.toBeUndefined()
+  })
+
+  it('does not block platform super admin maintenance actions', async () => {
     const ctx = { ...context('admin', 'super_admin'), sessionExpiresAt: new Date(Date.now() - 1000) }
-    expect(() => requireActiveSession(ctx)).not.toThrow()
+    await expect(requireActiveSession(settingsApp(true), ctx)).resolves.toBeUndefined()
   })
 })

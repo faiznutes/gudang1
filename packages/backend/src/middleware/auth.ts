@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { UserRole } from '@stockpilot/shared'
 import { AppError } from '../lib/errors.js'
 import { getEntitlements } from '../lib/plans.js'
+import { getPlatformSettings } from '../lib/settings.js'
 
 export interface AuthContext {
   userId: string
@@ -115,8 +116,10 @@ export function requirePlatformRole(ctx: AuthContext, roles: UserRole[]) {
   }
 }
 
-export function requireActiveSession(ctx: AuthContext) {
+export async function requireActiveSession(app: FastifyInstance, ctx: AuthContext) {
   if (ctx.platformRole === 'super_admin') return
+  const settings = await getPlatformSettings(app)
+  if (!settings.lockActionsAfterSessionExpiry) return
   if (ctx.sessionExpiresAt && ctx.sessionExpiresAt <= new Date()) {
     throw new AppError('forbidden', 'Sesi aktivitas sudah berakhir. Anda masih bisa melihat laporan, tetapi tidak bisa mengubah data.')
   }

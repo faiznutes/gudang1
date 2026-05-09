@@ -147,12 +147,12 @@ async function main() {
     {
       key: 'session_timeout_minutes',
       value: '30',
-      description: 'Batas waktu sesi aktivitas sebelum aksi ubah data dikunci',
+      description: 'Batas waktu sesi aktivitas opsional jika action lock diaktifkan',
     },
     {
       key: 'lock_actions_after_session_expiry',
-      value: 'true',
-      description: 'Kunci aksi ubah data saat sesi aktivitas berakhir',
+      value: 'false',
+      description: 'Jika false, login session penuh tetap bisa melakukan aksi sampai token login berakhir',
     },
     {
       key: 'low_stock_alerts_enabled',

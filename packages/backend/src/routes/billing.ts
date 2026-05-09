@@ -99,7 +99,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post('/billing/requests', async (request) => {
     const ctx = await requireAuth(app, request)
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     requireTenantRole(ctx, ['admin', 'trial'])
     const body = requestCreateSchema.parse(request.body)
     return createBillingRequest(app, ctx, {
@@ -121,7 +121,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post('/billing/change-plan', async (request) => {
     const ctx = await requireAuth(app, request)
-    requireActiveSession(ctx)
+    await requireActiveSession(app, ctx)
     requireTenantRole(ctx, ['admin', 'trial'])
     const body = z.object({
       plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']).optional(),

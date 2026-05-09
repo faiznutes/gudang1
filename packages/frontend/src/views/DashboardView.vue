@@ -229,9 +229,9 @@ function usageProgress(used: number, limit: number) {
                 <p class="mt-1 text-sm text-neutral-500">Diatur oleh paket tenant</p>
               </div>
               <div class="rounded-2xl border border-neutral-100 bg-[#fbfdff] p-4">
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-neutral-400">Sesi aktivitas</p>
-                <p class="mt-2 text-xl font-black text-neutral-950">{{ authStore.activitySessionCountdown || 'Aktif' }}</p>
-                <p class="mt-1 text-sm text-neutral-500">{{ authStore.isActivitySessionExpired ? 'Mode laporan saja' : 'Aksi operasional tersedia' }}</p>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-neutral-400">Mode akses</p>
+                <p class="mt-2 text-xl font-black text-neutral-950">{{ authStore.sessionPolicy.lock_actions_after_expiry ? (authStore.activitySessionCountdown || 'Aktif') : 'Sesi penuh' }}</p>
+                <p class="mt-1 text-sm text-neutral-500">{{ authStore.sessionPolicy.lock_actions_after_expiry ? (authStore.isActivitySessionExpired ? 'Mode laporan saja' : 'Aksi operasional tersedia') : 'Aksi operasional mengikuti login' }}</p>
               </div>
             </div>
           </div>
