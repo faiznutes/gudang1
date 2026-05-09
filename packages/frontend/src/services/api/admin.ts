@@ -1,10 +1,13 @@
 import api from './client'
 
-export type AdminPlan = 'free' | 'starter' | 'growth' | 'pro' | 'custom'
+export type AdminPlan = string
 export type AdminRole = 'super_admin' | 'admin' | 'staff' | 'supplier' | 'trial'
 export type TenantRole = Exclude<AdminRole, 'super_admin'>
 export type WorkspaceStatus = 'active' | 'suspended' | 'trial'
 export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired' | 'trialing'
+export type BillingCycle = 'monthly' | 'yearly' | 'manual'
+export type CatalogStatus = 'active' | 'archived'
+export type FeatureKey = 'stockInOut' | 'multiWarehouse' | 'analytics' | 'exportPDF' | 'batchImport' | 'reports'
 
 export interface Workspace {
   id: string
@@ -144,13 +147,62 @@ export interface Subscription {
   workspace_id: string
   workspace?: Pick<Workspace, 'id' | 'name' | 'plan' | 'status'>
   plan: AdminPlan
+  package_code?: string
+  package_name?: string
   status: SubscriptionStatus
   amount: number
-  billing_cycle: 'monthly'
+  billing_cycle: BillingCycle
   current_period_start: string
   current_period_end: string
   next_billing: string | null
   cancel_at_period_end: boolean
+}
+
+export interface PlanPackage {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  status: CatalogStatus
+  monthly_price: number
+  yearly_price: number | null
+  original_monthly_price: number | null
+  trial_days: number
+  sort_order: number
+  limits: { warehouses: number; products: number; users: number }
+  features: Record<FeatureKey, boolean>
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Addon {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  status: CatalogStatus
+  monthly_price: number
+  yearly_price: number | null
+  feature_key: FeatureKey | null
+  limit_key: 'warehouses' | 'products' | 'users' | null
+  limit_increment: number | null
+  sort_order: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface WorkspaceAddon {
+  id: string
+  workspace_id: string
+  addon: Addon
+  status: 'active' | 'cancelled' | 'expired'
+  billing_cycle: BillingCycle
+  quantity: number
+  amount: number
+  current_period_start: string
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  created_at: string
 }
 
 export interface AuditLog {
@@ -192,6 +244,9 @@ export interface DashboardStats {
   trial_workspaces: number
   total_users: number
   total_revenue: number
+  subscription_revenue?: number
+  addon_revenue?: number
+  active_addons?: number
   active_subscriptions?: number
   pending_approvals?: number
   expiring_subscriptions?: number
@@ -447,8 +502,8 @@ export const adminService = {
     return api.get<Subscription[]>(`/admin/workspaces/${workspaceId}/subscriptions`)
   },
 
-  async changePlan(workspaceId: string, plan: string): Promise<Subscription> {
-    return api.post<Subscription>(`/admin/workspaces/${workspaceId}/subscriptions/change-plan`, { plan })
+  async changePlan(workspaceId: string, packageCode: string, billingCycle: BillingCycle = 'monthly'): Promise<Subscription> {
+    return api.post<Subscription>(`/admin/workspaces/${workspaceId}/subscriptions/change-plan`, { package_code: packageCode, billing_cycle: billingCycle })
   },
 
   async updateSubscriptionPeriod(workspaceId: string, subscriptionId: string, data: { current_period_start?: string; current_period_end: string; status?: SubscriptionStatus; reason?: string }): Promise<Subscription> {
@@ -478,6 +533,54 @@ export const adminService = {
 
   async getDashboardStats(): Promise<DashboardStats> {
     return api.get<DashboardStats>('/admin/dashboard/stats')
+  },
+
+  async getPackages(status?: CatalogStatus): Promise<PlanPackage[]> {
+    return api.get<PlanPackage[]>(`/admin/packages?${params({ status })}`)
+  },
+
+  async createPackage(data: Partial<PlanPackage> & { code: string; name: string }): Promise<PlanPackage> {
+    return api.post<PlanPackage>('/admin/packages', data)
+  },
+
+  async updatePackage(id: string, data: Partial<PlanPackage>): Promise<PlanPackage> {
+    return api.put<PlanPackage>(`/admin/packages/${id}`, data)
+  },
+
+  async archivePackage(id: string): Promise<PlanPackage> {
+    return api.post<PlanPackage>(`/admin/packages/${id}/archive`, {})
+  },
+
+  async getAddons(status?: CatalogStatus): Promise<Addon[]> {
+    return api.get<Addon[]>(`/admin/addons?${params({ status })}`)
+  },
+
+  async createAddon(data: Partial<Addon> & { code: string; name: string }): Promise<Addon> {
+    return api.post<Addon>('/admin/addons', data)
+  },
+
+  async updateAddon(id: string, data: Partial<Addon>): Promise<Addon> {
+    return api.put<Addon>(`/admin/addons/${id}`, data)
+  },
+
+  async archiveAddon(id: string): Promise<Addon> {
+    return api.post<Addon>(`/admin/addons/${id}/archive`, {})
+  },
+
+  async getWorkspaceAddons(workspaceId: string): Promise<WorkspaceAddon[]> {
+    return api.get<WorkspaceAddon[]>(`/admin/workspaces/${workspaceId}/addons`)
+  },
+
+  async assignWorkspaceAddon(workspaceId: string, data: { addon_id?: string; addon_code?: string; billing_cycle?: BillingCycle; quantity?: number; current_period_start?: string; current_period_end?: string | null }): Promise<WorkspaceAddon> {
+    return api.post<WorkspaceAddon>(`/admin/workspaces/${workspaceId}/addons`, data)
+  },
+
+  async cancelWorkspaceAddon(workspaceId: string, assignmentId: string): Promise<WorkspaceAddon> {
+    return api.post<WorkspaceAddon>(`/admin/workspaces/${workspaceId}/addons/${assignmentId}/cancel`, {})
+  },
+
+  async runSubscriptionLifecycle(): Promise<{ expired: number; reminders: number }> {
+    return api.post<{ expired: number; reminders: number }>('/admin/subscriptions/lifecycle/run', {})
   },
 }
 

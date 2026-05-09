@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useEntitlementsStore } from '@/stores/entitlements'
 import { usePlansStore, PLANS, type Plan } from '@/stores/plans'
+import { billingService } from '@/services/api/billing'
+import type { PlanPackage } from '@/services/api/admin'
 import { Check, Sparkles, Building2, Rocket, Crown, Clock } from 'lucide-vue-next'
 import SubscriptionCountdownCard from '@/components/SubscriptionCountdownCard.vue'
 
@@ -11,8 +13,48 @@ const router = useRouter()
 const authStore = useAuthStore()
 const entitlementsStore = useEntitlementsStore()
 const plansStore = usePlansStore()
+const packages = ref<PlanPackage[]>([])
+const loadingPackages = ref(false)
 
-const currentPlan = computed(() => entitlementsStore.currentPlan || authStore.workspace?.plan || 'free')
+type BillingPlan = {
+  id: string
+  name: string
+  price: number | null
+  originalPrice?: number | null
+  period: string
+  description: string
+  warehouses: number
+  products: number
+  users: number
+  features: Plan['features']
+}
+
+const currentPlan = computed(() => entitlementsStore.entitlements.packageCode || entitlementsStore.currentPlan || authStore.workspace?.plan || 'free')
+const visiblePlans = computed<BillingPlan[]>(() => {
+  if (packages.value.length > 0) {
+    return packages.value.map(plan => ({
+      id: plan.code,
+      name: plan.name,
+      price: plan.monthly_price,
+      originalPrice: plan.original_monthly_price,
+      period: 'bulan',
+      description: plan.description || 'Paket operasional gudang dan stok',
+      warehouses: plan.limits.warehouses,
+      products: plan.limits.products,
+      users: plan.limits.users,
+      features: {
+        stockInOut: plan.features.stockInOut,
+        multiWarehouse: plan.features.multiWarehouse,
+        analytics: plan.features.analytics,
+        exportPDF: plan.features.exportPDF,
+        batchImport: plan.features.batchImport,
+        reports: plan.features.reports,
+      },
+    }))
+  }
+  return PLANS
+})
+const currentPlanData = computed(() => visiblePlans.value.find(plan => plan.id === currentPlan.value) ?? plansStore.getPlanById(entitlementsStore.currentPlan) ?? visiblePlans.value[0])
 const shouldShowTrialCta = computed(() => {
   const status = entitlementsStore.entitlements.subscriptionStatus
   return currentPlan.value === 'free' && status !== 'active' && status !== 'trialing'
@@ -35,7 +77,7 @@ function isActive(planId: string) {
 
 async function selectPlan(planId: string) {
   if (planId === 'free') return
-  await authStore.upgradePlan(planId as any)
+  await authStore.upgradePlan(planId)
 }
 
 function goToTrial() {
@@ -47,13 +89,26 @@ function formatPrice(price: number | null): string {
   return 'Rp ' + price.toLocaleString('id-ID')
 }
 
-function hasPromo(plan: Plan): boolean {
+function hasPromo(plan: BillingPlan): boolean {
   return !!plan.originalPrice && !!plan.price && plan.originalPrice > plan.price
 }
 
-function getFeatureValue(plan: Plan, feature: string): boolean {
+function getFeatureValue(plan: BillingPlan, feature: string): boolean {
   return (plan.features as any)[feature] || false
 }
+
+async function loadPackages() {
+  loadingPackages.value = true
+  try {
+    packages.value = await billingService.getPackages()
+  } catch {
+    packages.value = []
+  } finally {
+    loadingPackages.value = false
+  }
+}
+
+onMounted(loadPackages)
 </script>
 
 <template>
@@ -68,9 +123,9 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <p class="text-primary-200 text-sm">Paket Saat Ini</p>
-          <h2 class="text-2xl font-bold">{{ plansStore.getPlanById(currentPlan)?.name }}</h2>
+          <h2 class="text-2xl font-bold">{{ currentPlanData?.name }}</h2>
           <p v-if="currentPlan !== 'custom'" class="text-primary-200">
-            {{ currentPlan === 'free' ? 'Gratis selamanya' : `${formatPrice(plansStore.getPlanById(currentPlan)?.price || 0)}/bulan` }}
+            {{ currentPlan === 'free' ? 'Gratis selamanya' : `${formatPrice(currentPlanData?.price || 0)}/bulan` }}
           </p>
         </div>
         <div v-if="currentPlan !== 'custom'" class="flex items-center gap-2">
@@ -84,7 +139,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
     <!-- Plans Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <div
-        v-for="plan in PLANS"
+        v-for="plan in visiblePlans"
         :key="plan.id"
         :class="[
           'card p-6 relative',
@@ -177,7 +232,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
           <thead>
             <tr class="border-b border-neutral-100">
               <th class="table-header text-left">Fitur</th>
-              <th v-for="plan in PLANS" :key="plan.id" class="table-header text-center">{{ plan.name }}</th>
+              <th v-for="plan in visiblePlans" :key="plan.id" class="table-header text-center">{{ plan.name }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100">
@@ -187,7 +242,7 @@ function getFeatureValue(plan: Plan, feature: string): boolean {
               class="hover:bg-neutral-50"
             >
               <td class="table-cell font-medium">{{ featureNames[feature] }}</td>
-              <td v-for="plan in PLANS" :key="plan.id" class="table-cell text-center">
+              <td v-for="plan in visiblePlans" :key="plan.id" class="table-cell text-center">
                 <div v-if="getFeatureValue(plan, feature)" class="flex justify-center">
                   <Check class="w-5 h-5 text-success-600" />
                 </div>

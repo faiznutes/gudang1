@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
 import { requireAuth, requirePlatformRole } from '../middleware/auth.js'
-import { PLAN_CATALOG, planPrice } from '../lib/plans.js'
+import { billingAmount, legacyPlanForCode, PLAN_CATALOG, planPrice } from '../lib/plans.js'
 
 const pageSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -73,8 +73,16 @@ function subscriptionDto(subscription: {
   currentPeriodStart: Date
   currentPeriodEnd: Date
   cancelAtPeriodEnd: boolean
+  billingCycle?: string
+  amountSnapshot?: number
+  planPackage?: { code: string; name: string; monthlyPrice: number; yearlyPrice?: number | null } | null
   workspace?: { id: string; name: string; plan: string; status: string } | null
 }) {
+  const amount = subscription.amountSnapshot && subscription.amountSnapshot > 0
+    ? subscription.amountSnapshot
+    : subscription.planPackage
+      ? billingAmount(subscription.planPackage as any, subscription.billingCycle as any)
+      : planPrice(subscription.plan)
   return {
     id: subscription.id,
     workspace_id: subscription.workspaceId,
@@ -87,9 +95,11 @@ function subscriptionDto(subscription: {
         }
       : undefined,
     plan: subscription.plan,
+    package_code: subscription.planPackage?.code ?? subscription.plan,
+    package_name: subscription.planPackage?.name ?? undefined,
     status: subscription.status,
-    amount: planPrice(subscription.plan),
-    billing_cycle: 'monthly',
+    amount,
+    billing_cycle: subscription.billingCycle ?? 'monthly',
     current_period_start: subscription.currentPeriodStart.toISOString(),
     current_period_end: subscription.currentPeriodEnd.toISOString(),
     next_billing: subscription.cancelAtPeriodEnd ? null : subscription.currentPeriodEnd.toISOString(),
@@ -180,6 +190,7 @@ export async function adminRoutes(app: FastifyInstance) {
       trialWorkspaces,
       totalUsers,
       subscriptions,
+      activeAddons,
       recentSignupCount,
       recentUsers,
       recentWorkspaces,
@@ -197,7 +208,14 @@ export async function adminRoutes(app: FastifyInstance) {
       app.prisma.workspace.count({ where: { status: 'active' } }),
       app.prisma.workspace.count({ where: { status: 'trial' } }),
       app.prisma.user.count(),
-      app.prisma.subscription.findMany({ where: { status: 'active', plan: { not: 'free' } } }),
+      app.prisma.subscription.findMany({
+        where: { status: 'active', plan: { not: 'free' } },
+        include: { planPackage: true },
+      }),
+      app.prisma.workspaceAddon.findMany({
+        where: { status: 'active' },
+        include: { addon: true },
+      }),
       app.prisma.workspace.count({ where: { createdAt: { gte: since } } }),
       app.prisma.workspaceMember.findMany({
         include: { user: true, workspace: true },
@@ -247,12 +265,30 @@ export async function adminRoutes(app: FastifyInstance) {
       return item.quantity <= item.product.minStock
     }).length
 
+    const subscriptionRevenue = subscriptions.reduce((sum, subscription) => {
+      const amount = subscription.amountSnapshot > 0
+        ? subscription.amountSnapshot
+        : subscription.planPackage
+          ? billingAmount(subscription.planPackage, subscription.billingCycle)
+          : planPrice(subscription.plan)
+      return sum + amount
+    }, 0)
+    const addonRevenue = activeAddons.reduce((sum, assignment) => {
+      const amount = assignment.amountSnapshot > 0
+        ? assignment.amountSnapshot
+        : billingAmount(assignment.addon, assignment.billingCycle) * assignment.quantity
+      return sum + amount
+    }, 0)
+
     return {
       total_workspaces: totalWorkspaces,
       active_workspaces: activeWorkspaces,
       trial_workspaces: trialWorkspaces,
       total_users: totalUsers,
-      total_revenue: subscriptions.reduce((sum, subscription) => sum + planPrice(subscription.plan), 0),
+      total_revenue: subscriptionRevenue + addonRevenue,
+      subscription_revenue: subscriptionRevenue,
+      addon_revenue: addonRevenue,
+      active_addons: activeAddons.length,
       active_subscriptions: subscriptions.length,
       pending_approvals: pendingApprovals,
       expiring_subscriptions: expiringSubscriptions,
@@ -354,7 +390,7 @@ export async function adminRoutes(app: FastifyInstance) {
         where,
         include: {
           members: { include: { user: true }, orderBy: { createdAt: 'asc' } },
-          subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
+          subscriptions: { include: { planPackage: true }, orderBy: { createdAt: 'desc' }, take: 1 },
           _count: { select: { members: true, products: true, warehouses: true, suppliers: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -375,7 +411,13 @@ export async function adminRoutes(app: FastifyInstance) {
         products: workspace._count.products,
         warehouses: workspace._count.warehouses,
         suppliers: workspace._count.suppliers,
-        mrr: latestSubscription?.status === 'active' ? planPrice(latestSubscription.plan) : 0,
+        mrr: latestSubscription?.status === 'active'
+          ? latestSubscription.amountSnapshot > 0
+            ? latestSubscription.amountSnapshot
+            : latestSubscription.planPackage
+              ? billingAmount(latestSubscription.planPackage, latestSubscription.billingCycle)
+              : planPrice(latestSubscription.plan)
+          : 0,
       }
     }), query.page, query.per_page, total)
   })
@@ -391,6 +433,8 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const effectivePlan = body.subscription_status === 'trialing' ? 'pro' : body.plan
     const planLimit = PLAN_CATALOG[effectivePlan].limits.users
+    const effectivePackage = await app.prisma.planPackage.findUnique({ where: { code: effectivePlan } })
+    const amountSnapshot = effectivePackage ? billingAmount(effectivePackage, 'monthly') : planPrice(effectivePlan)
     const requestedUsers = 1 + body.staff.length
     if (requestedUsers > planLimit) {
       throw new AppError('feature_locked', `Paket ${effectivePlan} hanya mengizinkan ${planLimit} user`)
@@ -436,8 +480,12 @@ export async function adminRoutes(app: FastifyInstance) {
       await tx.subscription.create({
         data: {
           workspaceId: workspace.id,
+          planPackageId: effectivePackage?.id,
           plan: effectivePlan,
           status: body.subscription_status,
+          billingCycle: 'monthly',
+          amountSnapshot,
+          source: 'admin',
           currentPeriodStart: periodStart,
           currentPeriodEnd: periodEnd,
         },
@@ -521,7 +569,7 @@ export async function adminRoutes(app: FastifyInstance) {
       products: 0,
       warehouses: 1,
       suppliers: body.suppliers.length,
-      mrr: body.subscription_status === 'active' ? planPrice(effectivePlan) : 0,
+      mrr: body.subscription_status === 'active' ? amountSnapshot : 0,
     }
   })
 
@@ -540,7 +588,7 @@ export async function adminRoutes(app: FastifyInstance) {
       where: { id: params.id },
       include: {
         members: { include: { user: true }, orderBy: { createdAt: 'asc' } },
-        subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
+        subscriptions: { include: { planPackage: true }, orderBy: { createdAt: 'desc' }, take: 1 },
         auditLogs: {
           include: { user: true },
           orderBy: { createdAt: 'desc' },
@@ -634,6 +682,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const nextStatus = body.status ?? current.status
     const nextPlan = body.plan ?? current.plan
+    const nextPackage = await app.prisma.planPackage.findUnique({ where: { code: nextPlan } })
     const now = new Date()
 
     const workspace = await app.prisma.$transaction(async (tx) => {
@@ -659,8 +708,10 @@ export async function adminRoutes(app: FastifyInstance) {
           await tx.subscription.update({
             where: { id: currentSubscription.id },
             data: {
+              planPackageId: nextPackage?.id,
               plan: nextPlan,
               status: 'active',
+              amountSnapshot: nextPackage ? billingAmount(nextPackage, currentSubscription.billingCycle) : currentSubscription.amountSnapshot,
               cancelAtPeriodEnd: false,
             },
           })
@@ -670,8 +721,12 @@ export async function adminRoutes(app: FastifyInstance) {
           await tx.subscription.create({
             data: {
               workspaceId: params.id,
+              planPackageId: nextPackage?.id,
               plan: nextPlan,
               status: 'active',
+              billingCycle: 'monthly',
+              amountSnapshot: nextPackage ? billingAmount(nextPackage, 'monthly') : planPrice(nextPlan),
+              source: 'admin',
               currentPeriodStart: now,
               currentPeriodEnd: end,
             },
@@ -711,6 +766,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const current = await app.prisma.workspace.findUnique({ where: { id: params.id } })
     if (!current) throw new AppError('not_found', 'Workspace tidak ditemukan')
     const now = new Date()
+    const currentPackage = await app.prisma.planPackage.findUnique({ where: { code: current.plan } })
     const workspace = await app.prisma.$transaction(async (tx) => {
       const updated = await tx.workspace.update({ where: { id: params.id }, data: { status: 'active', trialEndsAt: null } })
       const trialSubscription = await tx.subscription.findFirst({
@@ -725,8 +781,10 @@ export async function adminRoutes(app: FastifyInstance) {
         await tx.subscription.update({
           where: { id: trialSubscription.id },
           data: {
+            planPackageId: currentPackage?.id,
             plan: current.plan,
             status: 'active',
+            amountSnapshot: currentPackage ? billingAmount(currentPackage, trialSubscription.billingCycle) : trialSubscription.amountSnapshot,
             cancelAtPeriodEnd: false,
           },
         })
@@ -808,16 +866,24 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/subscriptions', async (request) => {
     await requirePlatformAdmin(app, request)
     const query = pageSchema.parse(request.query)
+    const planFilter = query.plan && query.plan !== 'all' ? query.plan : undefined
     const where: any = {
       ...(query.status && query.status !== 'all' ? { status: query.status } : {}),
-      ...(query.plan && query.plan !== 'all' ? { plan: query.plan } : {}),
+      ...(planFilter
+        ? {
+            OR: [
+              ...(Object.keys(PLAN_CATALOG).includes(planFilter) ? [{ plan: planFilter }] : []),
+              { planPackage: { code: planFilter } },
+            ],
+          }
+        : {}),
       ...(query.workspace_id ? { workspaceId: query.workspace_id } : {}),
       ...(query.q ? { workspace: { name: { contains: query.q, mode: 'insensitive' } } } : {}),
     }
     const [items, total] = await Promise.all([
       app.prisma.subscription.findMany({
         where,
-        include: { workspace: true },
+        include: { workspace: true, planPackage: true },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.per_page,
         take: query.per_page,
@@ -832,7 +898,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const params = z.object({ workspaceId: z.string() }).parse(request.params)
     const subscriptions = await app.prisma.subscription.findMany({
       where: { workspaceId: params.workspaceId },
-      include: { workspace: true },
+      include: { workspace: true, planPackage: true },
       orderBy: { createdAt: 'desc' },
     })
     return subscriptions.map(subscriptionDto)
@@ -841,13 +907,26 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/workspaces/:workspaceId/subscriptions/change-plan', async (request) => {
     const ctx = await requirePlatformAdmin(app, request)
     const params = z.object({ workspaceId: z.string() }).parse(request.params)
-    const body = z.object({ plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']) }).parse(request.body)
+    const body = z.object({
+      plan: z.enum(['free', 'starter', 'growth', 'pro', 'custom']).optional(),
+      package_code: z.string().trim().min(1).optional(),
+      billing_cycle: z.enum(['monthly', 'yearly', 'manual']).default('monthly'),
+    }).parse(request.body)
+    const requestedCode = body.package_code ?? body.plan
+    if (!requestedCode) throw new AppError('validation_error', 'Paket harus dipilih')
+    const planPackage = await app.prisma.planPackage.findUnique({ where: { code: requestedCode } })
+    if (!planPackage || planPackage.status !== 'active') throw new AppError('not_found', 'Paket aktif tidak ditemukan')
+    const legacyPlan = legacyPlanForCode(planPackage.code)
     const now = new Date()
     const end = new Date(now)
-    end.setMonth(end.getMonth() + 1)
+    if (body.billing_cycle === 'yearly') {
+      end.setFullYear(end.getFullYear() + 1)
+    } else {
+      end.setMonth(end.getMonth() + 1)
+    }
 
     const subscription = await app.prisma.$transaction(async (tx) => {
-      await tx.workspace.update({ where: { id: params.workspaceId }, data: { plan: body.plan, status: 'active', trialEndsAt: null } })
+      await tx.workspace.update({ where: { id: params.workspaceId }, data: { plan: legacyPlan, status: 'active', trialEndsAt: null } })
       await tx.subscription.updateMany({
         where: { workspaceId: params.workspaceId, status: { in: ['active', 'trialing'] } },
         data: { status: 'cancelled', cancelAtPeriodEnd: true },
@@ -855,8 +934,12 @@ export async function adminRoutes(app: FastifyInstance) {
       const created = await tx.subscription.create({
         data: {
           workspaceId: params.workspaceId,
-          plan: body.plan,
+          planPackageId: planPackage.id,
+          plan: legacyPlan,
           status: 'active',
+          billingCycle: body.billing_cycle,
+          amountSnapshot: billingAmount(planPackage, body.billing_cycle),
+          source: 'admin',
           currentPeriodStart: now,
           currentPeriodEnd: end,
         },
@@ -868,14 +951,23 @@ export async function adminRoutes(app: FastifyInstance) {
           action: 'subscription.plan_changed',
           entityType: 'subscription',
           entityId: created.id,
-          metadata: { plan: body.plan },
+          metadata: { package_code: planPackage.code, plan: legacyPlan, billing_cycle: body.billing_cycle },
+        },
+      })
+      await tx.subscriptionEvent.create({
+        data: {
+          workspaceId: params.workspaceId,
+          subscriptionId: created.id,
+          userId: ctx.userId,
+          type: 'subscription.plan_changed',
+          metadata: { package_code: planPackage.code, plan: legacyPlan, billing_cycle: body.billing_cycle },
         },
       })
       return created
     })
 
     const workspace = await app.prisma.workspace.findUnique({ where: { id: subscription.workspaceId } })
-    return subscriptionDto({ ...subscription, workspace })
+    return subscriptionDto({ ...subscription, workspace, planPackage })
   })
 
   app.put('/workspaces/:workspaceId/subscriptions/:subscriptionId/period', async (request) => {
@@ -890,6 +982,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const current = await app.prisma.subscription.findFirst({
       where: { id: params.subscriptionId, workspaceId: params.workspaceId },
+      include: { planPackage: true },
     })
     if (!current) throw new AppError('not_found', 'Subscription tenant tidak ditemukan')
 
@@ -939,7 +1032,7 @@ export async function adminRoutes(app: FastifyInstance) {
     })
 
     const workspace = await app.prisma.workspace.findUnique({ where: { id: updated.workspaceId } })
-    return subscriptionDto({ ...updated, workspace })
+    return subscriptionDto({ ...updated, workspace, planPackage: current.planPackage })
   })
 
   app.post('/workspaces/:workspaceId/subscriptions/cancel', async (request) => {
@@ -967,7 +1060,8 @@ export async function adminRoutes(app: FastifyInstance) {
       return changed
     })
     const workspace = await app.prisma.workspace.findUnique({ where: { id: updated.workspaceId } })
-    return subscriptionDto({ ...updated, workspace })
+    const planPackage = updated.planPackageId ? await app.prisma.planPackage.findUnique({ where: { id: updated.planPackageId } }) : null
+    return subscriptionDto({ ...updated, workspace, planPackage })
   })
 
   app.get('/audit-logs', async (request) => {

@@ -10,6 +10,7 @@ import {
   CreditCard,
   FileText,
   Layers3,
+  PackagePlus,
   PackageCheck,
   RefreshCw,
   ShieldCheck,
@@ -52,7 +53,7 @@ const platformCards = computed(() => {
     {
       label: 'Paket aktif',
       value: formatNumber(activeSubscriptions.value),
-      caption: `${formatCurrency(stats.value.total_revenue)} estimasi MRR`,
+      caption: `${formatCurrency(stats.value.total_revenue)} MRR paket + add-on`,
       icon: Wallet,
       tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     },
@@ -129,7 +130,8 @@ const riskSignals = computed(() => {
 
 const quickActions = [
   { label: 'Tambah tenant', caption: 'Setup workspace, owner, gudang, staff', icon: Building2, path: '/admin/workspaces' },
-  { label: 'Atur paket & durasi', caption: 'Naik, turun, atau perpanjang subscription', icon: CreditCard, path: '/admin/subscriptions' },
+  { label: 'Produk SaaS', caption: 'Kelola paket, fitur, dan add-on', icon: PackagePlus, path: '/admin/packages' },
+  { label: 'Subscription tenant', caption: 'Naik, turun, atau perpanjang masa aktif', icon: CreditCard, path: '/admin/subscriptions' },
   { label: 'Data klien', caption: 'Kelola produk, stok, dan supplier tenant', icon: Warehouse, path: '/admin/client-warehouse' },
   { label: 'Audit aktivitas', caption: 'Lihat riwayat perubahan lintas tenant', icon: FileText, path: '/admin/audit-logs' },
 ]

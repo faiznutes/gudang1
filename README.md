@@ -34,4 +34,4 @@ pnpm build:all
 - PostgreSQL
 
 See `docs/backend-pwa-plan.md` for the backend, entitlement, access-control, and PWA offline-sync plan.
-See `docs/stockpilot-saas-wms-audit.md` for the SaaS WMS Lite product audit and `docs/stockpilot-module-roadmap.md` for module guardrails.
+See `docs/stockpilot-saas-wms-audit.md` for the SaaS WMS Lite product audit, monetization foundation notes, and `docs/stockpilot-module-roadmap.md` for module guardrails.

@@ -105,6 +105,37 @@ export async function notificationRoutes(app: FastifyInstance) {
       }
     }
 
+    const queuedDeliveries = await app.prisma.notificationDelivery.findMany({
+      where: {
+        status: 'pending',
+        scheduledAt: { lte: now },
+        ...(ctx.platformRole === 'super_admin' ? {} : { workspaceId: ctx.workspaceId }),
+      },
+      orderBy: { scheduledAt: 'desc' },
+      take: 20,
+    })
+
+    for (const delivery of queuedDeliveries) {
+      const payload = (delivery.payload ?? {}) as Record<string, unknown>
+      const daysRemaining = typeof payload.days_remaining === 'number' ? payload.days_remaining : undefined
+      const workspaceName = typeof payload.workspace_name === 'string' ? payload.workspace_name : 'Tenant'
+      const packageName = typeof payload.package_name === 'string' ? payload.package_name : 'paket'
+      const isExpired = delivery.type.startsWith('subscription.expired')
+      notifications.push({
+        id: `delivery:${delivery.id}`,
+        type: isExpired ? 'subscription_expired' : 'subscription_expiring',
+        severity: isExpired ? 'critical' : severityForDays(daysRemaining ?? settings.subscriptionReminderDays),
+        title: isExpired ? 'Langganan berakhir' : `Langganan ${daysRemaining ?? settings.subscriptionReminderDays} hari lagi`,
+        message: isExpired
+          ? `${workspaceName} sudah melewati masa aktif ${packageName}.`
+          : `${workspaceName} paket ${packageName} akan berakhir dalam ${daysRemaining ?? settings.subscriptionReminderDays} hari.`,
+        created_at: delivery.scheduledAt.toISOString(),
+        action_url: ctx.platformRole === 'super_admin' ? '/admin/subscriptions' : '/app/billing',
+        days_remaining: daysRemaining,
+        read: false,
+      })
+    }
+
     notifications.sort((a, b) => {
       const rank: Record<NotificationSeverity, number> = { critical: 0, warning: 1, info: 2 }
       return rank[a.severity] - rank[b.severity] || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

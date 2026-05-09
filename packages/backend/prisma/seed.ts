@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedDefaultPlanPackages } from '../src/lib/plans.js'
 
 const prisma = new PrismaClient()
 
@@ -119,6 +120,7 @@ async function main() {
   })
 
   await removeTenantSeedDataOnce()
+  await seedDefaultPlanPackages(prisma)
 
   await prisma.workspaceMember.upsert({
     where: { userId_workspaceId: { userId: superAdmin.id, workspaceId: platformWorkspace.id } },

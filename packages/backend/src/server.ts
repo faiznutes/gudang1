@@ -17,6 +17,8 @@ import { billingRoutes } from './routes/billing.js'
 import { notificationRoutes } from './routes/notifications.js'
 import { importExportRoutes } from './routes/importExport.js'
 import { adminManagementRoutes } from './routes/adminManagement.js'
+import { adminMonetizationRoutes } from './routes/adminMonetization.js'
+import { installSubscriptionLifecycle } from './lib/subscriptionLifecycle.js'
 
 export function createApp() {
   const app = Fastify({
@@ -48,6 +50,8 @@ export function createApp() {
   app.register(importExportRoutes, { prefix: '/api' })
   app.register(adminRoutes, { prefix: '/api/admin' })
   app.register(adminManagementRoutes, { prefix: '/api/admin' })
+  app.register(adminMonetizationRoutes, { prefix: '/api/admin' })
+  installSubscriptionLifecycle(app)
 
   app.addHook('onClose', async () => {
     await app.prisma.$disconnect()

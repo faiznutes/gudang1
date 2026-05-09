@@ -182,11 +182,11 @@ export const useAuthStore = defineStore('auth', () => {
     applySession(session)
   }
 
-  async function upgradePlan(plan: PlanType) {
+  async function upgradePlan(plan: string) {
     const entitlements = await billingService.changePlan(plan)
     entitlementsStore.setEntitlements(entitlements)
     if (workspace.value) {
-      workspace.value.plan = plan
+      workspace.value.plan = entitlements.plan
       workspace.value.status = 'active'
       workspace.value.trial_ends_at = null
     }

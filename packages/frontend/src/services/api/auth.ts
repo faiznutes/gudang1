@@ -36,6 +36,8 @@ export interface Workspace {
 
 export interface EntitlementResponse {
   plan: 'free' | 'starter' | 'growth' | 'pro' | 'custom'
+  packageCode?: string
+  packageName?: string
   subscriptionStatus: 'active' | 'cancelled' | 'past_due' | 'expired' | 'trialing' | 'none'
   trialEndsAt: string | null
   subscriptionStartsAt: string | null
@@ -58,6 +60,7 @@ export interface EntitlementResponse {
     products: number
     users: number
   }
+  addons?: Array<{ code: string; name: string; quantity: number; current_period_end: string | null }>
 }
 
 export interface SessionPolicy {

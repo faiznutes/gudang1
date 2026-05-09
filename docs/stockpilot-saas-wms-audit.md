@@ -26,6 +26,18 @@ Highest leverage:
 - Make pricing modular but simple.
 - Make every paid feature enforceable in UI, router, backend, and tests.
 
+## Monetization Foundation Status
+
+The first runtime foundation is now DB-backed and manual-first:
+
+- Super admin can manage `PlanPackage` records for package code, name, monthly/yearly price, feature flags, trial days, and limits.
+- Super admin can manage `Addon` records for extra feature grants or limit increments.
+- Tenant subscription rows can snapshot package, billing cycle, amount, and source while preserving legacy `Workspace.plan` compatibility.
+- Add-on assignment is workspace-scoped, auditable, and included in entitlement resolution.
+- Subscription lifecycle can queue in-app reminders and mark expired subscriptions idempotently.
+
+Payment gateway integration remains intentionally postponed. The product should first prove manual subscription operations, package clarity, and entitlement safety before adding Midtrans/Xendit/Stripe complexity.
+
 ## Business Model Audit
 
 Best model: **modular WMS Lite subscription**.

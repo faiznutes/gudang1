@@ -17,6 +17,7 @@ const backendPrefixes: Record<string, string> = {
   'importExport.ts': '/api',
   'admin.ts': '/api/admin',
   'adminManagement.ts': '/api/admin',
+  'adminMonetization.ts': '/api/admin',
 }
 
 const frontendMethodMap: Record<string, string> = {

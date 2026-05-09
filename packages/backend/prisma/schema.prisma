@@ -31,6 +31,43 @@ enum SubscriptionStatus {
   trialing
 }
 
+enum BillingCycle {
+  monthly
+  yearly
+  manual
+}
+
+enum CatalogStatus {
+  active
+  archived
+}
+
+enum AddonAssignmentStatus {
+  active
+  cancelled
+  expired
+}
+
+enum SubscriptionSource {
+  tenant
+  admin
+  manual
+  system
+}
+
+enum NotificationChannel {
+  in_app
+  email
+  whatsapp
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  sent
+  failed
+  skipped
+}
+
 enum WorkspaceStatus {
   active
   suspended
@@ -66,6 +103,9 @@ model User {
   auditLogs      AuditLog[]
   syncOperations SyncOperation[]
   scheduledActivities ScheduledActivity[]
+  assignedAddons  WorkspaceAddon[]     @relation("AddonAssignedBy")
+  subscriptionEvents SubscriptionEvent[]
+  notificationDeliveries NotificationDelivery[]
 }
 
 model Workspace {
@@ -80,6 +120,9 @@ model Workspace {
   members        WorkspaceMember[]
   subscriptions  Subscription[]
   entitlements   Entitlement[]
+  workspaceAddons WorkspaceAddon[]
+  subscriptionEvents SubscriptionEvent[]
+  notificationDeliveries NotificationDelivery[]
   categories     Category[]
   products       Product[]
   warehouses     Warehouse[]
@@ -108,16 +151,145 @@ model WorkspaceMember {
 model Subscription {
   id                 String             @id @default(cuid())
   workspaceId        String
+  planPackageId      String?
   plan               PlanType
   status             SubscriptionStatus @default(active)
+  billingCycle       BillingCycle       @default(monthly)
+  amountSnapshot     Int                @default(0)
+  source             SubscriptionSource @default(tenant)
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
   cancelAtPeriodEnd  Boolean            @default(false)
+  graceEndsAt         DateTime?
+  renewalReminderSentAt DateTime?
+  expiredProcessedAt DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planPackage        PlanPackage?       @relation(fields: [planPackageId], references: [id], onDelete: SetNull)
+  events             SubscriptionEvent[]
 
   @@index([workspaceId, status])
+  @@index([planPackageId])
+}
+
+model PlanPackage {
+  id                   String        @id @default(cuid())
+  code                 String        @unique
+  name                 String
+  description          String?
+  status               CatalogStatus @default(active)
+  monthlyPrice         Int           @default(0)
+  yearlyPrice          Int?
+  originalMonthlyPrice Int?
+  trialDays            Int           @default(0)
+  sortOrder            Int           @default(0)
+  warehouseLimit       Int           @default(1)
+  productLimit         Int           @default(100)
+  userLimit            Int           @default(1)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  features             PlanFeature[]
+  subscriptions        Subscription[]
+
+  @@index([status, sortOrder])
+}
+
+model PlanFeature {
+  id            String      @id @default(cuid())
+  planPackageId String
+  feature       String
+  enabled       Boolean     @default(true)
+  limit         Int?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  planPackage   PlanPackage @relation(fields: [planPackageId], references: [id], onDelete: Cascade)
+
+  @@unique([planPackageId, feature])
+  @@index([feature])
+}
+
+model Addon {
+  id             String             @id @default(cuid())
+  code           String             @unique
+  name           String
+  description    String?
+  status         CatalogStatus      @default(active)
+  monthlyPrice   Int                @default(0)
+  yearlyPrice    Int?
+  featureKey     String?
+  limitKey       String?
+  limitIncrement Int?
+  sortOrder      Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  assignments    WorkspaceAddon[]
+
+  @@index([status, sortOrder])
+}
+
+model WorkspaceAddon {
+  id                 String                @id @default(cuid())
+  workspaceId        String
+  addonId            String
+  status             AddonAssignmentStatus @default(active)
+  billingCycle       BillingCycle          @default(manual)
+  quantity           Int                   @default(1)
+  amountSnapshot     Int                   @default(0)
+  currentPeriodStart DateTime              @default(now())
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean               @default(false)
+  assignedById       String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  workspace          Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  addon              Addon                 @relation(fields: [addonId], references: [id], onDelete: Cascade)
+  assignedBy         User?                 @relation("AddonAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  events             SubscriptionEvent[]
+
+  @@index([workspaceId, status])
+  @@index([addonId, status])
+}
+
+model SubscriptionEvent {
+  id                 String          @id @default(cuid())
+  workspaceId        String
+  subscriptionId     String?
+  workspaceAddonId   String?
+  userId             String?
+  type               String
+  metadata           Json?
+  createdAt          DateTime        @default(now())
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription       Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  workspaceAddon     WorkspaceAddon? @relation(fields: [workspaceAddonId], references: [id], onDelete: SetNull)
+  user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([subscriptionId])
+  @@index([workspaceAddonId])
+  @@index([type])
+}
+
+model NotificationDelivery {
+  id          String                     @id @default(cuid())
+  workspaceId String?
+  userId      String?
+  channel     NotificationChannel        @default(in_app)
+  type        String
+  status      NotificationDeliveryStatus @default(pending)
+  scheduledAt DateTime                   @default(now())
+  sentAt      DateTime?
+  attempts    Int                        @default(0)
+  payload     Json
+  lastError   String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  workspace   Workspace?                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status, scheduledAt])
+  @@index([type, scheduledAt])
 }
 
 model Entitlement {

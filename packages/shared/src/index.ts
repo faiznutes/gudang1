@@ -7,6 +7,15 @@ export type PlanType = (typeof PLAN_TYPES)[number]
 export const SUBSCRIPTION_STATUSES = ['active', 'cancelled', 'past_due', 'expired', 'trialing'] as const
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number]
 
+export const BILLING_CYCLES = ['monthly', 'yearly', 'manual'] as const
+export type BillingCycle = (typeof BILLING_CYCLES)[number]
+
+export const CATALOG_STATUSES = ['active', 'archived'] as const
+export type CatalogStatus = (typeof CATALOG_STATUSES)[number]
+
+export const ADDON_ASSIGNMENT_STATUSES = ['active', 'cancelled', 'expired'] as const
+export type AddonAssignmentStatus = (typeof ADDON_ASSIGNMENT_STATUSES)[number]
+
 export const FEATURE_KEYS = [
   'stockInOut',
   'multiWarehouse',
@@ -266,8 +275,51 @@ export interface EntitlementUsage {
   users: number
 }
 
+export interface PlanPackageContract {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  status: CatalogStatus
+  monthly_price: number
+  yearly_price: number | null
+  original_monthly_price: number | null
+  trial_days: number
+  sort_order: number
+  limits: EntitlementLimits
+  features: FeatureMap
+}
+
+export interface AddonContract {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  status: CatalogStatus
+  monthly_price: number
+  yearly_price: number | null
+  feature_key: FeatureKey | null
+  limit_key: keyof EntitlementLimits | null
+  limit_increment: number | null
+  sort_order: number
+}
+
+export interface WorkspaceAddonContract {
+  id: string
+  workspace_id: string
+  addon: AddonContract
+  status: AddonAssignmentStatus
+  billing_cycle: BillingCycle
+  quantity: number
+  amount: number
+  current_period_start: string
+  current_period_end: string | null
+}
+
 export interface EntitlementResponse {
   plan: PlanType
+  packageCode?: string
+  packageName?: string
   subscriptionStatus: SubscriptionStatus | 'none'
   trialEndsAt: string | null
   subscriptionStartsAt: string | null
@@ -275,6 +327,12 @@ export interface EntitlementResponse {
   features: FeatureMap
   limits: EntitlementLimits
   usage: EntitlementUsage
+  addons?: Array<{
+    code: string
+    name: string
+    quantity: number
+    current_period_end: string | null
+  }>
 }
 
 export interface SessionRoleContext {

@@ -25,6 +25,7 @@ Core:
 - Supplier directory.
 - Activity timeline and in-app notifications.
 - Billing, subscription, entitlement, and platform admin controls.
+- DB-backed package catalog, add-on catalog, workspace add-on assignment, and subscription lifecycle events.
 
 Premium:
 
@@ -34,7 +35,7 @@ Premium:
 
 Operational rule:
 
-- Existing production behavior stays unchanged. This roadmap is a strategy contract, not a pricing migration.
+- Existing tenant behavior stays compatible through legacy plan codes while package/add-on configuration moves to database-backed super admin controls.
 
 ## Next Foundation
 
@@ -78,7 +79,7 @@ Do not build:
 
 ## Pricing Direction
 
-Keep current runtime pricing until a separate pricing migration is approved.
+Use the current package seed as the default pricing baseline. Super admin can adjust active package/add-on records manually; payment gateway automation remains a later module.
 
 Future pricing shape:
 
@@ -87,6 +88,13 @@ Future pricing shape:
 - Growth: multi-warehouse and analytics.
 - Pro: import/export, PDF, larger limits.
 - Custom: integration support, enterprise terms, possible isolation review.
+
+Add-on candidates:
+
+- Extra users, products, or warehouses.
+- Batch import/export unlock for lower packages.
+- Analytics unlock for selected tenants.
+- Future integration or WhatsApp channels after core notification rules stabilize.
 
 Upsell should come from usage and operational maturity:
 

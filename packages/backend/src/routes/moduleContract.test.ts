@@ -9,6 +9,7 @@ const backendPrefixes: Record<string, string> = {
   'activities.ts': '/api',
   'admin.ts': '/api/admin',
   'adminManagement.ts': '/api/admin',
+  'adminMonetization.ts': '/api/admin',
   'analytics.ts': '/api',
   'auth.ts': '/api/auth',
   'billing.ts': '/api',

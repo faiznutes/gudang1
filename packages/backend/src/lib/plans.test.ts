@@ -99,4 +99,85 @@ describe('PLAN_CATALOG', () => {
     expect(entitlements.trialEndsAt).not.toBeNull()
     expect(entitlements.features.batchImport).toBe(true)
   })
+
+  it('uses an active DB package as the entitlement source of truth', async () => {
+    const now = new Date()
+    const entitlements = await getEntitlements(mockApp({
+      id: 'workspace-3',
+      plan: 'custom',
+      status: 'active',
+      trialEndsAt: null,
+      entitlements: [],
+      workspaceAddons: [],
+      subscriptions: [
+        {
+          plan: 'custom',
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: addDays(30),
+          planPackage: {
+            code: 'growth-plus',
+            name: 'Growth Plus',
+            warehouseLimit: 8,
+            productLimit: 4000,
+            userLimit: 15,
+            features: [
+              { feature: 'stockInOut', enabled: true },
+              { feature: 'multiWarehouse', enabled: true },
+              { feature: 'analytics', enabled: true },
+              { feature: 'exportPDF', enabled: false },
+              { feature: 'batchImport', enabled: true },
+              { feature: 'reports', enabled: true },
+            ],
+          },
+        },
+      ],
+    }), 'workspace-3')
+
+    expect(entitlements.plan).toBe('custom')
+    expect(entitlements.packageCode).toBe('growth-plus')
+    expect(entitlements.packageName).toBe('Growth Plus')
+    expect(entitlements.limits).toMatchObject({ warehouses: 8, products: 4000, users: 15 })
+    expect(entitlements.features.batchImport).toBe(true)
+    expect(entitlements.features.exportPDF).toBe(false)
+  })
+
+  it('adds active add-on feature grants and limit increments after the base package', async () => {
+    const now = new Date()
+    const entitlements = await getEntitlements(mockApp({
+      id: 'workspace-4',
+      plan: 'starter',
+      status: 'active',
+      trialEndsAt: null,
+      entitlements: [],
+      workspaceAddons: [
+        {
+          status: 'active',
+          quantity: 2,
+          currentPeriodEnd: addDays(30),
+          addon: {
+            code: 'extra-users',
+            name: 'Extra Users',
+            featureKey: 'analytics',
+            limitKey: 'users',
+            limitIncrement: 3,
+          },
+        },
+      ],
+      subscriptions: [
+        {
+          plan: 'starter',
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: addDays(30),
+        },
+      ],
+    }), 'workspace-4')
+
+    expect(entitlements.features.analytics).toBe(true)
+    expect(entitlements.limits.users).toBe(8)
+    expect(entitlements.addons).toEqual([
+      { code: 'extra-users', name: 'Extra Users', quantity: 2, current_period_end: expect.any(String) },
+    ])
+  })
 })

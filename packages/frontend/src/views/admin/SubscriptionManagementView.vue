@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { CalendarDays, ChevronLeft, ChevronRight, CreditCard, Eye, RefreshCw, Save, Search, TrendingUp, Wallet, XCircle } from 'lucide-vue-next'
-import adminService, { type AdminPlan, type Subscription, type SubscriptionStatus } from '@/services/api/admin'
+import adminService, { type Addon, type AdminPlan, type BillingCycle, type PlanPackage, type Subscription, type SubscriptionStatus, type WorkspaceAddon } from '@/services/api/admin'
 import { labelFrom, planLabels, subscriptionStatusLabels, workspaceStatusLabels } from '@/lib/labels'
 
 const subscriptions = ref<Subscription[]>([])
+const packages = ref<PlanPackage[]>([])
+const addons = ref<Addon[]>([])
+const workspaceAddons = ref<WorkspaceAddon[]>([])
 const searchQuery = ref('')
 const selectedPlanFilter = ref('all')
 const selectedStatusFilter = ref('all')
@@ -25,6 +28,12 @@ const periodDraft = ref<{ current_period_start: string; current_period_end: stri
   status: 'active',
   reason: '',
 })
+const addonDraft = ref<{ addon_id: string; billing_cycle: BillingCycle; quantity: number; current_period_end: string }>({
+  addon_id: '',
+  billing_cycle: 'manual',
+  quantity: 1,
+  current_period_end: '',
+})
 const itemsPerPage = 10
 
 const revenueStats = computed(() => {
@@ -40,11 +49,11 @@ const revenueStats = computed(() => {
 })
 
 const planStats = computed(() => {
-  const plans: AdminPlan[] = ['pro', 'growth', 'starter', 'free', 'custom']
+  const plans: AdminPlan[] = Array.from(new Set(subscriptions.value.map(subscription => subscription.package_code ?? subscription.plan)))
   return plans.map(plan => ({
     plan,
-    count: subscriptions.value.filter(subscription => subscription.plan === plan).length,
-    revenue: subscriptions.value.filter(subscription => subscription.plan === plan && subscription.status === 'active').reduce((sum, subscription) => sum + subscription.amount, 0),
+    count: subscriptions.value.filter(subscription => (subscription.package_code ?? subscription.plan) === plan).length,
+    revenue: subscriptions.value.filter(subscription => (subscription.package_code ?? subscription.plan) === plan && subscription.status === 'active').reduce((sum, subscription) => sum + subscription.amount, 0),
   })).filter(item => item.count > 0)
 })
 
@@ -72,18 +81,44 @@ async function loadSubscriptions(page = currentPage.value) {
   }
 }
 
+async function loadPackages() {
+  try {
+    packages.value = await adminService.getPackages('active')
+  } catch {
+    packages.value = []
+  }
+}
+
+async function loadAddons() {
+  try {
+    addons.value = await adminService.getAddons('active')
+  } catch {
+    addons.value = []
+  }
+}
+
+async function loadWorkspaceAddons(workspaceId: string) {
+  try {
+    workspaceAddons.value = await adminService.getWorkspaceAddons(workspaceId)
+  } catch {
+    workspaceAddons.value = []
+  }
+}
+
 function applyFilters() {
   loadSubscriptions(1)
 }
 
-function openDetailModal(subscription: Subscription) {
+async function openDetailModal(subscription: Subscription) {
   selectedSubscription.value = subscription
   showDetailModal.value = true
+  addonDraft.value = { addon_id: addons.value[0]?.id ?? '', billing_cycle: 'manual', quantity: 1, current_period_end: '' }
+  await loadWorkspaceAddons(subscription.workspace_id)
 }
 
 function openPlanModal(subscription: Subscription) {
   selectedSubscription.value = subscription
-  planDraft.value = subscription.plan
+  planDraft.value = subscription.package_code ?? subscription.plan
   showPlanModal.value = true
 }
 
@@ -165,6 +200,39 @@ async function cancelSubscription(subscription: Subscription) {
   }
 }
 
+async function assignAddon() {
+  if (!selectedSubscription.value || !addonDraft.value.addon_id) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await adminService.assignWorkspaceAddon(selectedSubscription.value.workspace_id, {
+      addon_id: addonDraft.value.addon_id,
+      billing_cycle: addonDraft.value.billing_cycle,
+      quantity: addonDraft.value.quantity,
+      current_period_end: addonDraft.value.current_period_end ? new Date(addonDraft.value.current_period_end).toISOString() : null,
+    })
+    await loadWorkspaceAddons(selectedSubscription.value.workspace_id)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Add-on gagal ditambahkan'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function cancelAddon(assignment: WorkspaceAddon) {
+  if (!selectedSubscription.value) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await adminService.cancelWorkspaceAddon(selectedSubscription.value.workspace_id, assignment.id)
+    await loadWorkspaceAddons(selectedSubscription.value.workspace_id)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Add-on gagal dibatalkan'
+  } finally {
+    saving.value = false
+  }
+}
+
 function nextPage() {
   if (currentPage.value < totalPages.value) loadSubscriptions(currentPage.value + 1)
 }
@@ -204,7 +272,9 @@ function getStatusBadge(status: string) {
   return badges[status] || 'bg-neutral-100 text-neutral-700'
 }
 
-onMounted(() => loadSubscriptions(1))
+onMounted(async () => {
+  await Promise.all([loadPackages(), loadAddons(), loadSubscriptions(1)])
+})
 </script>
 
 <template>
@@ -255,11 +325,7 @@ onMounted(() => loadSubscriptions(1))
         </div>
         <select v-model="selectedPlanFilter" class="input w-full md:w-40" @change="applyFilters">
           <option value="all">Semua Paket</option>
-          <option value="free">Gratis</option>
-          <option value="starter">Starter</option>
-          <option value="growth">Growth</option>
-          <option value="pro">Pro</option>
-          <option value="custom">Kustom</option>
+          <option v-for="planPackage in packages" :key="planPackage.id" :value="planPackage.code">{{ planPackage.name }}</option>
         </select>
         <select v-model="selectedStatusFilter" class="input w-full md:w-44" @change="applyFilters">
           <option value="all">Semua Status</option>
@@ -301,7 +367,7 @@ onMounted(() => loadSubscriptions(1))
                 </td>
                 <td class="px-4 py-3">
                   <span :class="['rounded-full px-2 py-1 text-xs font-medium', getPlanBadge(subscription.plan)]">
-                    {{ labelFrom(planLabels, subscription.plan) }}
+                    {{ subscription.package_name ?? labelFrom(planLabels, subscription.package_code ?? subscription.plan) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-sm font-medium text-neutral-900">{{ formatCurrency(subscription.amount) }}</td>
@@ -409,7 +475,7 @@ onMounted(() => loadSubscriptions(1))
           </div>
           <div class="rounded-lg bg-neutral-50 p-3">
             <p class="text-xs uppercase text-neutral-500">Paket</p>
-            <p class="text-sm font-medium text-neutral-900">{{ labelFrom(planLabels, selectedSubscription.plan) }}</p>
+            <p class="text-sm font-medium text-neutral-900">{{ selectedSubscription.package_name ?? labelFrom(planLabels, selectedSubscription.package_code ?? selectedSubscription.plan) }}</p>
           </div>
           <div class="rounded-lg bg-neutral-50 p-3">
             <p class="text-xs uppercase text-neutral-500">Status</p>
@@ -422,6 +488,33 @@ onMounted(() => loadSubscriptions(1))
           <div class="rounded-lg bg-neutral-50 p-3 sm:col-span-2">
             <p class="text-xs uppercase text-neutral-500">Periode</p>
             <p class="text-sm font-medium text-neutral-900">{{ formatDate(selectedSubscription.current_period_start) }} - {{ formatDate(selectedSubscription.current_period_end) }}</p>
+          </div>
+          <div class="rounded-lg bg-neutral-50 p-3 sm:col-span-2">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-xs uppercase text-neutral-500">Add-on Aktif</p>
+                <p class="text-sm text-neutral-600">Tambahkan add-on manual untuk tenant ini.</p>
+              </div>
+            </div>
+            <div class="mt-3 space-y-2">
+              <div v-if="workspaceAddons.length === 0" class="text-sm text-neutral-500">Belum ada add-on.</div>
+              <div v-for="assignment in workspaceAddons" :key="assignment.id" class="flex items-center justify-between gap-3 rounded-lg bg-white p-2 text-sm">
+                <div>
+                  <p class="font-bold text-neutral-900">{{ assignment.addon.name }}</p>
+                  <p class="text-xs text-neutral-500">{{ formatCurrency(assignment.amount) }} - {{ assignment.status }}</p>
+                </div>
+                <button v-if="assignment.status === 'active'" class="rounded-lg px-2 py-1 text-xs font-bold text-danger-600 hover:bg-danger-50" @click="cancelAddon(assignment)">
+                  Batalkan
+                </button>
+              </div>
+            </div>
+            <div v-if="addons.length > 0" class="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_110px]">
+              <select v-model="addonDraft.addon_id" class="input w-full">
+                <option v-for="addon in addons" :key="addon.id" :value="addon.id">{{ addon.name }}</option>
+              </select>
+              <input v-model.number="addonDraft.quantity" type="number" min="1" class="input w-full" />
+              <button class="btn-primary" :disabled="saving || !addonDraft.addon_id" @click="assignAddon">Tambah</button>
+            </div>
           </div>
         </div>
         <div class="flex justify-end gap-3 border-t border-neutral-200 p-4">
@@ -439,11 +532,7 @@ onMounted(() => loadSubscriptions(1))
         <div class="space-y-4 p-4">
           <p class="text-sm text-neutral-600">Tenant: {{ selectedSubscription.workspace?.name ?? '-' }}</p>
           <select v-model="planDraft" class="input w-full">
-            <option value="free">Gratis</option>
-            <option value="starter">Starter</option>
-            <option value="growth">Growth</option>
-            <option value="pro">Pro</option>
-            <option value="custom">Kustom</option>
+            <option v-for="planPackage in packages" :key="planPackage.id" :value="planPackage.code">{{ planPackage.name }}</option>
           </select>
         </div>
         <div class="flex justify-end gap-3 border-t border-neutral-200 p-4">

@@ -16,6 +16,7 @@ import {
   LifeBuoy,
   LogOut,
   MoreHorizontal,
+  PackagePlus,
   Settings,
   ShieldCheck,
   UserCog,
@@ -74,6 +75,14 @@ const adminNavItems = [
     tone: 'from-rose-500 to-pink-400',
   },
   {
+    name: 'Produk SaaS',
+    shortName: 'SaaS',
+    description: 'Paket, fitur, dan add-on',
+    icon: PackagePlus,
+    route: '/admin/packages',
+    tone: 'from-cyan-500 to-blue-400',
+  },
+  {
     name: 'Audit',
     shortName: 'Audit',
     description: 'Riwayat aktivitas platform',
@@ -97,7 +106,7 @@ const rightItems = [
   adminNavItems[4],
   { name: 'Lainnya', shortName: 'Menu', description: 'Menu lengkap', icon: MoreHorizontal, route: '', tone: 'from-neutral-700 to-neutral-500', action: 'more' },
 ]
-const moreMenuItems = [adminNavItems[1], adminNavItems[5], adminNavItems[6], adminNavItems[3], adminNavItems[4], adminNavItems[2]]
+const moreMenuItems = [adminNavItems[1], adminNavItems[5], adminNavItems[6], adminNavItems[7], adminNavItems[3], adminNavItems[4], adminNavItems[2]]
 
 const currentNavItem = computed(() => {
   return adminNavItems.find(item => isActive(item.route)) ?? adminNavItems[0]
