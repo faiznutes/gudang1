@@ -54,6 +54,7 @@
 
 ## Data Model Summary
 
+- Tenant database strategy: shared database + shared schema + strict `workspaceId` isolation. This is the default architecture for Indonesian UMKM SaaS because it keeps cost, backup, migration, and cross-tenant platform reporting manageable. Isolated tenant databases are postponed to enterprise/custom contracts only.
 - Identity and tenancy: `User`, `Workspace`, `WorkspaceMember`.
 - Commercial state: `Subscription`, `Entitlement`, `SystemSetting`.
 - Inventory domain: `Category`, `Product`, `Warehouse`, `InventoryItem`, `StockMovement`, `Supplier`.
