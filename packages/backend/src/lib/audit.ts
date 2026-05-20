@@ -3,7 +3,7 @@ import type { AuthContext } from '../middleware/auth.js'
 
 export async function writeAuditLog(
   app: FastifyInstance,
-  ctx: AuthContext,
+  ctx: Pick<AuthContext, 'userId' | 'workspaceId'>,
   request: FastifyRequest,
   input: {
     action: string

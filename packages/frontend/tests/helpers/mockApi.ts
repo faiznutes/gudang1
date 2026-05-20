@@ -62,7 +62,7 @@ export const superAdminSession = {
   session_policy: { timeout_minutes: 30, lock_actions_after_expiry: true },
 }
 
-const category = { id: 'cat-1', name: 'Umum', description: 'Kategori default' }
+const category = { id: 'cat-1', name: 'Umum', description: 'Kategori default', disabled_at: null, created_at: '2026-05-01T00:00:00.000Z', updated_at: '2026-05-01T00:00:00.000Z' }
 const warehouse = { id: 'wh-1', name: 'Gudang Utama', address: 'Jakarta', is_default: true, disabled_at: null, created_at: '2026-05-01T00:00:00.000Z' }
 const product = {
   id: 'product-1',
@@ -90,7 +90,8 @@ export async function seedToken(page: Page) {
 }
 
 export async function mockTenantApi(page: Page, captures: Record<string, unknown> = {}) {
-  const products = [product]
+  let products = [product]
+  let categories = [category]
   let inventory = [{
     id: 'inv-1',
     product_id: product.id,
@@ -139,7 +140,8 @@ export async function mockTenantApi(page: Page, captures: Record<string, unknown
     }
     if (path === '/api/products' && method === 'POST') {
       const body = request.postDataJSON()
-      const created = { ...product, ...body, id: 'product-created', category, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      const matchedCategory = categories.find(item => item.id === body.category_id) ?? category
+      const created = { ...product, ...body, id: 'product-created', category: matchedCategory, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
       products.unshift(created)
       captures.createdProduct = body
       await route.fulfill({ json: created })
@@ -153,8 +155,64 @@ export async function mockTenantApi(page: Page, captures: Record<string, unknown
       await route.fulfill({ json: [] })
       return
     }
-    if (path === '/api/categories') {
-      await route.fulfill({ json: [category] })
+    if (path === '/api/categories' && method === 'GET') {
+      const status = url.searchParams.get('status') ?? 'all'
+      const filtered = status === 'active'
+        ? categories.filter(item => !item.disabled_at)
+        : status === 'archived'
+          ? categories.filter(item => item.disabled_at)
+          : categories
+      await route.fulfill({ json: filtered })
+      return
+    }
+    if (path === '/api/categories' && method === 'POST') {
+      const body = request.postDataJSON()
+      const existing = categories.find(item => item.name.toLowerCase() === String(body.name || '').toLowerCase())
+      if (existing && !existing.disabled_at) {
+        await route.fulfill({ status: 409, json: { code: 'conflict', message: 'Kategori dengan nama ini sudah ada' } })
+        return
+      }
+      const nextCategory = existing
+        ? { ...existing, description: body.description ?? existing.description, disabled_at: null, updated_at: new Date().toISOString() }
+        : { id: `cat-${categories.length + 1}`, name: body.name, description: body.description, disabled_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      if (existing) {
+        categories = categories.map(item => (item.id === existing.id ? nextCategory : item))
+        products = products.map(item => item.category_id === existing.id ? { ...item, category: nextCategory } : item)
+      } else {
+        categories.unshift(nextCategory)
+      }
+      await route.fulfill({ json: nextCategory })
+      return
+    }
+    if (path.startsWith('/api/categories/') && path.endsWith('/archive') && method === 'POST') {
+      const id = path.split('/')[3]
+      categories = categories.map(item => (item.id === id ? { ...item, disabled_at: new Date().toISOString(), updated_at: new Date().toISOString() } : item))
+      const updatedCategory = categories.find(item => item.id === id)
+      products = products.map(item => item.category_id === id ? { ...item, category: updatedCategory ?? item.category } : item)
+      await route.fulfill({ json: updatedCategory })
+      return
+    }
+    if (path.startsWith('/api/categories/') && path.endsWith('/restore') && method === 'POST') {
+      const id = path.split('/')[3]
+      categories = categories.map(item => (item.id === id ? { ...item, disabled_at: null, updated_at: new Date().toISOString() } : item))
+      const updatedCategory = categories.find(item => item.id === id)
+      products = products.map(item => item.category_id === id ? { ...item, category: updatedCategory ?? item.category } : item)
+      await route.fulfill({ json: updatedCategory })
+      return
+    }
+    if (path.startsWith('/api/categories/') && path.endsWith('/merge') && method === 'POST') {
+      const sourceId = path.split('/')[3]
+      const body = request.postDataJSON()
+      const target = categories.find(item => item.id === body.target_category_id)
+      categories = categories.map(item => {
+        if (item.id === sourceId) {
+          return { ...item, disabled_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+        }
+        return item
+      })
+      products = products.map(item => item.category_id === sourceId ? { ...item, category_id: body.target_category_id, category: target ?? item.category } : item)
+      const updatedCategory = categories.find(item => item.id === sourceId)
+      await route.fulfill({ json: updatedCategory })
       return
     }
     if (path === '/api/warehouses') {

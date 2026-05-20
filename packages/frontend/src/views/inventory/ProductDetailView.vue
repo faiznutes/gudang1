@@ -23,7 +23,9 @@ const activities = computed(() => {
 
 const categoryName = computed(() => {
   if (!product.value) return '-'
-  return inventoryStore.categories.find(c => c.id === product.value?.category_id)?.name || '-'
+  return inventoryStore.categories.find(c => c.id === product.value?.category_id)?.name
+    || product.value.category?.name
+    || '-'
 })
 
 function formatDate(dateStr: string) {

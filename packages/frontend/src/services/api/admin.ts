@@ -123,9 +123,9 @@ export interface TenantCreatePayload {
   subscription_status: SubscriptionStatus
   current_period_start?: string
   current_period_end?: string
-  owner: { name: string; email: string; password?: string }
+  owner: { name: string; email: string; password: string }
   warehouse: { name: string; address?: string }
-  staff: Array<{ name: string; email: string; password?: string; role: TenantRole }>
+  staff: Array<{ name: string; email: string; password: string; role: TenantRole }>
   suppliers: Array<{ name: string; contact_person?: string; phone?: string; email?: string; address?: string; notes?: string }>
 }
 
@@ -392,7 +392,7 @@ export const adminService = {
     return api.put<WorkspaceUser>(`/admin/workspaces/${workspaceId}/users/${userId}`, { role })
   },
 
-  async createWorkspaceUser(workspaceId: string, data: { name: string; email: string; password?: string; role: TenantRole }): Promise<WorkspaceUser> {
+  async createWorkspaceUser(workspaceId: string, data: { name: string; email: string; password: string; role: TenantRole }): Promise<WorkspaceUser> {
     return api.post<WorkspaceUser>(`/admin/workspaces/${workspaceId}/users`, data)
   },
 

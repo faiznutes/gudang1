@@ -1,5 +1,5 @@
-const CACHE_NAME = 'stockpilot-shell-v5'
-const API_CACHE = 'stockpilot-api-v3'
+const CACHE_NAME = 'stockpilot-shell-v6'
+const API_CACHE = 'stockpilot-api-v4'
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -20,7 +20,18 @@ const CACHEABLE_API_PATTERNS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.allSettled(SHELL_ASSETS.map(async (asset) => {
+        try {
+          const response = await fetch(asset)
+          if (response.ok) {
+            await cache.put(asset, response.clone())
+          }
+        } catch {
+          // Ignore individual shell asset failures so the worker still installs safely.
+        }
+      }))
+    })
   )
   self.skipWaiting()
 })
@@ -74,7 +85,9 @@ async function shellFallback(request) {
     return await fetch(request)
   } catch {
     if (request.mode === 'navigate') {
-      return caches.match('/index.html')
+      const cachedIndex = await caches.match('/index.html')
+      if (cachedIndex) return cachedIndex
+      return new Response('', { status: 503, statusText: 'Network unavailable' })
     }
     return new Response('', { status: 503, statusText: 'Network unavailable' })
   }

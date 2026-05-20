@@ -77,7 +77,7 @@ const outOfStockCount = computed(() => inventoryStore.productsWithInventory.filt
 const selectedProduct = computed(() => products.value.find(product => product.id === selectedProductId.value) || null)
 
 function getCategoryName(categoryId: string) {
-  return categories.value.find(c => c.id === categoryId)?.name || '-'
+  return categories.value.find(c => c.id === categoryId)?.name || products.value.find(product => product.category_id === categoryId)?.category?.name || '-'
 }
 
 function getWarehouseName(warehouseId: string) {
@@ -245,7 +245,7 @@ async function handleImport(event: Event) {
           <select v-model="selectedCategory" class="input">
             <option value="">Semua</option>
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-              {{ cat.name }}
+              {{ cat.name }}{{ cat.disabled_at ? ' (Arsip)' : '' }}
             </option>
           </select>
         </div>

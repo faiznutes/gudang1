@@ -39,10 +39,20 @@ async function ensureWorkspace(app: FastifyInstance, workspaceId: string) {
 
 async function ensureCategory(app: FastifyInstance, workspaceId: string, name?: string) {
   const categoryName = name?.trim() || 'Umum'
-  return app.prisma.category.upsert({
-    where: { workspaceId_name: { workspaceId, name: categoryName } },
-    update: {},
-    create: { workspaceId, name: categoryName },
+  const existing = await app.prisma.category.findFirst({
+    where: { workspaceId, name: categoryName },
+  })
+  if (existing) {
+    if (existing.disabledAt) {
+      return app.prisma.category.update({
+        where: { id: existing.id },
+        data: { disabledAt: null },
+      })
+    }
+    return existing
+  }
+  return app.prisma.category.create({
+    data: { workspaceId, name: categoryName },
   })
 }
 
@@ -147,7 +157,7 @@ export async function adminManagementRoutes(app: FastifyInstance) {
     const body = z.object({
       name: z.string().min(2),
       email: z.string().email(),
-      password: z.string().min(6).default('password123'),
+      password: z.string().min(6),
       role: tenantRoleSchema.default('staff'),
     }).parse(request.body)
     await ensureWorkspace(app, params.workspaceId)

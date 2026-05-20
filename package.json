@@ -10,8 +10,10 @@
     "build:all": "pnpm --filter @stockpilot/shared build && pnpm --filter @stockpilot/backend build && pnpm --filter @stockpilot/frontend build",
     "preview": "pnpm --filter @stockpilot/frontend preview",
     "lint": "pnpm --filter @stockpilot/frontend lint",
+    "lint:check": "pnpm --filter @stockpilot/frontend lint:check",
     "test:backend": "pnpm --filter @stockpilot/backend test",
-    "test:e2e": "pnpm --filter @stockpilot/frontend test:e2e"
+    "test:e2e": "pnpm --filter @stockpilot/frontend test:e2e",
+    "deploy:coolify": "node scripts/coolify-deploy.mjs"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

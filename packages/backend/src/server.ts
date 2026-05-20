@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
+import rateLimit from '@fastify/rate-limit'
 import { PrismaClient } from '@prisma/client'
 import { env } from './config.js'
 import { installErrorHandler } from './lib/errors.js'
@@ -23,6 +24,7 @@ import { installSubscriptionLifecycle } from './lib/subscriptionLifecycle.js'
 export function createApp() {
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : true,
+    trustProxy: env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
   })
 
   app.decorate('prisma', new PrismaClient())
@@ -34,6 +36,30 @@ export function createApp() {
   app.register(cookie)
   app.register(jwt, {
     secret: env.JWT_SECRET,
+  })
+  app.register(rateLimit, {
+    global: true,
+    max: 120,
+    timeWindow: '1 minute',
+    ban: 0,
+    addHeaders: {
+      'x-ratelimit-limit': true,
+      'x-ratelimit-remaining': true,
+      'x-ratelimit-reset': true,
+    },
+    errorResponseBuilder: () => ({
+      statusCode: 429,
+      code: 'rate_limited',
+      message: 'Terlalu banyak percobaan. Coba lagi sebentar.',
+    }),
+  })
+
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff')
+    reply.header('X-Frame-Options', 'DENY')
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+    return payload
   })
 
   installErrorHandler(app)

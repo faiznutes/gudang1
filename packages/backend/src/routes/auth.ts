@@ -1,10 +1,11 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { env } from '../config.js'
 import { AppError } from '../lib/errors.js'
 import { userDto, workspaceDto } from '../lib/mappers.js'
+import { writeAuditLog } from '../lib/audit.js'
 import { getEntitlements } from '../lib/plans.js'
 import { requireAuth } from '../middleware/auth.js'
 import { getPlatformSettings, getSessionPolicy } from '../lib/settings.js'
@@ -75,6 +76,27 @@ function signAccessToken(app: FastifyInstance, payload: { sub: string; workspace
   return app.jwt.sign(payload, { expiresIn: '8h' })
 }
 
+async function writeAuthAuditLog(
+  app: FastifyInstance,
+  request: FastifyRequest,
+  input: {
+    workspaceId: string
+    userId: string
+    action: string
+    metadata?: unknown
+  },
+) {
+  return writeAuditLog(app, {
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+  }, request, {
+    action: input.action,
+    entityType: 'auth_session',
+    entityId: input.userId,
+    metadata: input.metadata,
+  })
+}
+
 async function getValidMembership(app: FastifyInstance, userId: string, workspaceId: string) {
   const membership = await app.prisma.workspaceMember.findUnique({
     where: { userId_workspaceId: { userId, workspaceId } },
@@ -115,7 +137,14 @@ async function issueSession(
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post('/login', async (request, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 8,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const body = loginSchema.parse(request.body)
     const user = await app.prisma.user.findUnique({
       where: { email: body.email.toLowerCase() },
@@ -143,7 +172,17 @@ export async function authRoutes(app: FastifyInstance) {
 
     const sessionPolicy = await getSessionPolicy(app)
     const validMembership = await getValidMembership(app, user.id, membership.workspaceId)
-    return issueSession(app, reply, validMembership, sessionPolicy)
+    const session = await issueSession(app, reply, validMembership, sessionPolicy)
+    await writeAuthAuditLog(app, request, {
+      workspaceId: validMembership.workspaceId,
+      userId: validMembership.userId,
+      action: 'auth.login',
+      metadata: {
+        platform_role: validMembership.user.role,
+        workspace_role: validMembership.role,
+      },
+    })
+    return session
   })
 
   app.post('/register', async () => {
@@ -153,8 +192,18 @@ export async function authRoutes(app: FastifyInstance) {
     )
   })
 
-  app.post('/logout', async (_request, reply) => {
+  app.post('/logout', async (request, reply) => {
     reply.clearCookie('refreshToken', { path: '/api/auth' })
+    try {
+      const ctx = await requireAuth(app, request)
+      await writeAuthAuditLog(app, request, {
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        action: 'auth.logout',
+      })
+    } catch {
+      // Logout should remain idempotent even if the token is already invalid.
+    }
     return { ok: true }
   })
 
@@ -200,15 +249,40 @@ export async function authRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post('/switch-workspace', async (request, reply) => {
+  app.post('/switch-workspace', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const ctx = await requireAuth(app, request, { tenantHeaderMode: 'ignore' })
     const body = switchWorkspaceSchema.parse(request.body)
     const membership = await getValidMembership(app, ctx.userId, body.workspace_id)
     const sessionPolicy = await getSessionPolicy(app)
-    return issueSession(app, reply, membership, sessionPolicy)
+    const session = await issueSession(app, reply, membership, sessionPolicy)
+    await writeAuthAuditLog(app, request, {
+      workspaceId: membership.workspaceId,
+      userId: membership.userId,
+      action: 'auth.switch_workspace',
+      metadata: {
+        from_workspace_id: ctx.workspaceId,
+        to_workspace_id: membership.workspaceId,
+        workspace_role: membership.role,
+      },
+    })
+    return session
   })
 
-  app.post('/refresh', async (request, reply) => {
+  app.post('/refresh', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const refreshToken = request.cookies.refreshToken
     if (!refreshToken) {
       throw new AppError('unauthenticated', 'Refresh token tidak ditemukan')

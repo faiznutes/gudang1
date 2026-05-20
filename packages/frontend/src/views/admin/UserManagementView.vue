@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Ban, Building2, CheckCircle2, ChevronLeft, ChevronRight, Eye, Plus, RefreshCw, Save, Search, Shield, Trash2, UserCog } from 'lucide-vue-next'
 import adminService, { type AdminRole, type TenantRole, type Workspace, type WorkspaceUser } from '@/services/api/admin'
 import { labelFrom, planLabels, roleLabels, workspaceStatusLabels } from '@/lib/labels'
+import { generateTemporaryPassword } from '@/lib/password'
 
 const users = ref<WorkspaceUser[]>([])
 const workspaces = ref<Workspace[]>([])
@@ -24,7 +25,7 @@ const createForm = ref<{ workspace_id: string; name: string; email: string; pass
   workspace_id: '',
   name: '',
   email: '',
-  password: 'password123',
+  password: generateTemporaryPassword(),
   role: 'staff',
 })
 const itemsPerPage = 10
@@ -101,7 +102,7 @@ async function createUser() {
       role: createForm.value.role,
     })
     showCreateModal.value = false
-    createForm.value = { workspace_id: createForm.value.workspace_id, name: '', email: '', password: 'password123', role: 'staff' }
+    createForm.value = { workspace_id: createForm.value.workspace_id, name: '', email: '', password: generateTemporaryPassword(), role: 'staff' }
     await loadUsers()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'User gagal dibuat'
@@ -424,7 +425,12 @@ onMounted(async () => {
           </div>
           <div>
             <label class="label">Password awal</label>
-            <input v-model="createForm.password" type="text" class="input w-full" required />
+            <div class="flex gap-2">
+              <input v-model="createForm.password" type="text" class="input w-full" required />
+              <button type="button" class="btn-secondary shrink-0" @click="createForm.password = generateTemporaryPassword()">
+                Acak
+              </button>
+            </div>
           </div>
           <div>
             <label class="label">Role</label>

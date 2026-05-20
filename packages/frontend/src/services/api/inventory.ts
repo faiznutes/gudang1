@@ -4,6 +4,9 @@ export interface Category {
   id: string
   name: string
   description?: string
+  disabled_at?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Product {
@@ -82,12 +85,29 @@ export const inventoryService = {
     return api.delete<void>(`/products/${id}`)
   },
 
-  async getCategories(): Promise<Category[]> {
-    return api.get<Category[]>('/categories')
+  async getCategories(status: 'active' | 'archived' | 'all' = 'all'): Promise<Category[]> {
+    if (status === 'all') return api.get<Category[]>('/categories')
+    return api.get<Category[]>(`/categories?status=${status}`)
   },
 
   async createCategory(data: Omit<Category, 'id'>): Promise<Category> {
     return api.post<Category>('/categories', data)
+  },
+
+  async updateCategory(id: string, data: Pick<Category, 'name' | 'description'>): Promise<Category> {
+    return api.put<Category>(`/categories/${id}`, data)
+  },
+
+  async archiveCategory(id: string): Promise<Category> {
+    return api.post<Category>(`/categories/${id}/archive`, {})
+  },
+
+  async restoreCategory(id: string): Promise<Category> {
+    return api.post<Category>(`/categories/${id}/restore`, {})
+  },
+
+  async mergeCategory(id: string, targetCategoryId: string): Promise<Category> {
+    return api.post<Category>(`/categories/${id}/merge`, { target_category_id: targetCategoryId })
   },
 
   async getWarehouses(): Promise<Warehouse[]> {

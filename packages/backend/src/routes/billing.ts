@@ -97,7 +97,14 @@ export async function billingRoutes(app: FastifyInstance) {
     return requests.map(billingRequestDto)
   })
 
-  app.post('/billing/requests', async (request) => {
+  app.post('/billing/requests', {
+    config: {
+      rateLimit: {
+        max: 12,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request) => {
     const ctx = await requireAuth(app, request)
     await requireActiveSession(app, ctx)
     requireTenantRole(ctx, ['admin', 'trial'])
@@ -119,7 +126,14 @@ export async function billingRoutes(app: FastifyInstance) {
     })
   })
 
-  app.post('/billing/change-plan', async (request) => {
+  app.post('/billing/change-plan', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request) => {
     const ctx = await requireAuth(app, request)
     await requireActiveSession(app, ctx)
     requireTenantRole(ctx, ['admin', 'trial'])

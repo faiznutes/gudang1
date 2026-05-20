@@ -35,6 +35,13 @@ function handleBeforeInstallPrompt(event: Event) {
   evaluateVisibility()
 }
 
+function handleTestInstallPrompt(event: Event) {
+  const promptEvent = (event as CustomEvent<BeforeInstallPromptEvent>).detail
+  if (!promptEvent) return
+  installPrompt.value = promptEvent
+  evaluateVisibility()
+}
+
 function handleAppInstalled() {
   installed.value = true
   installPrompt.value = null
@@ -62,12 +69,14 @@ function dismiss() {
 onMounted(() => {
   installed.value = window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  window.addEventListener('stockpilot:pwa-install-prompt', handleTestInstallPrompt as EventListener)
   window.addEventListener('appinstalled', handleAppInstalled)
   evaluateVisibility()
 })
 
 onUnmounted(() => {
   window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  window.removeEventListener('stockpilot:pwa-install-prompt', handleTestInstallPrompt as EventListener)
   window.removeEventListener('appinstalled', handleAppInstalled)
 })
 </script>

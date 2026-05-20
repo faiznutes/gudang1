@@ -23,6 +23,14 @@ const categorySchema = z.object({
   description: z.string().optional(),
 })
 
+const categoryQuerySchema = z.object({
+  status: z.enum(['active', 'archived', 'all']).default('all'),
+})
+
+const categoryMergeSchema = z.object({
+  target_category_id: z.string().min(1),
+})
+
 const warehouseSchema = z.object({
   name: z.string().min(1),
   address: z.string().optional(),
@@ -46,9 +54,15 @@ function idempotencyKey(request: any) {
 }
 
 async function ensureWorkspaceProduct(app: FastifyInstance, workspaceId: string, productId: string) {
-  const product = await app.prisma.product.findFirst({ where: { id: productId, workspaceId, disabledAt: null } })
+  const product = await app.prisma.product.findFirst({ where: { id: productId, workspaceId, disabledAt: null }, include: { category: true } })
   if (!product) throw new AppError('not_found', 'Produk tidak ditemukan')
   return product
+}
+
+async function ensureWorkspaceCategory(app: FastifyInstance, workspaceId: string, categoryId: string) {
+  const category = await app.prisma.category.findFirst({ where: { id: categoryId, workspaceId } })
+  if (!category) throw new AppError('not_found', 'Kategori tidak ditemukan')
+  return category
 }
 
 async function ensureWorkspaceWarehouse(app: FastifyInstance, workspaceId: string, warehouseId: string) {
@@ -101,8 +115,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
     }
 
     return runIdempotent(app, ctx, idempotencyKey(request), 'product.create', body, async () => {
-      const category = await app.prisma.category.findFirst({ where: { id: body.category_id, workspaceId: ctx.workspaceId } })
-      if (!category) throw new AppError('not_found', 'Kategori tidak ditemukan')
+      const category = await ensureWorkspaceCategory(app, ctx.workspaceId, body.category_id)
+      if (category.disabledAt) throw new AppError('feature_locked', 'Kategori nonaktif tidak bisa dipakai untuk produk baru')
 
       const product = await app.prisma.product.create({
         data: {
@@ -132,10 +146,12 @@ export async function inventoryRoutes(app: FastifyInstance) {
     await requireActiveSession(app, ctx)
     const params = z.object({ id: z.string() }).parse(request.params)
     const body = productUpdateSchema.parse(request.body)
-    await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
+    const currentProduct = await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
     if (body.category_id) {
-      const category = await app.prisma.category.findFirst({ where: { id: body.category_id, workspaceId: ctx.workspaceId } })
-      if (!category) throw new AppError('not_found', 'Kategori tidak ditemukan')
+      const category = await ensureWorkspaceCategory(app, ctx.workspaceId, body.category_id)
+      if (category.disabledAt && category.id !== currentProduct.categoryId) {
+        throw new AppError('feature_locked', 'Kategori nonaktif tidak bisa dipilih untuk produk baru')
+      }
     }
 
     const product = await app.prisma.product.update({
@@ -176,8 +192,13 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.get('/categories', async (request) => {
     const ctx = await requireAuth(app, request)
+    const query = categoryQuerySchema.parse(request.query)
     const categories = await app.prisma.category.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      where: {
+        workspaceId: ctx.workspaceId,
+        ...(query.status === 'active' ? { disabledAt: null } : {}),
+        ...(query.status === 'archived' ? { disabledAt: { not: null } } : {}),
+      },
       orderBy: { name: 'asc' },
     })
     return categories.map(categoryDto)
@@ -188,16 +209,144 @@ export async function inventoryRoutes(app: FastifyInstance) {
     requireTenantRole(ctx, ['admin', 'staff', 'trial'])
     await requireActiveSession(app, ctx)
     const body = categorySchema.parse(request.body)
-    const category = await app.prisma.category.create({
-      data: { workspaceId: ctx.workspaceId, name: body.name, description: body.description },
+    const existing = await app.prisma.category.findFirst({
+      where: { workspaceId: ctx.workspaceId, name: body.name },
     })
+    if (existing && !existing.disabledAt) {
+      throw new AppError('conflict', 'Kategori dengan nama ini sudah ada')
+    }
+
+    const category = existing
+      ? await app.prisma.category.update({
+          where: { id: existing.id },
+          data: {
+            description: body.description,
+            disabledAt: null,
+          },
+        })
+      : await app.prisma.category.create({
+          data: { workspaceId: ctx.workspaceId, name: body.name, description: body.description },
+        })
     await writeAuditLog(app, ctx, request, {
-      action: 'category.created',
+      action: existing ? 'category.restored' : 'category.created',
       entityType: 'category',
       entityId: category.id,
       metadata: body,
     })
     return categoryDto(category)
+  })
+
+  app.put('/categories/:id', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const body = categorySchema.parse(request.body)
+    const current = await ensureWorkspaceCategory(app, ctx.workspaceId, params.id)
+    const duplicate = await app.prisma.category.findFirst({
+      where: {
+        workspaceId: ctx.workspaceId,
+        name: body.name,
+        id: { not: params.id },
+      },
+    })
+    if (duplicate) {
+      throw new AppError('conflict', 'Kategori dengan nama ini sudah ada')
+    }
+    const category = await app.prisma.category.update({
+      where: { id: current.id },
+      data: { name: body.name, description: body.description },
+    })
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.updated',
+      entityType: 'category',
+      entityId: category.id,
+      metadata: body,
+    })
+    return categoryDto(category)
+  })
+
+  app.post('/categories/:id/archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const category = await ensureWorkspaceCategory(app, ctx.workspaceId, params.id)
+    const archived = await app.prisma.category.update({
+      where: { id: category.id },
+      data: { disabledAt: new Date() },
+    })
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.archived',
+      entityType: 'category',
+      entityId: archived.id,
+    })
+    return categoryDto(archived)
+  })
+
+  app.post('/categories/:id/restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const category = await ensureWorkspaceCategory(app, ctx.workspaceId, params.id)
+    const restored = await app.prisma.category.update({
+      where: { id: category.id },
+      data: { disabledAt: null },
+    })
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.restored',
+      entityType: 'category',
+      entityId: restored.id,
+    })
+    return categoryDto(restored)
+  })
+
+  app.post('/categories/:id/merge', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const body = categoryMergeSchema.parse(request.body)
+    if (params.id === body.target_category_id) {
+      throw new AppError('validation_error', 'Kategori sumber dan tujuan harus berbeda')
+    }
+
+    const source = await ensureWorkspaceCategory(app, ctx.workspaceId, params.id)
+    const target = await ensureWorkspaceCategory(app, ctx.workspaceId, body.target_category_id)
+    if (target.disabledAt) {
+      throw new AppError('feature_locked', 'Kategori tujuan harus aktif')
+    }
+
+    const result = await app.prisma.$transaction(async (tx) => {
+      const movedProducts = await tx.product.updateMany({
+        where: { workspaceId: ctx.workspaceId, categoryId: source.id, disabledAt: null },
+        data: { categoryId: target.id },
+      })
+      const merged = await tx.category.update({
+        where: { id: source.id },
+        data: { disabledAt: new Date() },
+      })
+      await tx.auditLog.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          action: 'category.merged',
+          entityType: 'category',
+          entityId: merged.id,
+          metadata: {
+            source_category_id: source.id,
+            target_category_id: target.id,
+            moved_products: movedProducts.count,
+          },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      })
+      return merged
+    })
+
+    return categoryDto(result)
   })
 
   app.get('/warehouses', async (request) => {

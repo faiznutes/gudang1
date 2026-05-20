@@ -1,5 +1,5 @@
 type OfflineStatus = 'pending' | 'syncing' | 'synced' | 'failed' | 'needs_review'
-type OfflineOperationType = 'stock-in' | 'stock-out' | 'stock-transfer' | 'product.create' | 'supplier.create'
+type OfflineOperationType = 'stock-in' | 'stock-out' | 'stock-transfer' | 'product.create' | 'category.create' | 'supplier.create'
 
 export interface OfflineQueueSummary {
   pending: number

@@ -96,10 +96,20 @@ function intFromCsv(value: string | undefined, field: string, min = 0) {
 
 async function ensureCategory(app: FastifyInstance, workspaceId: string, name: string) {
   const categoryName = name || 'Umum'
-  return app.prisma.category.upsert({
-    where: { workspaceId_name: { workspaceId, name: categoryName } },
-    update: {},
-    create: { workspaceId, name: categoryName },
+  const existing = await app.prisma.category.findFirst({
+    where: { workspaceId, name: categoryName },
+  })
+  if (existing) {
+    if (existing.disabledAt) {
+      return app.prisma.category.update({
+        where: { id: existing.id },
+        data: { disabledAt: null },
+      })
+    }
+    return existing
+  }
+  return app.prisma.category.create({
+    data: { workspaceId, name: categoryName },
   })
 }
 

@@ -24,11 +24,12 @@ export function workspaceDto(workspace: { id: string; name: string; plan: string
   }
 }
 
-export function categoryDto(category: { id: string; name: string; description?: string | null; createdAt?: Date; updatedAt?: Date }) {
+export function categoryDto(category: { id: string; name: string; description?: string | null; disabledAt?: Date | null; createdAt?: Date; updatedAt?: Date }) {
   return {
     id: category.id,
     name: category.name,
     description: category.description ?? undefined,
+    disabled_at: category.disabledAt?.toISOString() ?? null,
     created_at: category.createdAt?.toISOString(),
     updated_at: category.updatedAt?.toISOString(),
   }

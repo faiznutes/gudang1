@@ -8,6 +8,7 @@ export type ApiErrorCode =
   | 'conflict'
   | 'validation_error'
   | 'not_found'
+  | 'rate_limited'
   | 'internal_error'
 
 const statusByCode: Record<ApiErrorCode, number> = {
@@ -17,6 +18,7 @@ const statusByCode: Record<ApiErrorCode, number> = {
   conflict: 409,
   validation_error: 422,
   not_found: 404,
+  rate_limited: 429,
   internal_error: 500,
 }
 

@@ -31,7 +31,7 @@ const tenantCreateSchema = z.object({
   owner: z.object({
     name: z.string().min(2),
     email: z.string().email(),
-    password: z.string().min(6).default('password123'),
+    password: z.string().min(6),
   }),
   warehouse: z.object({
     name: z.string().min(1).default('Gudang Utama'),
@@ -40,7 +40,7 @@ const tenantCreateSchema = z.object({
   staff: z.array(z.object({
     name: z.string().min(2),
     email: z.string().email(),
-    password: z.string().min(6).default('password123'),
+    password: z.string().min(6),
     role: tenantRoleSchema.exclude(['trial']).default('staff'),
   })).max(20).default([]),
   suppliers: z.array(z.object({

@@ -13,13 +13,13 @@ test.describe('PWA popup', () => {
     await expect(popup).toBeHidden()
 
     await page.evaluate(() => {
-      const event = new Event('beforeinstallprompt') as Event & {
+      const event = new Event('beforeinstallprompt', { cancelable: true }) as Event & {
         prompt: () => Promise<void>
         userChoice: Promise<{ outcome: 'dismissed'; platform: string }>
       }
       event.prompt = () => Promise.resolve()
       event.userChoice = Promise.resolve({ outcome: 'dismissed', platform: 'web' })
-      window.dispatchEvent(event)
+      window.dispatchEvent(new CustomEvent('stockpilot:pwa-install-prompt', { detail: event }))
     })
 
     await expect(popup).toBeVisible()

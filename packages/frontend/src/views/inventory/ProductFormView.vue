@@ -24,6 +24,10 @@ const errors = ref<Record<string, string>>({})
 const isLoading = ref(false)
 
 const categories = computed(() => inventoryStore.categories)
+const categoryOptions = computed(() => {
+  return categories.value.filter(category => !category.disabled_at || category.id === form.value.category_id)
+})
+const selectedCategory = computed(() => categories.value.find(category => category.id === form.value.category_id))
 
 onMounted(async () => {
   if (inventoryStore.products.length === 0 || inventoryStore.categories.length === 0) {
@@ -149,11 +153,14 @@ function generateSku() {
           <label class="label">Kategori</label>
           <select v-model="form.category_id" :class="['input', errors.category_id ? 'input-error' : '']">
             <option value="">Pilih kategori</option>
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-              {{ cat.name }}
+            <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">
+              {{ cat.name }}{{ cat.disabled_at ? ' (Arsip)' : '' }}
             </option>
           </select>
           <p v-if="errors.category_id" class="text-xs text-danger-600 mt-1">{{ errors.category_id }}</p>
+          <p v-if="selectedCategory?.disabled_at" class="mt-1 text-xs text-warning-700">
+            Kategori ini sedang diarsipkan. Simpan perubahan lain tanpa mengganti kategori, atau aktifkan kembali dari halaman kategori.
+          </p>
         </div>
 
         <!-- Min Stock & Price -->

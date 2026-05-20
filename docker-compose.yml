@@ -43,6 +43,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-replace-with-production-access-secret}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-replace-with-production-refresh-secret}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://gudang.faiznute.site}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       PORT: 4000
     depends_on:
       stockpilot-postgres:

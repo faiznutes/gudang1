@@ -73,20 +73,28 @@ test.describe('Navigation', () => {
     await page.waitForURL(/\/app$/)
   })
 
-  test('desktop sidebar navigation', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'Inventori' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Gudang' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Mutasi' })).toBeVisible()
+  test('desktop sidebar navigation', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-desktop', 'Desktop sidebar only')
+    const sidebarNav = page.locator('aside nav')
+    await expect(sidebarNav.getByRole('button', { name: 'Produk', exact: true })).toBeVisible()
+    await expect(sidebarNav.getByRole('button', { name: 'Kategori', exact: true })).toBeVisible()
+    await expect(sidebarNav.getByRole('button', { name: 'Gudang', exact: true })).toBeVisible()
+    await expect(sidebarNav.getByRole('button', { name: 'Riwayat Stok', exact: true })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Inventori' }).click()
+    await sidebarNav.getByRole('button', { name: 'Produk', exact: true }).click()
     await expect(page).toHaveURL(/\/app\/inventory$/)
-    await expect(page.getByText('Kelola produk dan stok')).toBeVisible()
+    await expect(page.getByPlaceholder('Cari produk atau SKU...')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Gudang' }).click()
+    await sidebarNav.getByRole('button', { name: 'Kategori', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/categories$/)
+    await expect(page.getByText('Kategori aktif')).toBeVisible()
+
+    await sidebarNav.getByRole('button', { name: 'Gudang', exact: true }).click()
     await expect(page).toHaveURL(/\/app\/warehouses$/)
   })
 
-  test('sidebar collapse', async ({ page }) => {
+  test('sidebar collapse', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-desktop', 'Desktop sidebar only')
     const collapseButton = page.locator('aside button').first()
     await expect(collapseButton).toBeVisible()
     await collapseButton.click()
@@ -103,12 +111,25 @@ test.describe('Navigation', () => {
 
   test('mobile bottom nav presence', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
+    const bottomNav = page.locator('nav.fixed.bottom-0')
 
-    await expect(page.getByRole('button', { name: 'Home' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Inventori' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Tambah' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Aktivitas' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Lainnya' })).toBeVisible()
+    await expect(bottomNav.getByRole('button', { name: 'Home', exact: true })).toBeVisible()
+    await expect(bottomNav.getByRole('button', { name: 'Produk', exact: true })).toBeVisible()
+    await expect(bottomNav.getByRole('button', { name: 'Buka tambah cepat' })).toBeVisible()
+    await expect(bottomNav.getByRole('button', { name: 'Gudang', exact: true })).toBeVisible()
+    await expect(bottomNav.getByRole('button', { name: 'Lainnya', exact: true })).toBeVisible()
+
+    await bottomNav.getByRole('button', { name: 'Buka tambah cepat' }).click()
+    const quickSheet = page.locator('div.fixed.inset-0.z-50').filter({ hasText: 'Tambah cepat' }).last()
+    await expect(page.getByText('Tambah cepat')).toBeVisible()
+    await expect(quickSheet.getByRole('button', { name: /Tambah produk/ })).toBeVisible()
+    await expect(quickSheet.getByRole('button', { name: /Stok masuk/ })).toBeVisible()
+    await expect(quickSheet.getByRole('button', { name: /Stok keluar/ })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Tutup tambah cepat' }).click()
+    await bottomNav.getByRole('button', { name: 'Lainnya', exact: true }).click()
+    const moreSheet = page.locator('div.fixed.inset-0.z-50').filter({ hasText: 'Menu kerja' }).last()
+    await expect(moreSheet.getByText('Kategori')).toBeVisible()
   })
 
   test('no burger menu on mobile', async ({ page }) => {

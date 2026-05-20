@@ -40,7 +40,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     try {
       const [productData, categoryData, warehouseData, inventoryData] = await Promise.all([
         inventoryService.getProducts(),
-        inventoryService.getCategories(),
+        inventoryService.getCategories('all'),
         inventoryService.getWarehouses(),
         inventoryService.getInventory(),
       ])
@@ -126,9 +126,48 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   async function addCategory(category: Omit<Category, 'id'>) {
-    const created = await inventoryService.createCategory(category)
-    categories.value.push(created)
-    return created
+    try {
+      const created = await inventoryService.createCategory(category)
+      const index = categories.value.findIndex(item => item.id === created.id)
+      if (index === -1) categories.value.unshift(created)
+      else categories.value[index] = created
+      return created
+    } catch (error) {
+      if (isOfflineError(error)) {
+        await enqueueOfflineOperation({ type: 'category.create', endpoint: '/categories', method: 'POST', payload: category })
+        throw new Error('Kategori disimpan sebagai draft offline dan akan disinkronkan saat online')
+      }
+      throw error
+    }
+  }
+
+  async function updateCategory(id: string, updates: Pick<Category, 'name' | 'description'>) {
+    const payload: { name: string; description?: string } = { name: updates.name }
+    if (updates.description !== undefined) payload.description = updates.description
+    const updated = await inventoryService.updateCategory(id, payload)
+    const index = categories.value.findIndex(category => category.id === id)
+    if (index !== -1) categories.value[index] = updated
+    return updated
+  }
+
+  async function archiveCategory(id: string) {
+    const archived = await inventoryService.archiveCategory(id)
+    const index = categories.value.findIndex(category => category.id === id)
+    if (index !== -1) categories.value[index] = archived
+    return archived
+  }
+
+  async function restoreCategory(id: string) {
+    const restored = await inventoryService.restoreCategory(id)
+    const index = categories.value.findIndex(category => category.id === id)
+    if (index !== -1) categories.value[index] = restored
+    return restored
+  }
+
+  async function mergeCategories(sourceCategoryId: string, targetCategoryId: string) {
+    const merged = await inventoryService.mergeCategory(sourceCategoryId, targetCategoryId)
+    await loadAll()
+    return merged
   }
 
   async function addWarehouse(warehouse: Omit<Warehouse, 'id' | 'created_at'>) {
@@ -240,8 +279,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     updateProduct,
     deleteProduct,
     addCategory,
-    updateCategory: addCategory,
-    deleteCategory: async () => false,
+    updateCategory,
+    archiveCategory,
+    restoreCategory,
+    mergeCategories,
+    deleteCategory: archiveCategory,
     addWarehouse,
     updateWarehouse,
     deleteWarehouse,

@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next'
 import adminService, { type AdminPlan, type Workspace, type WorkspaceStatus, type WorkspaceSummary } from '@/services/api/admin'
 import { labelFrom, planLabels, roleLabels, subscriptionStatusLabels, workspaceStatusLabels } from '@/lib/labels'
+import { generateTemporaryPassword } from '@/lib/password'
 
 const workspaces = ref<Workspace[]>([])
 const summary = ref<WorkspaceSummary | null>(null)
@@ -48,7 +49,7 @@ const tenantForm = ref({
   subscription_status: 'active' as 'active' | 'trialing',
   current_period_start: formatDateTimeLocal(new Date()),
   current_period_end: formatDateTimeLocal(addMonths(new Date(), 1)),
-  owner: { name: '', email: '', password: 'password123' },
+  owner: { name: '', email: '', password: generateTemporaryPassword() },
   warehouse: { name: 'Gudang Utama', address: '' },
   staff: [] as Array<{ name: string; email: string; password: string; role: 'admin' | 'staff' | 'supplier' }>,
   suppliers: [] as Array<{ name: string; contact_person: string; phone: string; email: string; address: string; notes: string }>,
@@ -129,7 +130,7 @@ function openCreateModal() {
     subscription_status: 'active',
     current_period_start: formatDateTimeLocal(new Date()),
     current_period_end: formatDateTimeLocal(addMonths(new Date(), 1)),
-    owner: { name: '', email: '', password: 'password123' },
+    owner: { name: '', email: '', password: generateTemporaryPassword() },
     warehouse: { name: 'Gudang Utama', address: '' },
     staff: [],
     suppliers: [],
@@ -138,7 +139,7 @@ function openCreateModal() {
 }
 
 function addStaffRow() {
-  tenantForm.value.staff.push({ name: '', email: '', password: 'password123', role: 'staff' })
+  tenantForm.value.staff.push({ name: '', email: '', password: generateTemporaryPassword(), role: 'staff' })
 }
 
 function removeStaffRow(index: number) {
@@ -581,7 +582,12 @@ onMounted(() => loadWorkspaces(1))
               </div>
               <div>
                 <label class="label">Password Awal</label>
-                <input v-model="tenantForm.owner.password" class="input w-full" type="text" required />
+                <div class="flex gap-2">
+                  <input v-model="tenantForm.owner.password" class="input w-full" type="text" required />
+                  <button type="button" class="btn-secondary shrink-0" @click="tenantForm.owner.password = generateTemporaryPassword()">
+                    Acak
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -597,9 +603,10 @@ onMounted(() => loadWorkspaces(1))
                 </button>
               </div>
               <div class="mt-4 space-y-3">
-                <div v-for="(staff, index) in tenantForm.staff" :key="index" class="grid gap-3 rounded-xl bg-neutral-50 p-3 lg:grid-cols-[1fr_1fr_120px_44px]">
+                <div v-for="(staff, index) in tenantForm.staff" :key="index" class="grid gap-3 rounded-xl bg-neutral-50 p-3 lg:grid-cols-[1fr_1fr_1fr_120px_44px]">
                   <input v-model="staff.name" class="input" placeholder="Nama staff" required />
                   <input v-model="staff.email" class="input" type="email" placeholder="staff@email.com" required />
+                  <input v-model="staff.password" class="input" type="text" placeholder="Password awal" required />
                   <select v-model="staff.role" class="input">
                     <option value="staff">Staff</option>
                     <option value="supplier">Supplier</option>
