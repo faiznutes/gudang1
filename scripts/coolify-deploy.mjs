@@ -2,7 +2,6 @@ const requiredEnv = [
   'COOLIFY_API_URL',
   'COOLIFY_API_TOKEN',
   'COOLIFY_FRONTEND_APP_UUID',
-  'COOLIFY_BACKEND_APP_UUID',
   'PROD_BASE_URL',
 ]
 
@@ -119,8 +118,16 @@ async function waitForHealthyDeployment(deadline) {
 async function main() {
   const deadline = Date.now() + timeoutMs
 
-  await triggerDeploy(backendUuid, 'backend')
-  await triggerDeploy(frontendUuid, 'frontend')
+  const deployTargets = new Map([
+    [frontendUuid, 'frontend'],
+  ])
+  if (backendUuid && backendUuid !== frontendUuid) {
+    deployTargets.set(backendUuid, 'backend')
+  }
+
+  for (const [resourceUuid, label] of deployTargets) {
+    await triggerDeploy(resourceUuid, label)
+  }
   await waitForHealthyDeployment(deadline)
 }
 
