@@ -146,6 +146,35 @@ function auditLogDto(log: {
   }
 }
 
+async function lastLoginLookup(app: FastifyInstance, memberships: Array<{ userId: string; workspaceId: string }>) {
+  if (memberships.length === 0) return new Map<string, string>()
+
+  const logs = await app.prisma.auditLog.findMany({
+    where: {
+      action: 'auth.login',
+      entityType: 'auth_session',
+      OR: memberships.map(member => ({
+        userId: member.userId,
+        workspaceId: member.workspaceId,
+      })),
+    },
+    select: {
+      userId: true,
+      workspaceId: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const lookup = new Map<string, string>()
+  for (const log of logs) {
+    if (!log.userId) continue
+    const key = `${log.userId}:${log.workspaceId}`
+    if (!lookup.has(key)) lookup.set(key, log.createdAt.toISOString())
+  }
+  return lookup
+}
+
 function pickOwner(members: Array<{ role: string; user: { id: string; name: string; email: string } }>) {
   return members.find(member => member.role === 'admin') ?? members.find(member => member.role === 'super_admin') ?? members[0]
 }
@@ -451,6 +480,14 @@ export async function adminRoutes(app: FastifyInstance) {
       if (movement.type === 'transfer') bucket.transfer += 1
     }
 
+    const recentUserLoginMap = await lastLoginLookup(
+      app,
+      recentUsers.map(member => ({
+        userId: member.userId,
+        workspaceId: member.workspaceId,
+      })),
+    )
+
     return {
       total_workspaces: totalWorkspaces,
       active_workspaces: activeWorkspaces,
@@ -479,6 +516,7 @@ export async function adminRoutes(app: FastifyInstance) {
         workspace_name: member.workspace.name,
         plan: member.workspace.plan,
         created_at: member.createdAt.toISOString(),
+        last_login_at: recentUserLoginMap.get(`${member.userId}:${member.workspaceId}`) ?? null,
       })),
       recent_workspaces: recentWorkspaces.map(workspace => {
         const owner = pickOwner(workspace.members)
@@ -569,6 +607,10 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
       app.prisma.workspaceMember.count({ where }),
     ])
+    const lastLoginMap = await lastLoginLookup(app, items.map(member => ({
+      userId: member.userId,
+      workspaceId: member.workspaceId,
+    })))
 
     return paginate(items.map(member => ({
       id: member.id,
@@ -578,7 +620,7 @@ export async function adminRoutes(app: FastifyInstance) {
       user: userDto(member.user),
       workspace: workspaceDto(member.workspace),
       created_at: member.createdAt.toISOString(),
-      last_login_at: null,
+      last_login_at: lastLoginMap.get(`${member.userId}:${member.workspaceId}`) ?? null,
     })), query.page, query.per_page, total)
   })
 
@@ -1023,6 +1065,10 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
       app.prisma.workspaceMember.count({ where: { workspaceId: params.workspaceId } }),
     ])
+    const lastLoginMap = await lastLoginLookup(app, items.map(member => ({
+      userId: member.userId,
+      workspaceId: member.workspaceId,
+    })))
     return paginate(items.map((member) => ({
       id: member.id,
       user_id: member.userId,
@@ -1031,6 +1077,7 @@ export async function adminRoutes(app: FastifyInstance) {
       user: userDto(member.user),
       workspace: workspaceDto(member.workspace),
       created_at: member.createdAt.toISOString(),
+      last_login_at: lastLoginMap.get(`${member.userId}:${member.workspaceId}`) ?? null,
     })), query.page, query.per_page, total)
   })
 

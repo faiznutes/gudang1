@@ -76,6 +76,11 @@ function packageDto(planPackage: any) {
     : planPackage.monthlyPrice
   const discountAmount = Math.max(0, marketPrice - planPackage.monthlyPrice)
   const discountPercent = marketPrice > 0 ? Math.round((discountAmount / marketPrice) * 100) : 0
+  const subscriptionCount = planPackage._count?.subscriptions ?? 0
+  const currentBillingRequestCount = planPackage._count?.currentBillingRequests ?? 0
+  const requestedBillingRequestCount = planPackage._count?.requestedBillingRequests ?? 0
+  const billingRequestCount = currentBillingRequestCount + requestedBillingRequestCount
+  const totalReferences = subscriptionCount + billingRequestCount
 
   return {
     id: planPackage.id,
@@ -97,12 +102,24 @@ function packageDto(planPackage: any) {
       users: planPackage.userLimit,
     },
     features: featureMap(planPackage.features ?? []),
+    usage: {
+      subscriptions: subscriptionCount,
+      billing_requests: billingRequestCount,
+      current_billing_requests: currentBillingRequestCount,
+      requested_billing_requests: requestedBillingRequestCount,
+      total_references: totalReferences,
+    },
+    can_delete: totalReferences === 0,
     created_at: planPackage.createdAt.toISOString(),
     updated_at: planPackage.updatedAt.toISOString(),
   }
 }
 
 function addonDto(addon: any) {
+  const assignmentCount = addon._count?.assignments ?? 0
+  const billingRequestCount = addon._count?.billingRequests ?? 0
+  const totalReferences = assignmentCount + billingRequestCount
+
   return {
     id: addon.id,
     code: addon.code,
@@ -115,6 +132,12 @@ function addonDto(addon: any) {
     limit_key: addon.limitKey,
     limit_increment: addon.limitIncrement,
     sort_order: addon.sortOrder,
+    usage: {
+      assignments: assignmentCount,
+      billing_requests: billingRequestCount,
+      total_references: totalReferences,
+    },
+    can_delete: totalReferences === 0,
     created_at: addon.createdAt.toISOString(),
     updated_at: addon.updatedAt.toISOString(),
   }
@@ -241,7 +264,16 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
     const query = z.object({ status: catalogStatusSchema.optional() }).parse(request.query)
     const packages = await app.prisma.planPackage.findMany({
       where: query.status ? { status: query.status } : undefined,
-      include: { features: true },
+      include: {
+        features: true,
+        _count: {
+          select: {
+            subscriptions: true,
+            currentBillingRequests: true,
+            requestedBillingRequests: true,
+          },
+        },
+      },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     })
     return packages.map(packageDto)
@@ -286,7 +318,19 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
           metadata: { code: created.code, name: created.name },
         },
       })
-      return tx.planPackage.findUniqueOrThrow({ where: { id: created.id }, include: { features: true } })
+      return tx.planPackage.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          features: true,
+          _count: {
+            select: {
+              subscriptions: true,
+              currentBillingRequests: true,
+              requestedBillingRequests: true,
+            },
+          },
+        },
+      })
     })
     return packageDto(planPackage)
   })
@@ -327,7 +371,19 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
           metadata: { code: updated.code, name: updated.name },
         },
       })
-      return tx.planPackage.findUniqueOrThrow({ where: { id: updated.id }, include: { features: true } })
+      return tx.planPackage.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: {
+          features: true,
+          _count: {
+            select: {
+              subscriptions: true,
+              currentBillingRequests: true,
+              requestedBillingRequests: true,
+            },
+          },
+        },
+      })
     })
     return packageDto(planPackage)
   })
@@ -338,7 +394,16 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
     const planPackage = await app.prisma.planPackage.update({
       where: { id: params.id },
       data: { status: 'archived' },
-      include: { features: true },
+      include: {
+        features: true,
+        _count: {
+          select: {
+            subscriptions: true,
+            currentBillingRequests: true,
+            requestedBillingRequests: true,
+          },
+        },
+      },
     })
     await app.prisma.auditLog.create({
       data: {
@@ -359,7 +424,16 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
     const planPackage = await app.prisma.planPackage.update({
       where: { id: params.id },
       data: { status: 'active' },
-      include: { features: true },
+      include: {
+        features: true,
+        _count: {
+          select: {
+            subscriptions: true,
+            currentBillingRequests: true,
+            requestedBillingRequests: true,
+          },
+        },
+      },
     })
     await app.prisma.auditLog.create({
       data: {
@@ -416,6 +490,14 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
     const query = z.object({ status: catalogStatusSchema.optional() }).parse(request.query)
     const addons = await app.prisma.addon.findMany({
       where: query.status ? { status: query.status } : undefined,
+      include: {
+        _count: {
+          select: {
+            assignments: true,
+            billingRequests: true,
+          },
+        },
+      },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     })
     return addons.map(addonDto)
@@ -448,7 +530,13 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
         metadata: { code: addon.code, name: addon.name },
       },
     })
-    return addonDto(addon)
+    return addonDto({
+      ...addon,
+      _count: {
+        assignments: 0,
+        billingRequests: 0,
+      },
+    })
   })
 
   app.put('/addons/:id', async (request) => {
@@ -480,13 +568,30 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
         metadata: { code: addon.code, name: addon.name },
       },
     })
-    return addonDto(addon)
+    return addonDto({
+      ...addon,
+      _count: {
+        assignments: 0,
+        billingRequests: 0,
+      },
+    })
   })
 
   app.post('/addons/:id/archive', async (request) => {
     const ctx = await requirePlatformAdmin(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const addon = await app.prisma.addon.update({ where: { id: params.id }, data: { status: 'archived' } })
+    const addon = await app.prisma.addon.update({
+      where: { id: params.id },
+      data: { status: 'archived' },
+      include: {
+        _count: {
+          select: {
+            assignments: true,
+            billingRequests: true,
+          },
+        },
+      },
+    })
     await app.prisma.auditLog.create({
       data: {
         workspaceId: ctx.workspaceId,
@@ -503,7 +608,18 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
   app.post('/addons/:id/restore', async (request) => {
     const ctx = await requirePlatformAdmin(app, request)
     const params = z.object({ id: z.string() }).parse(request.params)
-    const addon = await app.prisma.addon.update({ where: { id: params.id }, data: { status: 'active' } })
+    const addon = await app.prisma.addon.update({
+      where: { id: params.id },
+      data: { status: 'active' },
+      include: {
+        _count: {
+          select: {
+            assignments: true,
+            billingRequests: true,
+          },
+        },
+      },
+    })
     await app.prisma.auditLog.create({
       data: {
         workspaceId: ctx.workspaceId,

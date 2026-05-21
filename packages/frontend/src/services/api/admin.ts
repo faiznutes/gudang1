@@ -173,6 +173,14 @@ export interface PlanPackage {
   market_price?: number | null
   discount_amount?: number | null
   discount_percent?: number | null
+  usage?: {
+    subscriptions: number
+    billing_requests: number
+    current_billing_requests?: number
+    requested_billing_requests?: number
+    total_references?: number
+  }
+  can_delete?: boolean
   trial_days: number
   sort_order: number
   limits: { warehouses: number; products: number; users: number }
@@ -192,6 +200,12 @@ export interface Addon {
   feature_key: FeatureKey | null
   limit_key: 'warehouses' | 'products' | 'users' | null
   limit_increment: number | null
+  usage?: {
+    assignments: number
+    billing_requests: number
+    total_references?: number
+  }
+  can_delete?: boolean
   sort_order: number
   created_at?: string
   updated_at?: string
@@ -315,6 +329,7 @@ export interface DashboardStats {
     workspace_name: string
     plan: AdminPlan
     created_at: string
+    last_login_at?: string | null
   }>
   recent_workspaces: Workspace[]
   plan_distribution: Array<{ plan: AdminPlan; count: number }>

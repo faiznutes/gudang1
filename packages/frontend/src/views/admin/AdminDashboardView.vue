@@ -250,6 +250,17 @@ function formatDate(dateStr: string) {
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr))
 }
 
+function formatDateTime(dateStr?: string | null) {
+  if (!dateStr) return '-'
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(dateStr))
+}
+
 function getPlanBadge(plan: string) {
   const badges: Record<string, string> = {
     free: 'bg-neutral-100 text-neutral-700',
@@ -583,6 +594,10 @@ onMounted(loadDashboard)
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-black text-neutral-950">{{ user.name }}</p>
                   <p class="truncate text-xs text-neutral-500">{{ user.workspace_name }} - {{ labelFrom(roleLabels, user.role) }}</p>
+                  <p class="mt-1 flex items-center gap-1 text-xs text-neutral-500">
+                    <Clock class="h-3.5 w-3.5" />
+                    Login terakhir {{ formatDateTime(user.last_login_at) }}
+                  </p>
                 </div>
                 <span :class="['rounded-full px-2.5 py-1 text-xs font-black', getPlanBadge(user.plan)]">
                   {{ labelFrom(planLabels, user.plan) }}

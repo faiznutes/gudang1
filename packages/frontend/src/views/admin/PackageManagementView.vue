@@ -95,6 +95,42 @@ function hasDiscount(planPackage: PlanPackage) {
   return marketPrice(planPackage) > planPackage.monthly_price
 }
 
+function packageUsageCount(planPackage: PlanPackage) {
+  return planPackage.usage?.total_references ?? (
+    (planPackage.usage?.subscriptions ?? 0)
+    + (planPackage.usage?.billing_requests ?? 0)
+  )
+}
+
+function addonUsageCount(addon: Addon) {
+  return addon.usage?.total_references ?? (
+    (addon.usage?.assignments ?? 0)
+    + (addon.usage?.billing_requests ?? 0)
+  )
+}
+
+function canDeletePackage(planPackage: PlanPackage) {
+  return planPackage.can_delete ?? packageUsageCount(planPackage) === 0
+}
+
+function canDeleteAddon(addon: Addon) {
+  return addon.can_delete ?? addonUsageCount(addon) === 0
+}
+
+function packageUsageLabel(planPackage: PlanPackage) {
+  const subscriptions = planPackage.usage?.subscriptions ?? 0
+  const requests = planPackage.usage?.billing_requests ?? 0
+  if (!subscriptions && !requests) return 'Belum dipakai'
+  return `${subscriptions} subscription, ${requests} request billing`
+}
+
+function addonUsageLabel(addon: Addon) {
+  const assignments = addon.usage?.assignments ?? 0
+  const requests = addon.usage?.billing_requests ?? 0
+  if (!assignments && !requests) return 'Belum dipakai'
+  return `${assignments} assignment, ${requests} request billing`
+}
+
 function toggleSelection(target: 'package' | 'addon', id: string) {
   const selected = target === 'package' ? selectedPackageIds : selectedAddonIds
   selected.value = selected.value.includes(id)
@@ -208,6 +244,10 @@ async function restorePackage(planPackage: PlanPackage) {
 }
 
 async function deletePackage(planPackage: PlanPackage) {
+  if (!canDeletePackage(planPackage)) {
+    errorMessage.value = `Paket ${planPackage.name} sudah dipakai. Gunakan arsip agar histori subscription tetap aman.`
+    return
+  }
   if (!confirm(`Hapus permanen paket ${planPackage.name}? Hanya paket yang belum pernah dipakai bisa dihapus.`)) return
   saving.value = true
   errorMessage.value = ''
@@ -255,13 +295,22 @@ async function bulkRestorePackages() {
 
 async function bulkDeletePackages() {
   if (selectedPackages.value.length === 0) return
-  if (!confirm(`Hapus permanen ${selectedPackages.value.length} paket terpilih? Paket yang sudah dipakai akan ditolak backend.`)) return
+  const deletablePackages = selectedPackages.value.filter(planPackage => canDeletePackage(planPackage))
+  const blockedPackages = selectedPackages.value.length - deletablePackages.length
+  if (deletablePackages.length === 0) {
+    errorMessage.value = 'Tidak ada paket terpilih yang bisa dihapus. Arsipkan paket yang sudah dipakai.'
+    return
+  }
+  if (!confirm(`Hapus permanen ${deletablePackages.length} paket terpilih? ${blockedPackages > 0 ? `${blockedPackages} paket lain hanya bisa diarsipkan.` : 'Hanya paket yang belum pernah dipakai bisa dihapus.'}`)) return
   saving.value = true
   errorMessage.value = ''
   try {
-    await Promise.all(selectedPackages.value.map(item => adminService.deletePackage(item.id)))
+    await Promise.all(deletablePackages.map(item => adminService.deletePackage(item.id)))
     clearPackageSelection()
     await loadData()
+    if (blockedPackages > 0) {
+      errorMessage.value = `${blockedPackages} paket terpilih tidak dihapus karena sudah dipakai. Gunakan arsip agar histori aman.`
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Bulk hapus paket gagal'
   } finally {
@@ -340,6 +389,10 @@ async function restoreAddon(addon: Addon) {
 }
 
 async function deleteAddon(addon: Addon) {
+  if (!canDeleteAddon(addon)) {
+    errorMessage.value = `Add-on ${addon.name} sudah dipakai. Gunakan arsip agar histori tetap aman.`
+    return
+  }
   if (!confirm(`Hapus permanen add-on ${addon.name}? Hanya add-on yang belum dipakai bisa dihapus.`)) return
   saving.value = true
   errorMessage.value = ''
@@ -387,13 +440,22 @@ async function bulkRestoreAddons() {
 
 async function bulkDeleteAddons() {
   if (selectedAddons.value.length === 0) return
-  if (!confirm(`Hapus permanen ${selectedAddons.value.length} add-on terpilih? Add-on yang sudah dipakai akan ditolak backend.`)) return
+  const deletableAddons = selectedAddons.value.filter(addon => canDeleteAddon(addon))
+  const blockedAddons = selectedAddons.value.length - deletableAddons.length
+  if (deletableAddons.length === 0) {
+    errorMessage.value = 'Tidak ada add-on terpilih yang bisa dihapus. Arsipkan add-on yang sudah dipakai.'
+    return
+  }
+  if (!confirm(`Hapus permanen ${deletableAddons.length} add-on terpilih? ${blockedAddons > 0 ? `${blockedAddons} add-on lain hanya bisa diarsipkan.` : 'Hanya add-on yang belum pernah dipakai bisa dihapus.'}`)) return
   saving.value = true
   errorMessage.value = ''
   try {
-    await Promise.all(selectedAddons.value.map(item => adminService.deleteAddon(item.id)))
+    await Promise.all(deletableAddons.map(item => adminService.deleteAddon(item.id)))
     clearAddonSelection()
     await loadData()
+    if (blockedAddons > 0) {
+      errorMessage.value = `${blockedAddons} add-on terpilih tidak dihapus karena sudah dipakai. Gunakan arsip agar histori aman.`
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Bulk hapus add-on gagal'
   } finally {
@@ -419,6 +481,13 @@ onMounted(loadData)
 
     <div v-if="errorMessage" class="rounded-lg border border-danger-100 bg-danger-50 p-4 text-sm text-danger-700">
       {{ errorMessage }}
+    </div>
+
+    <div class="rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+      <p class="font-bold">Aturan katalog</p>
+      <p class="mt-1">
+        Arsip dipakai untuk simpan histori. Delete permanen hanya untuk paket atau add-on yang belum pernah dipakai subscription, assignment, atau request billing.
+      </p>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -559,6 +628,9 @@ onMounted(loadData)
                     <p v-if="hasDiscount(planPackage)" class="mt-1 text-xs text-neutral-500">
                       Harga pasar <span class="line-through">{{ formatCurrency(marketPrice(planPackage)) }}</span>
                     </p>
+                    <p class="mt-2 text-xs font-medium text-neutral-500">
+                      {{ packageUsageLabel(planPackage) }}
+                    </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -569,7 +641,12 @@ onMounted(loadData)
                   <button v-else class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-success-700" title="Pulihkan" @click="restorePackage(planPackage)">
                     <RotateCcw class="h-4 w-4" />
                   </button>
-                  <button class="rounded-lg p-2 text-neutral-500 hover:bg-danger-50 hover:text-danger-700" title="Hapus permanen" @click="deletePackage(planPackage)">
+                  <button
+                    class="rounded-lg p-2 text-neutral-500 hover:bg-danger-50 hover:text-danger-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    :title="canDeletePackage(planPackage) ? 'Hapus permanen' : 'Sudah dipakai, gunakan arsip'"
+                    :disabled="!canDeletePackage(planPackage)"
+                    @click="deletePackage(planPackage)"
+                  >
                     <Trash2 class="h-4 w-4" />
                   </button>
                 </div>
@@ -702,6 +779,9 @@ onMounted(loadData)
                     </span>
                   </div>
                   <p class="mt-2 text-sm font-bold text-neutral-900">{{ formatCurrency(addon.monthly_price) }}/bulan</p>
+                  <p class="mt-2 text-xs font-medium text-neutral-500">
+                    {{ addonUsageLabel(addon) }}
+                  </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -712,7 +792,12 @@ onMounted(loadData)
                   <button v-else class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-success-700" title="Pulihkan" @click="restoreAddon(addon)">
                     <RotateCcw class="h-4 w-4" />
                   </button>
-                  <button class="rounded-lg p-2 text-neutral-500 hover:bg-danger-50 hover:text-danger-700" title="Hapus permanen" @click="deleteAddon(addon)">
+                  <button
+                    class="rounded-lg p-2 text-neutral-500 hover:bg-danger-50 hover:text-danger-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    :title="canDeleteAddon(addon) ? 'Hapus permanen' : 'Sudah dipakai, gunakan arsip'"
+                    :disabled="!canDeleteAddon(addon)"
+                    @click="deleteAddon(addon)"
+                  >
                     <Trash2 class="h-4 w-4" />
                   </button>
                 </div>

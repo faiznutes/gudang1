@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Ban, Building2, CheckCircle2, ChevronLeft, ChevronRight, Eye, Plus, RefreshCw, Save, Search, Shield, Trash2, UserCog } from 'lucide-vue-next'
+import { Ban, Building2, CheckCircle2, ChevronLeft, ChevronRight, Eye, PencilLine, Plus, RefreshCw, Save, Search, Shield, Trash2, UserCog } from 'lucide-vue-next'
 import adminService, { type AdminRole, type TenantRole, type Workspace, type WorkspaceUser } from '@/services/api/admin'
 import { labelFrom, planLabels, roleLabels, workspaceStatusLabels } from '@/lib/labels'
 import { generateTemporaryPassword } from '@/lib/password'
@@ -20,8 +20,16 @@ const selectedUser = ref<WorkspaceUser | null>(null)
 const selectedUserIds = ref<string[]>([])
 const showDetailModal = ref(false)
 const showRoleModal = ref(false)
+const showEditModal = ref(false)
 const showCreateModal = ref(false)
 const roleDraft = ref<TenantRole>('staff')
+const editForm = ref<{ workspace_id: string; user_id: string; name: string; email: string; role: TenantRole }>({
+  workspace_id: '',
+  user_id: '',
+  name: '',
+  email: '',
+  role: 'staff',
+})
 const createForm = ref<{ workspace_id: string; name: string; email: string; password: string; role: TenantRole }>({
   workspace_id: '',
   name: '',
@@ -96,6 +104,19 @@ function openRoleModal(user: WorkspaceUser) {
   showRoleModal.value = true
 }
 
+function openEditModal(user: WorkspaceUser) {
+  if (isPlatformSuperAdmin(user)) return
+  selectedUser.value = user
+  editForm.value = {
+    workspace_id: user.workspace_id,
+    user_id: user.user_id,
+    name: user.user.name,
+    email: user.user.email,
+    role: (user.role === 'super_admin' ? 'admin' : user.role) as TenantRole,
+  }
+  showEditModal.value = true
+}
+
 async function saveRole() {
   if (!selectedUser.value) return
   saving.value = true
@@ -106,6 +127,24 @@ async function saveRole() {
     await loadUsers()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Role user gagal disimpan'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveProfile() {
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await adminService.updateWorkspaceUserProfile(editForm.value.workspace_id, editForm.value.user_id, {
+      name: editForm.value.name,
+      email: editForm.value.email,
+      role: editForm.value.role,
+    })
+    showEditModal.value = false
+    await loadUsers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Profil user gagal disimpan'
   } finally {
     saving.value = false
   }
@@ -248,6 +287,17 @@ function formatDate(dateStr?: string | null) {
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr))
 }
 
+function formatDateTime(dateStr?: string | null) {
+  if (!dateStr) return '-'
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(dateStr))
+}
+
 onMounted(async () => {
   await Promise.all([loadUsers(1), loadWorkspaceOptions()])
 })
@@ -323,16 +373,17 @@ onMounted(async () => {
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paket</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Status Tenant</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Status User</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Login terakhir</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Bergabung</th>
               <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-if="loading">
-              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data user...</td>
+              <td colspan="10" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data user...</td>
             </tr>
             <tr v-else-if="users.length === 0">
-              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Tidak ada user yang cocok.</td>
+              <td colspan="10" class="px-4 py-10 text-center text-sm text-neutral-500">Tidak ada user yang cocok.</td>
             </tr>
             <template v-else>
               <tr v-for="user in users" :key="user.id" class="hover:bg-neutral-50">
@@ -372,11 +423,20 @@ onMounted(async () => {
                     {{ user.user.disabled_at ? 'Nonaktif' : 'Aktif' }}
                   </span>
                 </td>
+                <td class="px-4 py-3 text-sm text-neutral-500">{{ formatDateTime(user.last_login_at) }}</td>
                 <td class="px-4 py-3 text-sm text-neutral-500">{{ formatDate(user.created_at) }}</td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
                     <button class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600" title="Lihat detail" @click="openDetailModal(user)">
                       <Eye class="h-4 w-4" />
+                    </button>
+                    <button
+                      class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Edit profil user"
+                      :disabled="isPlatformSuperAdmin(user)"
+                      @click="openEditModal(user)"
+                    >
+                      <PencilLine class="h-4 w-4" />
                     </button>
                     <button
                       class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
@@ -453,10 +513,18 @@ onMounted(async () => {
               <p class="text-xs uppercase text-neutral-500">Status Tenant</p>
               <p class="text-sm font-medium text-neutral-900">{{ labelFrom(workspaceStatusLabels, selectedUser.workspace?.status) }}</p>
             </div>
+            <div class="rounded-lg bg-neutral-50 p-3">
+              <p class="text-xs uppercase text-neutral-500">Login terakhir</p>
+              <p class="text-sm font-medium text-neutral-900">{{ formatDateTime(selectedUser.last_login_at) }}</p>
+            </div>
           </div>
         </div>
         <div class="flex justify-end gap-3 border-t border-neutral-200 p-4">
           <button class="btn-secondary" @click="showDetailModal = false">Tutup</button>
+          <button class="btn-secondary" :disabled="isPlatformSuperAdmin(selectedUser)" @click="openEditModal(selectedUser); showDetailModal = false">
+            <PencilLine class="h-4 w-4" />
+            Edit Profil
+          </button>
           <button class="btn-primary" :disabled="isPlatformSuperAdmin(selectedUser)" @click="openRoleModal(selectedUser); showDetailModal = false">Ubah Role Tenant</button>
         </div>
       </div>
@@ -483,6 +551,45 @@ onMounted(async () => {
             Simpan
           </button>
         </div>
+      </div>
+    </div>
+
+    <div v-if="showEditModal && selectedUser" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div class="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div class="border-b border-neutral-200 p-4">
+          <h3 class="text-lg font-semibold text-neutral-900">Edit Profil User</h3>
+        </div>
+        <form class="space-y-4 p-4" @submit.prevent="saveProfile">
+          <div>
+            <label class="label">Tenant</label>
+            <input :value="selectedUser.workspace?.name ?? '-'" class="input w-full bg-neutral-50" disabled />
+          </div>
+          <div>
+            <label class="label">Nama</label>
+            <input v-model="editForm.name" class="input w-full" required />
+          </div>
+          <div>
+            <label class="label">Email</label>
+            <input v-model="editForm.email" type="email" class="input w-full" required />
+          </div>
+          <div>
+            <label class="label">Role</label>
+            <select v-model="editForm.role" class="input w-full">
+              <option value="admin">Admin Klien</option>
+              <option value="staff">Staff</option>
+              <option value="supplier">Supplier</option>
+              <option value="trial">Trial</option>
+            </select>
+          </div>
+          <p class="text-xs text-neutral-500">Edit profil tetap tercatat di audit log. Role super admin tidak bisa diubah dari sini.</p>
+          <div class="flex justify-end gap-3 border-t border-neutral-200 pt-4">
+            <button type="button" class="btn-secondary" @click="showEditModal = false">Batal</button>
+            <button class="btn-primary" :disabled="saving">
+              <Save class="h-4 w-4" />
+              Simpan Perubahan
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

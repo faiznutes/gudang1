@@ -19,6 +19,7 @@ import adminService, { type AuditLog } from '@/services/api/admin'
 const auditLogs = ref<AuditLog[]>([])
 const searchQuery = ref('')
 const categoryFilter = ref('all')
+const actionFilter = ref('all')
 const currentPage = ref(1)
 const totalPages = ref(1)
 const totalLogs = ref(0)
@@ -45,6 +46,7 @@ async function loadLogs(page = currentPage.value) {
       page,
       q: searchQuery.value,
       category: categoryFilter.value,
+      action: actionFilter.value,
     })
     auditLogs.value = response.data
     currentPage.value = response.meta.current_page
@@ -184,6 +186,14 @@ onMounted(() => loadLogs(1))
           <option value="subscription">Subscription</option>
           <option value="system">Sistem</option>
           <option value="security">Keamanan</option>
+        </select>
+        <select v-model="actionFilter" class="input w-full md:w-52" @change="applyFilters">
+          <option value="all">Semua Aksi</option>
+          <option value="login">Login</option>
+          <option value="logout">Logout</option>
+          <option value="admin.user">User</option>
+          <option value="admin.package">Paket</option>
+          <option value="admin.billing">Billing</option>
         </select>
         <button class="btn-primary" @click="applyFilters">Cari</button>
       </div>
