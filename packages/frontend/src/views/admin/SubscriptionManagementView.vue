@@ -21,6 +21,7 @@ const showDetailModal = ref(false)
 const showPlanModal = ref(false)
 const showPeriodModal = ref(false)
 const selectedSubscription = ref<Subscription | null>(null)
+const selectedSubscriptionIds = ref<string[]>([])
 const planDraft = ref<AdminPlan>('starter')
 const periodDraft = ref<{ current_period_start: string; current_period_end: string; status: SubscriptionStatus; reason: string }>({
   current_period_start: '',
@@ -59,6 +60,8 @@ const planStats = computed(() => {
 
 const pageStart = computed(() => totalSubscriptions.value === 0 ? 0 : (currentPage.value - 1) * itemsPerPage + 1)
 const pageEnd = computed(() => Math.min(currentPage.value * itemsPerPage, totalSubscriptions.value))
+const selectedSubscriptions = computed(() => subscriptions.value.filter(subscription => selectedSubscriptionIds.value.includes(subscription.id)))
+const allVisibleSubscriptionsSelected = computed(() => subscriptions.value.length > 0 && subscriptions.value.every(subscription => selectedSubscriptionIds.value.includes(subscription.id)))
 
 async function loadSubscriptions(page = currentPage.value) {
   loading.value = true
@@ -71,6 +74,7 @@ async function loadSubscriptions(page = currentPage.value) {
       status: selectedStatusFilter.value,
     })
     subscriptions.value = response.data
+    selectedSubscriptionIds.value = selectedSubscriptionIds.value.filter(id => response.data.some(subscription => subscription.id === id))
     currentPage.value = response.meta.current_page
     totalPages.value = response.meta.total_pages
     totalSubscriptions.value = response.meta.total
@@ -107,6 +111,20 @@ async function loadWorkspaceAddons(workspaceId: string) {
 
 function applyFilters() {
   loadSubscriptions(1)
+}
+
+function toggleSubscriptionSelection(subscriptionId: string) {
+  selectedSubscriptionIds.value = selectedSubscriptionIds.value.includes(subscriptionId)
+    ? selectedSubscriptionIds.value.filter(id => id !== subscriptionId)
+    : [...selectedSubscriptionIds.value, subscriptionId]
+}
+
+function toggleAllVisibleSubscriptions() {
+  selectedSubscriptionIds.value = allVisibleSubscriptionsSelected.value ? [] : subscriptions.value.map(subscription => subscription.id)
+}
+
+function clearSelectedSubscriptions() {
+  selectedSubscriptionIds.value = []
 }
 
 async function openDetailModal(subscription: Subscription) {
@@ -195,6 +213,51 @@ async function cancelSubscription(subscription: Subscription) {
     await loadSubscriptions()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Subscription gagal dibatalkan'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkCancelSubscriptions() {
+  const cancellable = selectedSubscriptions.value.filter(subscription => subscription.status !== 'cancelled')
+  if (cancellable.length === 0) return
+  if (!confirm(`Batalkan ${cancellable.length} subscription terpilih?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(cancellable.map(subscription => adminService.cancelSubscription(subscription.workspace_id)))
+    clearSelectedSubscriptions()
+    await loadSubscriptions()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk batalkan subscription gagal'
+  } finally {
+    saving.value = false
+  }
+}
+
+function addMonthsToIso(value: string, months: number) {
+  const date = new Date(value)
+  date.setMonth(date.getMonth() + months)
+  return date.toISOString()
+}
+
+async function bulkExtendSubscriptions(months: number) {
+  const extendable = selectedSubscriptions.value.filter(subscription => subscription.status !== 'cancelled')
+  if (extendable.length === 0) return
+  if (!confirm(`Perpanjang ${extendable.length} subscription terpilih selama ${months === 12 ? '1 tahun' : '1 bulan'}?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(extendable.map(subscription => adminService.updateSubscriptionPeriod(subscription.workspace_id, subscription.id, {
+      current_period_start: new Date(subscription.current_period_start).toISOString(),
+      current_period_end: addMonthsToIso(subscription.current_period_end, months),
+      status: subscription.status === 'expired' || subscription.status === 'past_due' ? 'active' : subscription.status,
+      reason: `Bulk perpanjang ${months} bulan`,
+    })))
+    clearSelectedSubscriptions()
+    await loadSubscriptions()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk perpanjang subscription gagal'
   } finally {
     saving.value = false
   }
@@ -340,10 +403,22 @@ onMounted(async () => {
     </div>
 
     <div class="card overflow-hidden">
+      <div v-if="selectedSubscriptionIds.length > 0" class="flex flex-col gap-3 border-b border-neutral-100 bg-primary-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm font-black text-primary-800">{{ selectedSubscriptionIds.length }} subscription dipilih</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkExtendSubscriptions(1)">+1 Bulan</button>
+          <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkExtendSubscriptions(12)">+1 Tahun</button>
+          <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkCancelSubscriptions">Batalkan</button>
+          <button class="btn-secondary btn-sm" @click="clearSelectedSubscriptions">Batal</button>
+        </div>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="border-b border-neutral-200 bg-neutral-50">
             <tr>
+              <th class="px-4 py-3 text-left">
+                <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allVisibleSubscriptionsSelected" @change="toggleAllVisibleSubscriptions" />
+              </th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Tenant</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paket</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">MRR</th>
@@ -354,13 +429,16 @@ onMounted(async () => {
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-if="loading">
-              <td colspan="6" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat subscription...</td>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat subscription...</td>
             </tr>
             <tr v-else-if="subscriptions.length === 0">
-              <td colspan="6" class="px-4 py-10 text-center text-sm text-neutral-500">Subscription tidak ditemukan.</td>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-neutral-500">Subscription tidak ditemukan.</td>
             </tr>
             <template v-else>
               <tr v-for="subscription in subscriptions" :key="subscription.id" class="hover:bg-neutral-50">
+                <td class="px-4 py-3">
+                  <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedSubscriptionIds.includes(subscription.id)" @change="toggleSubscriptionSelection(subscription.id)" />
+                </td>
                 <td class="px-4 py-3">
                   <p class="text-sm font-medium text-neutral-900">{{ subscription.workspace?.name ?? '-' }}</p>
                   <p class="text-xs text-neutral-500">{{ labelFrom(workspaceStatusLabels, subscription.workspace?.status) }}</p>

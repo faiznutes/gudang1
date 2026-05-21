@@ -6,6 +6,12 @@ import { AppError } from '../lib/errors.js'
 import { requireActiveSession, requireAuth, requireTenantRole } from '../middleware/auth.js'
 
 function packageDto(planPackage: any) {
+  const marketPrice = planPackage.originalMonthlyPrice && planPackage.originalMonthlyPrice > planPackage.monthlyPrice
+    ? planPackage.originalMonthlyPrice
+    : planPackage.monthlyPrice
+  const discountAmount = Math.max(0, marketPrice - planPackage.monthlyPrice)
+  const discountPercent = marketPrice > 0 ? Math.round((discountAmount / marketPrice) * 100) : 0
+
   return {
     id: planPackage.id,
     code: planPackage.code,
@@ -15,6 +21,9 @@ function packageDto(planPackage: any) {
     monthly_price: planPackage.monthlyPrice,
     yearly_price: planPackage.yearlyPrice,
     original_monthly_price: planPackage.originalMonthlyPrice,
+    market_price: marketPrice,
+    discount_amount: discountAmount,
+    discount_percent: discountPercent,
     trial_days: planPackage.trialDays,
     sort_order: planPackage.sortOrder,
     limits: {

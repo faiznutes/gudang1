@@ -15,6 +15,10 @@ const loading = ref(true)
 const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const selectedProductIds = ref<string[]>([])
+const selectedWarehouseIds = ref<string[]>([])
+const selectedSupplierIds = ref<string[]>([])
+const selectedActivityIds = ref<string[]>([])
 
 const productForm = ref({ id: '', sku: '', name: '', category: 'Umum', description: '', min_stock: 0, price: 0 })
 const warehouseForm = ref({ id: '', name: '', address: '', is_default: false })
@@ -23,6 +27,48 @@ const activityForm = ref({ id: '', title: '', type: 'task', status: 'pending', d
 const stockForm = ref({ product_id: '', warehouse_id: '', to_warehouse_id: '', quantity: 1, notes: '', type: 'in' as 'in' | 'out' | 'transfer' })
 
 const selectedWorkspace = computed(() => workspaces.value.find(workspace => workspace.id === selectedWorkspaceId.value))
+const selectedProducts = computed(() => products.value.filter(product => selectedProductIds.value.includes(product.id)))
+const selectedWarehouses = computed(() => warehouses.value.filter(warehouse => selectedWarehouseIds.value.includes(warehouse.id)))
+const selectedSuppliers = computed(() => suppliers.value.filter(supplier => selectedSupplierIds.value.includes(supplier.id)))
+const selectedActivities = computed(() => activities.value.filter(activity => selectedActivityIds.value.includes(activity.id)))
+const allProductsSelected = computed(() => products.value.length > 0 && products.value.every(product => selectedProductIds.value.includes(product.id)))
+const allWarehousesSelected = computed(() => warehouses.value.length > 0 && warehouses.value.every(warehouse => selectedWarehouseIds.value.includes(warehouse.id)))
+const allSuppliersSelected = computed(() => suppliers.value.length > 0 && suppliers.value.every(supplier => selectedSupplierIds.value.includes(supplier.id)))
+const allActivitiesSelected = computed(() => activities.value.length > 0 && activities.value.every(activity => selectedActivityIds.value.includes(activity.id)))
+
+function toggleId(target: 'products' | 'warehouses' | 'suppliers' | 'activities', id: string) {
+  const list = target === 'products'
+    ? selectedProductIds
+    : target === 'warehouses'
+      ? selectedWarehouseIds
+      : target === 'suppliers'
+        ? selectedSupplierIds
+        : selectedActivityIds
+  list.value = list.value.includes(id) ? list.value.filter(item => item !== id) : [...list.value, id]
+}
+
+function clearBulkSelections() {
+  selectedProductIds.value = []
+  selectedWarehouseIds.value = []
+  selectedSupplierIds.value = []
+  selectedActivityIds.value = []
+}
+
+function toggleAllProducts() {
+  selectedProductIds.value = allProductsSelected.value ? [] : products.value.map(product => product.id)
+}
+
+function toggleAllWarehouses() {
+  selectedWarehouseIds.value = allWarehousesSelected.value ? [] : warehouses.value.map(warehouse => warehouse.id)
+}
+
+function toggleAllSuppliers() {
+  selectedSupplierIds.value = allSuppliersSelected.value ? [] : suppliers.value.map(supplier => supplier.id)
+}
+
+function toggleAllActivities() {
+  selectedActivityIds.value = allActivitiesSelected.value ? [] : activities.value.map(activity => activity.id)
+}
 
 function nextTransferWarehouseId(sourceId = stockForm.value.warehouse_id) {
   return warehouses.value.find(warehouse => !warehouse.disabled_at && warehouse.id !== sourceId)?.id ?? ''
@@ -62,6 +108,10 @@ async function loadClientData() {
     activities.value = activityData
     suppliers.value = supplierData
     inventorySummary.value = inventoryData
+    selectedProductIds.value = selectedProductIds.value.filter(id => productData.some(item => item.id === id))
+    selectedWarehouseIds.value = selectedWarehouseIds.value.filter(id => warehouseData.some(item => item.id === id))
+    selectedSupplierIds.value = selectedSupplierIds.value.filter(id => supplierData.some(item => item.id === id))
+    selectedActivityIds.value = selectedActivityIds.value.filter(id => activityData.some(item => item.id === id))
     stockForm.value.product_id = productData.find(product => !product.disabled_at)?.id ?? productData[0]?.id ?? ''
     stockForm.value.warehouse_id = warehouseData.find(warehouse => !warehouse.disabled_at)?.id ?? warehouseData[0]?.id ?? ''
     stockForm.value.to_warehouse_id = nextTransferWarehouseId()
@@ -119,6 +169,78 @@ async function removeSupplier(supplier: ManagedSupplier) {
   if (!selectedWorkspaceId.value || !confirm(`Hapus permanen supplier ${supplier.name}?`)) return
   await adminService.removeWorkspaceSupplier(selectedWorkspaceId.value, supplier.id)
   await loadClientData()
+}
+
+async function runClientBulk(label: string, count: number, operation: () => Promise<unknown>) {
+  if (!selectedWorkspaceId.value || count === 0) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await operation()
+    clearBulkSelections()
+    successMessage.value = `Bulk ${label} selesai`
+    await loadClientData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : `Bulk ${label} gagal`
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkDisableProducts() {
+  if (!confirm(`Nonaktifkan ${selectedProducts.value.length} produk terpilih?`)) return
+  await runClientBulk('nonaktifkan produk', selectedProducts.value.length, () => Promise.all(selectedProducts.value.map(product => adminService.disableWorkspaceProduct(selectedWorkspaceId.value, product.id))))
+}
+
+async function bulkEnableProducts() {
+  await runClientBulk('aktifkan produk', selectedProducts.value.length, () => Promise.all(selectedProducts.value.map(product => adminService.enableWorkspaceProduct(selectedWorkspaceId.value, product.id))))
+}
+
+async function bulkDeleteProducts() {
+  if (!confirm(`Hapus permanen ${selectedProducts.value.length} produk terpilih? Produk yang punya histori stok akan ditolak.`)) return
+  await runClientBulk('hapus produk', selectedProducts.value.length, () => Promise.all(selectedProducts.value.map(product => adminService.removeWorkspaceProduct(selectedWorkspaceId.value, product.id))))
+}
+
+async function bulkDisableWarehouses() {
+  if (!confirm(`Nonaktifkan ${selectedWarehouses.value.length} gudang terpilih?`)) return
+  await runClientBulk('nonaktifkan gudang', selectedWarehouses.value.length, () => Promise.all(selectedWarehouses.value.map(warehouse => adminService.disableWorkspaceWarehouse(selectedWorkspaceId.value, warehouse.id))))
+}
+
+async function bulkEnableWarehouses() {
+  await runClientBulk('aktifkan gudang', selectedWarehouses.value.length, () => Promise.all(selectedWarehouses.value.map(warehouse => adminService.enableWorkspaceWarehouse(selectedWorkspaceId.value, warehouse.id))))
+}
+
+async function bulkDeleteWarehouses() {
+  if (!confirm(`Hapus permanen ${selectedWarehouses.value.length} gudang terpilih? Gudang yang punya stok/histori akan ditolak.`)) return
+  await runClientBulk('hapus gudang', selectedWarehouses.value.length, () => Promise.all(selectedWarehouses.value.map(warehouse => adminService.removeWorkspaceWarehouse(selectedWorkspaceId.value, warehouse.id))))
+}
+
+async function bulkDisableSuppliers() {
+  if (!confirm(`Nonaktifkan ${selectedSuppliers.value.length} supplier terpilih?`)) return
+  await runClientBulk('nonaktifkan supplier', selectedSuppliers.value.length, () => Promise.all(selectedSuppliers.value.map(supplier => adminService.disableWorkspaceSupplier(selectedWorkspaceId.value, supplier.id))))
+}
+
+async function bulkEnableSuppliers() {
+  await runClientBulk('aktifkan supplier', selectedSuppliers.value.length, () => Promise.all(selectedSuppliers.value.map(supplier => adminService.enableWorkspaceSupplier(selectedWorkspaceId.value, supplier.id))))
+}
+
+async function bulkDeleteSuppliers() {
+  if (!confirm(`Hapus permanen ${selectedSuppliers.value.length} supplier terpilih?`)) return
+  await runClientBulk('hapus supplier', selectedSuppliers.value.length, () => Promise.all(selectedSuppliers.value.map(supplier => adminService.removeWorkspaceSupplier(selectedWorkspaceId.value, supplier.id))))
+}
+
+async function bulkDisableActivities() {
+  if (!confirm(`Nonaktifkan ${selectedActivities.value.length} aktivitas terpilih?`)) return
+  await runClientBulk('nonaktifkan aktivitas', selectedActivities.value.length, () => Promise.all(selectedActivities.value.map(activity => adminService.disableScheduledActivity(selectedWorkspaceId.value, activity.id))))
+}
+
+async function bulkEnableActivities() {
+  await runClientBulk('aktifkan aktivitas', selectedActivities.value.length, () => Promise.all(selectedActivities.value.map(activity => adminService.enableScheduledActivity(selectedWorkspaceId.value, activity.id))))
+}
+
+async function bulkDeleteActivities() {
+  if (!confirm(`Hapus permanen ${selectedActivities.value.length} aktivitas terpilih?`)) return
+  await runClientBulk('hapus aktivitas', selectedActivities.value.length, () => Promise.all(selectedActivities.value.map(activity => adminService.removeScheduledActivity(selectedWorkspaceId.value, activity.id))))
 }
 
 async function saveStockOperation() {
@@ -387,10 +509,20 @@ watch(
         </div>
       </form>
       <div class="card overflow-hidden">
+        <div v-if="selectedProductIds.length > 0" class="flex flex-col gap-2 border-b border-neutral-100 bg-primary-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm font-black text-primary-800">{{ selectedProductIds.length }} produk dipilih</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkDisableProducts">Nonaktifkan</button>
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkEnableProducts">Aktifkan</button>
+            <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkDeleteProducts">Hapus</button>
+            <button class="btn-secondary btn-sm" @click="selectedProductIds = []">Batal</button>
+          </div>
+        </div>
         <table class="w-full">
-          <thead><tr><th class="table-header">Produk</th><th class="table-header">Stok Min</th><th class="table-header">Harga</th><th class="table-header">Status</th><th class="table-header text-right">Aksi</th></tr></thead>
+          <thead><tr><th class="table-header"><input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allProductsSelected" @change="toggleAllProducts" /></th><th class="table-header">Produk</th><th class="table-header">Stok Min</th><th class="table-header">Harga</th><th class="table-header">Status</th><th class="table-header text-right">Aksi</th></tr></thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-for="product in products" :key="product.id" class="hover:bg-neutral-50">
+              <td class="table-cell"><input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedProductIds.includes(product.id)" @change="toggleId('products', product.id)" /></td>
               <td class="table-cell"><p class="font-medium">{{ product.name }}</p><p class="text-xs text-neutral-500">{{ product.sku }} - {{ product.category?.name }}</p></td>
               <td class="table-cell">{{ product.min_stock }}</td>
               <td class="table-cell">{{ formatCurrency(product.price) }}</td>
@@ -423,10 +555,26 @@ watch(
         </div>
       </form>
       <div class="card divide-y divide-neutral-100">
+        <div v-if="selectedWarehouseIds.length > 0" class="flex flex-col gap-2 bg-primary-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm font-black text-primary-800">{{ selectedWarehouseIds.length }} gudang dipilih</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkDisableWarehouses">Nonaktifkan</button>
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkEnableWarehouses">Aktifkan</button>
+            <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkDeleteWarehouses">Hapus</button>
+            <button class="btn-secondary btn-sm" @click="selectedWarehouseIds = []">Batal</button>
+          </div>
+        </div>
+        <label v-if="warehouses.length" class="flex items-center gap-2 p-4 text-xs font-black text-neutral-600">
+          <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allWarehousesSelected" @change="toggleAllWarehouses" />
+          Pilih semua gudang
+        </label>
         <div v-for="warehouse in warehouses" :key="warehouse.id" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div class="flex min-w-0 gap-3">
+            <input type="checkbox" class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedWarehouseIds.includes(warehouse.id)" @change="toggleId('warehouses', warehouse.id)" />
+            <div class="min-w-0">
             <p class="font-medium text-neutral-900">{{ warehouse.name }}</p>
             <p class="text-sm text-neutral-500">{{ warehouse.address || '-' }}</p>
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <span :class="['badge', warehouse.disabled_at ? 'badge-danger' : 'badge-success']">{{ warehouse.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>
@@ -456,12 +604,28 @@ watch(
         </div>
       </form>
       <div class="card divide-y divide-neutral-100">
+        <div v-if="selectedSupplierIds.length > 0" class="flex flex-col gap-2 bg-primary-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm font-black text-primary-800">{{ selectedSupplierIds.length }} supplier dipilih</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkDisableSuppliers">Nonaktifkan</button>
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkEnableSuppliers">Aktifkan</button>
+            <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkDeleteSuppliers">Hapus</button>
+            <button class="btn-secondary btn-sm" @click="selectedSupplierIds = []">Batal</button>
+          </div>
+        </div>
+        <label v-if="suppliers.length" class="flex items-center gap-2 p-4 text-xs font-black text-neutral-600">
+          <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allSuppliersSelected" @change="toggleAllSuppliers" />
+          Pilih semua supplier
+        </label>
         <div v-if="!suppliers.length" class="p-5 text-sm text-neutral-500">Belum ada supplier untuk tenant ini.</div>
         <div v-for="supplier in suppliers" :key="supplier.id" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div class="min-w-0">
+          <div class="flex min-w-0 gap-3">
+            <input type="checkbox" class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedSupplierIds.includes(supplier.id)" @change="toggleId('suppliers', supplier.id)" />
+            <div class="min-w-0">
             <p class="font-medium text-neutral-900">{{ supplier.name }}</p>
             <p class="text-sm text-neutral-500">{{ supplier.contact_person || 'Tanpa kontak' }} - {{ supplier.phone || supplier.email || 'Belum ada kanal kontak' }}</p>
             <p v-if="supplier.address" class="text-xs text-neutral-500">{{ supplier.address }}</p>
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <span :class="['badge', supplier.disabled_at ? 'badge-danger' : 'badge-success']">{{ supplier.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>
@@ -590,10 +754,26 @@ watch(
         </div>
       </form>
       <div class="card divide-y divide-neutral-100">
+        <div v-if="selectedActivityIds.length > 0" class="flex flex-col gap-2 bg-primary-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm font-black text-primary-800">{{ selectedActivityIds.length }} aktivitas dipilih</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkDisableActivities">Nonaktifkan</button>
+            <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkEnableActivities">Aktifkan</button>
+            <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkDeleteActivities">Hapus</button>
+            <button class="btn-secondary btn-sm" @click="selectedActivityIds = []">Batal</button>
+          </div>
+        </div>
+        <label v-if="activities.length" class="flex items-center gap-2 p-4 text-xs font-black text-neutral-600">
+          <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allActivitiesSelected" @change="toggleAllActivities" />
+          Pilih semua aktivitas
+        </label>
         <div v-for="activity in activities" :key="activity.id" class="flex items-center justify-between gap-4 p-4">
-          <div class="min-w-0">
+          <div class="flex min-w-0 gap-3">
+            <input type="checkbox" class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedActivityIds.includes(activity.id)" @change="toggleId('activities', activity.id)" />
+            <div class="min-w-0">
             <p class="font-medium text-neutral-900">{{ activity.title }}</p>
             <p class="text-sm text-neutral-500">{{ activity.type }} - {{ activity.status }} - {{ formatDate(activity.due_at) }}</p>
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <span :class="['badge', activity.disabled_at ? 'badge-danger' : 'badge-primary']">{{ activity.disabled_at ? 'Nonaktif' : 'Aktif' }}</span>

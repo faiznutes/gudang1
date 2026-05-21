@@ -307,6 +307,9 @@ export interface PlanPackageContract {
   monthly_price: number
   yearly_price: number | null
   original_monthly_price: number | null
+  market_price?: number | null
+  discount_amount?: number | null
+  discount_percent?: number | null
   trial_days: number
   sort_order: number
   limits: EntitlementLimits

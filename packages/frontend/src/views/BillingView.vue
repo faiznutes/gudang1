@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Boxes, Check, Clock, Crown, PackagePlus, Send, ShieldCheck, Sparkles, Users, Warehouse } from 'lucide-vue-next'
 import SubscriptionCountdownCard from '@/components/SubscriptionCountdownCard.vue'
 import { billingService } from '@/services/api/billing'
@@ -11,6 +11,7 @@ import { PLANS, type Plan } from '@/stores/plans'
 import { billingRequestStatusLabels, billingRequestTypeLabels, labelFrom } from '@/lib/labels'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const entitlementsStore = useEntitlementsStore()
 
@@ -21,7 +22,14 @@ const loading = ref(true)
 const savingId = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
-const selectedCycle = ref<Exclude<BillingCycle, 'manual'>>('monthly')
+const packagesSection = ref<HTMLElement | null>(null)
+const addonsSection = ref<HTMLElement | null>(null)
+
+function cycleFromRoute(): Exclude<BillingCycle, 'manual'> {
+  return route.query.cycle === 'yearly' ? 'yearly' : 'monthly'
+}
+
+const selectedCycle = ref<Exclude<BillingCycle, 'manual'>>(cycleFromRoute())
 const customDraft = ref({
   title: '',
   notes: '',
@@ -33,6 +41,8 @@ type BillingPlan = {
   price: number | null
   yearlyPrice?: number | null
   originalPrice?: number | null
+  marketPrice?: number | null
+  discountPercent?: number | null
   period: string
   description: string
   warehouses: number
@@ -45,6 +55,8 @@ const currentPlan = computed(() => entitlementsStore.entitlements.packageCode ||
 const subscriptionEndsAt = computed(() => entitlementsStore.entitlements.subscriptionEndsAt || entitlementsStore.entitlements.trialEndsAt)
 const activeAddons = computed(() => entitlementsStore.entitlements.addons ?? [])
 const pendingRequests = computed(() => requests.value.filter(request => request.status === 'pending'))
+const highlightedPlanId = computed(() => typeof route.query.package === 'string' ? route.query.package : '')
+const highlightedAddonId = computed(() => typeof route.query.addon === 'string' ? route.query.addon : '')
 const visiblePlans = computed<BillingPlan[]>(() => {
   if (packages.value.length > 0) {
     return packages.value.map(plan => ({
@@ -53,6 +65,10 @@ const visiblePlans = computed<BillingPlan[]>(() => {
       price: selectedCycle.value === 'yearly' ? (plan.yearly_price ?? plan.monthly_price * 12) : plan.monthly_price,
       yearlyPrice: plan.yearly_price,
       originalPrice: plan.original_monthly_price,
+      marketPrice: selectedCycle.value === 'yearly'
+        ? ((plan.market_price ?? plan.original_monthly_price ?? plan.monthly_price) * 12)
+        : (plan.market_price ?? plan.original_monthly_price ?? plan.monthly_price),
+      discountPercent: plan.discount_percent,
       period: selectedCycle.value === 'yearly' ? 'tahun' : 'bulan',
       description: plan.description || 'Paket operasional gudang dan stok',
       warehouses: plan.limits.warehouses,
@@ -110,6 +126,7 @@ function statusTone(status: BillingRequestStatus) {
 
 async function submitPlanRequest(planId: string) {
   if (planId === 'free' || isActive(planId)) return
+  markPlanRoute(planId)
   savingId.value = `plan:${planId}`
   errorMessage.value = ''
   successMessage.value = ''
@@ -125,6 +142,7 @@ async function submitPlanRequest(planId: string) {
 }
 
 async function submitAddonRequest(addon: Addon) {
+  markAddonRoute(addon.id)
   savingId.value = `addon:${addon.id}`
   errorMessage.value = ''
   successMessage.value = ''
@@ -181,7 +199,7 @@ function remainingLabel(limit: number, usage: number) {
 }
 
 function hasPromo(plan: BillingPlan): boolean {
-  return selectedCycle.value === 'monthly' && !!plan.originalPrice && !!plan.price && plan.originalPrice > plan.price
+  return !!plan.marketPrice && !!plan.price && plan.marketPrice > plan.price
 }
 
 function getFeatureValue(plan: BillingPlan, feature: string): boolean {
@@ -190,6 +208,28 @@ function getFeatureValue(plan: BillingPlan, feature: string): boolean {
 
 function goToTrial() {
   router.push('/trial-signup')
+}
+
+function setCycle(cycle: Exclude<BillingCycle, 'manual'>) {
+  selectedCycle.value = cycle
+  router.replace({ name: 'billing', query: { ...route.query, cycle } })
+}
+
+async function syncRouteFocus() {
+  selectedCycle.value = cycleFromRoute()
+  await nextTick()
+  const target = route.query.section === 'addons' || highlightedAddonId.value ? addonsSection.value : packagesSection.value
+  if (target && (route.query.section || highlightedPlanId.value || highlightedAddonId.value)) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function markPlanRoute(planId: string) {
+  router.replace({ name: 'billing', query: { ...route.query, package: planId, section: 'packages', cycle: selectedCycle.value } })
+}
+
+function markAddonRoute(addonId: string) {
+  router.replace({ name: 'billing', query: { ...route.query, addon: addonId, section: 'addons', cycle: selectedCycle.value } })
 }
 
 async function loadRequests() {
@@ -215,7 +255,14 @@ async function loadBilling() {
   }
 }
 
-onMounted(loadBilling)
+watch(() => route.query, () => {
+  syncRouteFocus()
+})
+
+onMounted(async () => {
+  await loadBilling()
+  await syncRouteFocus()
+})
 </script>
 
 <template>
@@ -226,10 +273,10 @@ onMounted(loadBilling)
         <p class="text-neutral-600">Ajukan perubahan paket atau tambahan fitur. Tim StockPilot akan meninjau sebelum aktif.</p>
       </div>
       <div class="inline-flex rounded-xl border border-neutral-200 bg-white p-1 shadow-sm">
-        <button :class="['rounded-lg px-4 py-2 text-sm font-bold', selectedCycle === 'monthly' ? 'bg-neutral-950 text-white' : 'text-neutral-600']" @click="selectedCycle = 'monthly'">
+        <button :class="['rounded-lg px-4 py-2 text-sm font-bold', selectedCycle === 'monthly' ? 'bg-neutral-950 text-white' : 'text-neutral-600']" @click="setCycle('monthly')">
           Bulanan
         </button>
-        <button :class="['rounded-lg px-4 py-2 text-sm font-bold', selectedCycle === 'yearly' ? 'bg-neutral-950 text-white' : 'text-neutral-600']" @click="selectedCycle = 'yearly'">
+        <button :class="['rounded-lg px-4 py-2 text-sm font-bold', selectedCycle === 'yearly' ? 'bg-neutral-950 text-white' : 'text-neutral-600']" @click="setCycle('yearly')">
           Tahunan
         </button>
       </div>
@@ -299,7 +346,7 @@ onMounted(loadBilling)
 
     <SubscriptionCountdownCard />
 
-    <section class="space-y-4">
+    <section ref="packagesSection" class="scroll-mt-6 space-y-4">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-xl font-black text-neutral-950">Pilihan paket</h2>
@@ -315,10 +362,13 @@ onMounted(loadBilling)
           :key="plan.id"
           :class="[
             'card p-6 relative',
-            plan.id === 'growth' ? 'ring-2 ring-primary-500' : '',
+            highlightedPlanId === plan.id ? 'ring-2 ring-amber-400' : plan.id === 'growth' ? 'ring-2 ring-primary-500' : '',
             isActive(plan.id) ? 'bg-primary-50 border-primary-200' : ''
           ]"
         >
+          <div v-if="highlightedPlanId === plan.id" class="absolute -top-3 right-4 rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white">
+            Dipilih
+          </div>
           <div v-if="plan.id === 'growth'" class="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary-600 px-3 py-1 text-xs font-medium text-white">
             Promo
           </div>
@@ -333,10 +383,13 @@ onMounted(loadBilling)
           <h3 class="text-lg font-semibold text-neutral-900">{{ plan.name }}</h3>
           <div class="mb-4 mt-2">
             <div v-if="hasPromo(plan)" class="text-sm font-medium text-neutral-400 line-through">
-              {{ formatPrice(plan.originalPrice || 0) }}
+              {{ formatPrice(plan.marketPrice || 0) }}
             </div>
             <span class="text-3xl font-bold text-neutral-900">{{ formatPrice(plan.price) }}</span>
             <span v-if="plan.period" class="text-neutral-500">/{{ plan.period }}</span>
+            <p v-if="hasPromo(plan)" class="mt-1 text-xs font-black text-amber-700">
+              Harga pasar, hemat {{ plan.discountPercent ?? 0 }}%
+            </p>
           </div>
           <p class="mb-6 text-sm text-neutral-600">{{ plan.description }}</p>
 
@@ -379,7 +432,7 @@ onMounted(loadBilling)
       </div>
     </section>
 
-    <section class="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
+    <section ref="addonsSection" class="scroll-mt-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm lg:p-6">
       <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
         <div>
           <h2 class="text-xl font-black text-neutral-950">Tambah kapasitas & fitur</h2>
@@ -388,7 +441,7 @@ onMounted(loadBilling)
         <PackagePlus class="h-5 w-5 text-primary-700" />
       </div>
       <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <article v-for="addon in addons" :key="addon.id" class="rounded-xl border border-neutral-100 bg-[#fbfdff] p-4">
+        <article v-for="addon in addons" :key="addon.id" :class="['rounded-xl border bg-[#fbfdff] p-4', highlightedAddonId === addon.id ? 'border-amber-300 ring-2 ring-amber-200' : 'border-neutral-100']">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h3 class="font-black text-neutral-950">{{ addon.name }}</h3>

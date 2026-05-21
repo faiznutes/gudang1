@@ -107,7 +107,7 @@ function closeLockModal() {
 }
 
 function goToBilling() {
-  router.push({ name: 'billing' })
+  router.push({ name: 'billing', query: { section: 'packages', locked: 'stockInOut', cycle: 'monthly' } })
   showLockModal.value = false
 }
 </script>

@@ -17,6 +17,7 @@ const loading = ref(true)
 const saving = ref(false)
 const errorMessage = ref('')
 const selectedUser = ref<WorkspaceUser | null>(null)
+const selectedUserIds = ref<string[]>([])
 const showDetailModal = ref(false)
 const showRoleModal = ref(false)
 const showCreateModal = ref(false)
@@ -32,6 +33,9 @@ const itemsPerPage = 10
 
 const pageStart = computed(() => totalUsers.value === 0 ? 0 : (currentPage.value - 1) * itemsPerPage + 1)
 const pageEnd = computed(() => Math.min(currentPage.value * itemsPerPage, totalUsers.value))
+const selectableUsers = computed(() => users.value.filter(user => !isPlatformSuperAdmin(user)))
+const selectedUsers = computed(() => selectableUsers.value.filter(user => selectedUserIds.value.includes(user.id)))
+const allVisibleUsersSelected = computed(() => selectableUsers.value.length > 0 && selectableUsers.value.every(user => selectedUserIds.value.includes(user.id)))
 
 async function loadUsers(page = currentPage.value) {
   loading.value = true
@@ -44,6 +48,7 @@ async function loadUsers(page = currentPage.value) {
       status: statusFilter.value,
     })
     users.value = response.data
+    selectedUserIds.value = selectedUserIds.value.filter(id => response.data.some(user => user.id === id && !isPlatformSuperAdmin(user)))
     currentPage.value = response.meta.current_page
     totalPages.value = response.meta.total_pages
     totalUsers.value = response.meta.total
@@ -62,6 +67,21 @@ async function loadWorkspaceOptions() {
 
 function applyFilters() {
   loadUsers(1)
+}
+
+function toggleUserSelection(user: WorkspaceUser) {
+  if (isPlatformSuperAdmin(user)) return
+  selectedUserIds.value = selectedUserIds.value.includes(user.id)
+    ? selectedUserIds.value.filter(id => id !== user.id)
+    : [...selectedUserIds.value, user.id]
+}
+
+function toggleAllVisibleUsers() {
+  selectedUserIds.value = allVisibleUsersSelected.value ? [] : selectableUsers.value.map(user => user.id)
+}
+
+function clearSelectedUsers() {
+  selectedUserIds.value = []
 }
 
 function openDetailModal(user: WorkspaceUser) {
@@ -126,6 +146,7 @@ async function toggleUserStatus(user: WorkspaceUser) {
 }
 
 async function deleteUser(user: WorkspaceUser) {
+  if (isPlatformSuperAdmin(user)) return
   if (!confirm(`Hapus akses ${user.user.name} dari tenant ${user.workspace?.name ?? '-'}?`)) return
   saving.value = true
   errorMessage.value = ''
@@ -134,6 +155,53 @@ async function deleteUser(user: WorkspaceUser) {
     await loadUsers()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Akses user gagal dihapus'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkDisableUsers() {
+  if (selectedUsers.value.length === 0) return
+  if (!confirm(`Nonaktifkan ${selectedUsers.value.length} user terpilih?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedUsers.value.map(user => adminService.disableWorkspaceUser(user.workspace_id, user.user_id)))
+    clearSelectedUsers()
+    await loadUsers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk nonaktifkan user gagal'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkEnableUsers() {
+  if (selectedUsers.value.length === 0) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedUsers.value.map(user => adminService.enableWorkspaceUser(user.workspace_id, user.user_id)))
+    clearSelectedUsers()
+    await loadUsers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk aktifkan user gagal'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkDeleteUsers() {
+  if (selectedUsers.value.length === 0) return
+  if (!confirm(`Hapus akses ${selectedUsers.value.length} user terpilih dari tenant masing-masing?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedUsers.value.map(user => adminService.removeUser(user.workspace_id, user.user_id)))
+    clearSelectedUsers()
+    await loadUsers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk hapus akses user gagal'
   } finally {
     saving.value = false
   }
@@ -233,10 +301,22 @@ onMounted(async () => {
     </div>
 
     <div class="card overflow-hidden">
+      <div v-if="selectedUserIds.length > 0" class="flex flex-col gap-3 border-b border-neutral-100 bg-primary-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm font-black text-primary-800">{{ selectedUserIds.length }} user dipilih</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkDisableUsers">Nonaktifkan</button>
+          <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkEnableUsers">Aktifkan</button>
+          <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkDeleteUsers">Hapus akses</button>
+          <button class="btn-secondary btn-sm" @click="clearSelectedUsers">Batal</button>
+        </div>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="border-b border-neutral-200 bg-neutral-50">
             <tr>
+              <th class="px-4 py-3 text-left">
+                <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allVisibleUsersSelected" @change="toggleAllVisibleUsers" />
+              </th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">User</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Role</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Tenant</th>
@@ -249,13 +329,16 @@ onMounted(async () => {
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-if="loading">
-              <td colspan="8" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data user...</td>
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data user...</td>
             </tr>
             <tr v-else-if="users.length === 0">
-              <td colspan="8" class="px-4 py-10 text-center text-sm text-neutral-500">Tidak ada user yang cocok.</td>
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Tidak ada user yang cocok.</td>
             </tr>
             <template v-else>
               <tr v-for="user in users" :key="user.id" class="hover:bg-neutral-50">
+                <td class="px-4 py-3">
+                  <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600 disabled:opacity-30" :checked="selectedUserIds.includes(user.id)" :disabled="isPlatformSuperAdmin(user)" @change="toggleUserSelection(user)" />
+                </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-purple-100">
@@ -312,7 +395,7 @@ onMounted(async () => {
                       <CheckCircle2 v-if="user.user.disabled_at" class="h-4 w-4" />
                       <Ban v-else class="h-4 w-4" />
                     </button>
-                    <button class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-danger-600" title="Hapus akses" @click="deleteUser(user)">
+                    <button class="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-danger-600 disabled:cursor-not-allowed disabled:opacity-40" title="Hapus akses" :disabled="isPlatformSuperAdmin(user)" @click="deleteUser(user)">
                       <Trash2 class="h-4 w-4" />
                     </button>
                   </div>

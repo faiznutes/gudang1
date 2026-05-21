@@ -71,6 +71,12 @@ function featureMap(rows: Array<{ feature: string; enabled: boolean }>) {
 }
 
 function packageDto(planPackage: any) {
+  const marketPrice = planPackage.originalMonthlyPrice && planPackage.originalMonthlyPrice > planPackage.monthlyPrice
+    ? planPackage.originalMonthlyPrice
+    : planPackage.monthlyPrice
+  const discountAmount = Math.max(0, marketPrice - planPackage.monthlyPrice)
+  const discountPercent = marketPrice > 0 ? Math.round((discountAmount / marketPrice) * 100) : 0
+
   return {
     id: planPackage.id,
     code: planPackage.code,
@@ -80,6 +86,9 @@ function packageDto(planPackage: any) {
     monthly_price: planPackage.monthlyPrice,
     yearly_price: planPackage.yearlyPrice,
     original_monthly_price: planPackage.originalMonthlyPrice,
+    market_price: marketPrice,
+    discount_amount: discountAmount,
+    discount_percent: discountPercent,
     trial_days: planPackage.trialDays,
     sort_order: planPackage.sortOrder,
     limits: {
@@ -344,6 +353,64 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
     return packageDto(planPackage)
   })
 
+  app.post('/packages/:id/restore', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const planPackage = await app.prisma.planPackage.update({
+      where: { id: params.id },
+      data: { status: 'active' },
+      include: { features: true },
+    })
+    await app.prisma.auditLog.create({
+      data: {
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        action: 'admin.package.restored',
+        entityType: 'plan_package',
+        entityId: planPackage.id,
+        metadata: { code: planPackage.code },
+      },
+    })
+    return packageDto(planPackage)
+  })
+
+  app.delete('/packages/:id', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const existing = await app.prisma.planPackage.findUnique({ where: { id: params.id } })
+    if (!existing) throw new AppError('not_found', 'Paket tidak ditemukan')
+
+    const [subscriptionCount, billingRequestCount] = await Promise.all([
+      app.prisma.subscription.count({ where: { planPackageId: params.id } }),
+      app.prisma.billingRequest.count({
+        where: {
+          OR: [
+            { currentPlanPackageId: params.id },
+            { requestedPlanPackageId: params.id },
+          ],
+        },
+      }),
+    ])
+    if (subscriptionCount > 0 || billingRequestCount > 0) {
+      throw new AppError('conflict', 'Paket sudah dipakai subscription atau request billing. Gunakan arsip agar histori tetap aman.')
+    }
+
+    await app.prisma.$transaction(async (tx) => {
+      await tx.planPackage.delete({ where: { id: params.id } })
+      await tx.auditLog.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          action: 'admin.package.deleted',
+          entityType: 'plan_package',
+          entityId: params.id,
+          metadata: { code: existing.code, name: existing.name },
+        },
+      })
+    })
+    return { ok: true }
+  })
+
   app.get('/addons', async (request) => {
     await requirePlatformAdmin(app, request)
     const query = z.object({ status: catalogStatusSchema.optional() }).parse(request.query)
@@ -431,6 +498,53 @@ export async function adminMonetizationRoutes(app: FastifyInstance) {
       },
     })
     return addonDto(addon)
+  })
+
+  app.post('/addons/:id/restore', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const addon = await app.prisma.addon.update({ where: { id: params.id }, data: { status: 'active' } })
+    await app.prisma.auditLog.create({
+      data: {
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        action: 'admin.addon.restored',
+        entityType: 'addon',
+        entityId: addon.id,
+        metadata: { code: addon.code },
+      },
+    })
+    return addonDto(addon)
+  })
+
+  app.delete('/addons/:id', async (request) => {
+    const ctx = await requirePlatformAdmin(app, request)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const existing = await app.prisma.addon.findUnique({ where: { id: params.id } })
+    if (!existing) throw new AppError('not_found', 'Add-on tidak ditemukan')
+
+    const [assignmentCount, billingRequestCount] = await Promise.all([
+      app.prisma.workspaceAddon.count({ where: { addonId: params.id } }),
+      app.prisma.billingRequest.count({ where: { addonId: params.id } }),
+    ])
+    if (assignmentCount > 0 || billingRequestCount > 0) {
+      throw new AppError('conflict', 'Add-on sudah dipakai tenant atau request billing. Gunakan arsip agar histori tetap aman.')
+    }
+
+    await app.prisma.$transaction(async (tx) => {
+      await tx.addon.delete({ where: { id: params.id } })
+      await tx.auditLog.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          action: 'admin.addon.deleted',
+          entityType: 'addon',
+          entityId: params.id,
+          metadata: { code: existing.code, name: existing.name },
+        },
+      })
+    })
+    return { ok: true }
   })
 
   app.get('/workspaces/:workspaceId/addons', async (request) => {

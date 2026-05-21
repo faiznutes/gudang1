@@ -36,6 +36,7 @@ const showDetailModal = ref(false)
 const showEditModal = ref(false)
 const showCreateModal = ref(false)
 const selectedWorkspace = ref<Workspace | null>(null)
+const selectedWorkspaceIds = ref<string[]>([])
 const formData = ref<{ name: string; plan: AdminPlan; status: WorkspaceStatus }>({
   name: '',
   plan: 'free',
@@ -61,6 +62,8 @@ const pageEnd = computed(() => Math.min(currentPage.value * itemsPerPage, totalW
 const totalMRR = computed(() => workspaces.value.reduce((sum, workspace) => sum + (workspace.mrr ?? 0), 0))
 const activeCount = computed(() => workspaces.value.filter(workspace => workspace.status === 'active').length)
 const trialCount = computed(() => workspaces.value.filter(workspace => workspace.status === 'trial').length)
+const selectedWorkspaces = computed(() => workspaces.value.filter(workspace => selectedWorkspaceIds.value.includes(workspace.id)))
+const allVisibleWorkspacesSelected = computed(() => workspaces.value.length > 0 && workspaces.value.every(workspace => selectedWorkspaceIds.value.includes(workspace.id)))
 
 async function loadWorkspaces(page = currentPage.value) {
   loading.value = true
@@ -72,6 +75,7 @@ async function loadWorkspaces(page = currentPage.value) {
       status: statusFilter.value,
     })
     workspaces.value = response.data
+    selectedWorkspaceIds.value = selectedWorkspaceIds.value.filter(id => response.data.some(workspace => workspace.id === id))
     currentPage.value = response.meta.current_page
     totalPages.value = response.meta.total_pages
     totalWorkspaces.value = response.meta.total
@@ -84,6 +88,20 @@ async function loadWorkspaces(page = currentPage.value) {
 
 function applyFilters() {
   loadWorkspaces(1)
+}
+
+function toggleWorkspaceSelection(workspaceId: string) {
+  selectedWorkspaceIds.value = selectedWorkspaceIds.value.includes(workspaceId)
+    ? selectedWorkspaceIds.value.filter(id => id !== workspaceId)
+    : [...selectedWorkspaceIds.value, workspaceId]
+}
+
+function toggleAllVisibleWorkspaces() {
+  selectedWorkspaceIds.value = allVisibleWorkspacesSelected.value ? [] : workspaces.value.map(workspace => workspace.id)
+}
+
+function clearSelectedWorkspaces() {
+  selectedWorkspaceIds.value = []
 }
 
 async function openDetailModal(workspace: Workspace) {
@@ -210,6 +228,25 @@ async function setWorkspaceStatus(workspace: Workspace, status: 'active' | 'susp
   }
 }
 
+async function bulkSetWorkspaceStatus(status: 'active' | 'suspended') {
+  if (selectedWorkspaces.value.length === 0) return
+  const action = status === 'active' ? 'aktifkan' : 'tangguhkan'
+  if (!confirm(`${action[0].toUpperCase()}${action.slice(1)} ${selectedWorkspaces.value.length} tenant terpilih?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedWorkspaces.value.map(workspace => status === 'active'
+      ? adminService.activateWorkspace(workspace.id)
+      : adminService.suspendWorkspace(workspace.id)))
+    clearSelectedWorkspaces()
+    await loadWorkspaces()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk status tenant gagal'
+  } finally {
+    saving.value = false
+  }
+}
+
 function nextPage() {
   if (currentPage.value < totalPages.value) loadWorkspaces(currentPage.value + 1)
 }
@@ -317,10 +354,21 @@ onMounted(() => loadWorkspaces(1))
     </div>
 
     <div class="card overflow-hidden">
+      <div v-if="selectedWorkspaceIds.length > 0" class="flex flex-col gap-3 border-b border-neutral-100 bg-primary-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm font-black text-primary-800">{{ selectedWorkspaceIds.length }} tenant dipilih</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkSetWorkspaceStatus('active')">Aktifkan</button>
+          <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkSetWorkspaceStatus('suspended')">Tangguhkan</button>
+          <button class="btn-secondary btn-sm" @click="clearSelectedWorkspaces">Batal</button>
+        </div>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="border-b border-neutral-200 bg-neutral-50">
             <tr>
+              <th class="px-4 py-3 text-left">
+                <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allVisibleWorkspacesSelected" @change="toggleAllVisibleWorkspaces" />
+              </th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Tenant</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Pemilik</th>
               <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paket</th>
@@ -333,13 +381,16 @@ onMounted(() => loadWorkspaces(1))
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr v-if="loading">
-              <td colspan="8" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data tenant...</td>
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Memuat data tenant...</td>
             </tr>
             <tr v-else-if="workspaces.length === 0">
-              <td colspan="8" class="px-4 py-10 text-center text-sm text-neutral-500">Tenant tidak ditemukan.</td>
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-neutral-500">Tenant tidak ditemukan.</td>
             </tr>
             <template v-else>
               <tr v-for="workspace in workspaces" :key="workspace.id" class="hover:bg-neutral-50">
+                <td class="px-4 py-3">
+                  <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="selectedWorkspaceIds.includes(workspace.id)" @change="toggleWorkspaceSelection(workspace.id)" />
+                </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100">

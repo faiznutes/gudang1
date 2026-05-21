@@ -258,7 +258,7 @@ router.beforeEach(async (to, _from, next) => {
         : undefined
 
   if (isAppRoute && requiredFeature && !entitlementsStore.canAccessFeature(requiredFeature)) {
-    next({ name: 'billing', query: { locked: requiredFeature } })
+    next({ name: 'billing', query: { locked: requiredFeature, section: 'packages', cycle: 'monthly' } })
     return
   }
   

@@ -170,6 +170,9 @@ export interface PlanPackage {
   monthly_price: number
   yearly_price: number | null
   original_monthly_price: number | null
+  market_price?: number | null
+  discount_amount?: number | null
+  discount_percent?: number | null
   trial_days: number
   sort_order: number
   limits: { warehouses: number; products: number; users: number }
@@ -621,6 +624,14 @@ export const adminService = {
     return api.post<PlanPackage>(`/admin/packages/${id}/archive`, {})
   },
 
+  async restorePackage(id: string): Promise<PlanPackage> {
+    return api.post<PlanPackage>(`/admin/packages/${id}/restore`, {})
+  },
+
+  async deletePackage(id: string): Promise<void> {
+    return api.delete<void>(`/admin/packages/${id}`)
+  },
+
   async getAddons(status?: CatalogStatus): Promise<Addon[]> {
     return api.get<Addon[]>(`/admin/addons?${params({ status })}`)
   },
@@ -635,6 +646,14 @@ export const adminService = {
 
   async archiveAddon(id: string): Promise<Addon> {
     return api.post<Addon>(`/admin/addons/${id}/archive`, {})
+  },
+
+  async restoreAddon(id: string): Promise<Addon> {
+    return api.post<Addon>(`/admin/addons/${id}/restore`, {})
+  },
+
+  async deleteAddon(id: string): Promise<void> {
+    return api.delete<void>(`/admin/addons/${id}`)
   },
 
   async getWorkspaceAddons(workspaceId: string): Promise<WorkspaceAddon[]> {

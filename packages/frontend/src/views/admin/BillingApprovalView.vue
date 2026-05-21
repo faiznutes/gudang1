@@ -6,6 +6,7 @@ import { billingRequestStatusLabels, billingRequestTypeLabels, customizationClas
 
 const requests = ref<BillingRequest[]>([])
 const selectedRequest = ref<BillingRequest | null>(null)
+const selectedRequestIds = ref<string[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const errorMessage = ref('')
@@ -37,6 +38,9 @@ const classificationOptions: CustomizationClassification[] = ['future_roadmap', 
 
 const pendingCount = computed(() => requests.value.filter(request => request.status === 'pending').length)
 const recurringImpact = computed(() => requests.value.filter(request => request.status === 'pending').reduce((sum, request) => sum + request.billing_impact, 0))
+const selectableRequests = computed(() => requests.value.filter(request => request.status === 'pending'))
+const selectedRequests = computed(() => selectableRequests.value.filter(request => selectedRequestIds.value.includes(request.id)))
+const allVisibleRequestsSelected = computed(() => selectableRequests.value.length > 0 && selectableRequests.value.every(request => selectedRequestIds.value.includes(request.id)))
 
 function statusTone(status: BillingRequestStatus) {
   const tones: Record<BillingRequestStatus, string> = {
@@ -79,6 +83,7 @@ async function loadRequests(page = currentPage.value) {
       type: typeFilter.value === 'all' ? undefined : typeFilter.value,
     })
     requests.value = response.data
+    selectedRequestIds.value = selectedRequestIds.value.filter(id => response.data.some(request => request.id === id && request.status === 'pending'))
     currentPage.value = response.meta.current_page
     totalPages.value = response.meta.total_pages
     totalItems.value = response.meta.total
@@ -93,6 +98,21 @@ async function loadRequests(page = currentPage.value) {
 function applyFilters() {
   selectedRequest.value = null
   loadRequests(1)
+}
+
+function toggleRequestSelection(request: BillingRequest) {
+  if (request.status !== 'pending') return
+  selectedRequestIds.value = selectedRequestIds.value.includes(request.id)
+    ? selectedRequestIds.value.filter(id => id !== request.id)
+    : [...selectedRequestIds.value, request.id]
+}
+
+function toggleAllVisibleRequests() {
+  selectedRequestIds.value = allVisibleRequestsSelected.value ? [] : selectableRequests.value.map(request => request.id)
+}
+
+function clearSelectedRequests() {
+  selectedRequestIds.value = []
 }
 
 function openRequest(request: BillingRequest) {
@@ -142,6 +162,48 @@ async function rejectRequest() {
     await loadRequests()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Penolakan gagal diproses'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkApproveRequests() {
+  if (selectedRequests.value.length === 0) return
+  if (!confirm(`Approve ${selectedRequests.value.length} request pending terpilih? Harga disetujui memakai harga request masing-masing.`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedRequests.value.map(request => adminService.approveBillingRequest(request.id, {
+      notes: decisionDraft.value.notes || 'Bulk approve dari dashboard approval',
+      approved_amount: request.requested_amount,
+    })))
+    clearSelectedRequests()
+    selectedRequest.value = null
+    await loadRequests()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk approve gagal diproses'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function bulkRejectRequests() {
+  if (selectedRequests.value.length === 0) return
+  const reason = decisionDraft.value.rejection_reason || decisionDraft.value.notes || 'Ditolak melalui bulk action'
+  if (!confirm(`Reject ${selectedRequests.value.length} request pending terpilih?`)) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await Promise.all(selectedRequests.value.map(request => adminService.rejectBillingRequest(request.id, {
+      notes: decisionDraft.value.notes || reason,
+      rejection_reason: reason,
+      classification: decisionDraft.value.classification || 'rejected',
+    })))
+    clearSelectedRequests()
+    selectedRequest.value = null
+    await loadRequests()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Bulk reject gagal diproses'
   } finally {
     saving.value = false
   }
@@ -212,6 +274,19 @@ onMounted(() => loadRequests(1))
             </select>
           </div>
 
+          <div v-if="requests.length > 0" class="mt-4 flex flex-col gap-3 rounded-2xl border border-neutral-100 bg-[#fbfdff] p-3 sm:flex-row sm:items-center sm:justify-between">
+            <label class="inline-flex items-center gap-2 text-xs font-black text-neutral-700">
+              <input type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600" :checked="allVisibleRequestsSelected" @change="toggleAllVisibleRequests" />
+              Pilih pending halaman ini
+            </label>
+            <div v-if="selectedRequestIds.length > 0" class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-black text-primary-700">{{ selectedRequestIds.length }} request dipilih</span>
+              <button class="btn-secondary btn-sm" :disabled="saving" @click="bulkApproveRequests">Approve</button>
+              <button class="btn-secondary btn-sm border-danger-200 text-danger-700 hover:bg-danger-50" :disabled="saving" @click="bulkRejectRequests">Reject</button>
+              <button class="btn-secondary btn-sm" @click="clearSelectedRequests">Batal</button>
+            </div>
+          </div>
+
           <div class="mt-5 space-y-3">
             <article
               v-for="request in requests"
@@ -220,9 +295,12 @@ onMounted(() => loadRequests(1))
               @click="openRequest(request)"
             >
               <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="truncate text-sm font-black text-neutral-950">{{ request.title }}</p>
-                  <p class="mt-1 truncate text-xs text-neutral-500">{{ request.workspace_name || request.workspace_id }} - {{ labelFrom(billingRequestTypeLabels, request.type) }}</p>
+                <div class="flex min-w-0 gap-3">
+                  <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-neutral-300 text-primary-600 disabled:opacity-30" :checked="selectedRequestIds.includes(request.id)" :disabled="request.status !== 'pending'" @click.stop @change="toggleRequestSelection(request)" />
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-black text-neutral-950">{{ request.title }}</p>
+                    <p class="mt-1 truncate text-xs text-neutral-500">{{ request.workspace_name || request.workspace_id }} - {{ labelFrom(billingRequestTypeLabels, request.type) }}</p>
+                  </div>
                 </div>
                 <span :class="['rounded-full border px-2.5 py-1 text-xs font-black', statusTone(request.status)]">
                   {{ labelFrom(billingRequestStatusLabels, request.status) }}

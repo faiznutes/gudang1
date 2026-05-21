@@ -33,7 +33,7 @@ function dismiss() {
 }
 
 function upgrade() {
-  router.push({ name: 'billing' })
+  router.push({ name: 'billing', query: { section: 'packages', cycle: 'monthly', source: 'trial' } })
 }
 </script>
 
