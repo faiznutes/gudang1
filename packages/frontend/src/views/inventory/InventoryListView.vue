@@ -33,8 +33,10 @@ const selectedWarehouse = ref('')
 const selectedStatus = ref(typeof route.query.filter === 'string' ? route.query.filter : '')
 const showFilter = ref(false)
 const selectedProductId = ref<string | null>(null)
+const selectedProductIds = ref<string[]>([])
 const importInput = ref<HTMLInputElement | null>(null)
 const importMessage = ref('')
+const errorMessage = ref('')
 
 type ProductWithInventory = (typeof inventoryStore.productsWithInventory)[number]
 
@@ -75,6 +77,8 @@ const warehouses = computed(() => inventoryStore.warehouses)
 const lowStockCount = computed(() => inventoryStore.getLowStockProducts().length)
 const outOfStockCount = computed(() => inventoryStore.productsWithInventory.filter(product => product.total_quantity <= 0).length)
 const selectedProduct = computed(() => products.value.find(product => product.id === selectedProductId.value) || null)
+const selectedProductsCount = computed(() => selectedProductIds.value.length)
+const allVisibleProductsSelected = computed(() => products.value.length > 0 && products.value.every(product => selectedProductIds.value.includes(product.id)))
 
 function getCategoryName(categoryId: string) {
   return categories.value.find(c => c.id === categoryId)?.name || products.value.find(product => product.category_id === categoryId)?.category?.name || '-'
@@ -109,6 +113,47 @@ function openProductDrawer(product: ProductWithInventory) {
   selectedProductId.value = product.id
 }
 
+function isProductSelected(productId: string) {
+  return selectedProductIds.value.includes(productId)
+}
+
+function toggleProductSelection(productId: string) {
+  if (isProductSelected(productId)) {
+    selectedProductIds.value = selectedProductIds.value.filter(id => id !== productId)
+  } else {
+    selectedProductIds.value = [...selectedProductIds.value, productId]
+  }
+}
+
+function toggleAllVisibleProducts() {
+  if (allVisibleProductsSelected.value) {
+    selectedProductIds.value = selectedProductIds.value.filter(id => !products.value.some(product => product.id === id))
+    return
+  }
+  const next = new Set(selectedProductIds.value)
+  products.value.forEach(product => next.add(product.id))
+  selectedProductIds.value = [...next]
+}
+
+function clearSelectedProducts() {
+  selectedProductIds.value = []
+}
+
+async function bulkArchiveProducts() {
+  if (authStore.isActivitySessionExpired || selectedProductIds.value.length === 0) return
+  if (!confirm(`Arsipkan ${selectedProductIds.value.length} produk terpilih?`)) return
+  try {
+    errorMessage.value = ''
+    await inventoryStore.bulkArchiveProducts(selectedProductIds.value)
+    if (selectedProductId.value && selectedProductIds.value.includes(selectedProductId.value)) {
+      closeProductDrawer()
+    }
+    clearSelectedProducts()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Gagal mengarsipkan produk'
+  }
+}
+
 function closeProductDrawer() {
   selectedProductId.value = null
 }
@@ -125,8 +170,13 @@ function editProduct(product: ProductWithInventory) {
 async function deleteProduct(id: string) {
   if (authStore.isActivitySessionExpired) return
   if (confirm('Yakin hapus produk ini?')) {
-    await inventoryStore.deleteProduct(id)
-    if (selectedProductId.value === id) closeProductDrawer()
+    try {
+      errorMessage.value = ''
+      await inventoryStore.deleteProduct(id)
+      if (selectedProductId.value === id) closeProductDrawer()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'Gagal menghapus produk'
+    }
   }
 }
 
@@ -147,15 +197,35 @@ async function handleImport(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  const result = await importExportService.importData('products', await file.text())
-  importMessage.value = `${result.imported} baris produk berhasil diimport`
-  input.value = ''
-  await inventoryStore.loadAll()
+  try {
+    errorMessage.value = ''
+    const result = await importExportService.importData('products', await file.text())
+    importMessage.value = `${result.imported} baris produk berhasil diimport`
+    input.value = ''
+    await inventoryStore.loadAll()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Impor produk gagal'
+  }
 }
 </script>
 
 <template>
   <div class="p-4 lg:p-8 space-y-6">
+    <div v-if="selectedProductsCount > 0" class="flex flex-col gap-3 rounded-xl border border-primary-100 bg-primary-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="font-semibold text-primary-900">{{ selectedProductsCount }} produk dipilih</p>
+        <p class="text-sm text-primary-700">Gunakan aksi massal untuk arsipkan data yang sudah tidak aktif.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary" :disabled="authStore.isActivitySessionExpired" @click="bulkArchiveProducts">
+          Arsipkan terpilih
+        </button>
+        <button type="button" class="btn-ghost" @click="clearSelectedProducts">
+          Batal
+        </button>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <button
         :class="['rounded-xl border p-4 text-left transition', selectedStatus === '' ? 'border-primary-200 bg-primary-50 text-primary-900' : 'border-neutral-100 bg-white text-neutral-800 hover:bg-neutral-50']"
@@ -228,6 +298,10 @@ async function handleImport(event: Event) {
       {{ importMessage }}
     </div>
 
+    <div v-if="errorMessage" class="rounded-lg border border-danger-100 bg-danger-50 p-3 text-sm text-danger-700">
+      {{ errorMessage }}
+    </div>
+
     <!-- Filters -->
     <div v-if="showFilter" class="card p-4 space-y-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -274,6 +348,13 @@ async function handleImport(event: Event) {
           @click="openProductDrawer(product)"
         >
           <div class="flex items-start gap-3">
+            <input
+              class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600"
+              type="checkbox"
+              :checked="isProductSelected(product.id)"
+              @click.stop
+              @change="toggleProductSelection(product.id)"
+            />
             <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-100">
               <Package class="h-5 w-5 text-neutral-400" />
             </div>
@@ -320,6 +401,14 @@ async function handleImport(event: Event) {
         <table class="w-full">
           <thead>
             <tr class="border-b border-neutral-100">
+              <th class="table-header w-10">
+                <input
+                  class="h-4 w-4 rounded border-neutral-300 text-primary-600"
+                  type="checkbox"
+                  :checked="allVisibleProductsSelected"
+                  @change="toggleAllVisibleProducts"
+                />
+              </th>
               <th class="table-header">Produk</th>
               <th class="table-header">SKU</th>
               <th class="table-header">Kategori</th>
@@ -339,6 +428,14 @@ async function handleImport(event: Event) {
               @keydown.enter.prevent="openProductDrawer(product)"
               @keydown.space.prevent="openProductDrawer(product)"
             >
+              <td class="table-cell" @click.stop>
+                <input
+                  class="h-4 w-4 rounded border-neutral-300 text-primary-600"
+                  type="checkbox"
+                  :checked="isProductSelected(product.id)"
+                  @change="toggleProductSelection(product.id)"
+                />
+              </td>
               <td class="table-cell">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center">

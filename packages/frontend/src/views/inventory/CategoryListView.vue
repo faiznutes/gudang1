@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
@@ -32,6 +32,7 @@ const editingCategoryId = ref<string | null>(null)
 const showMergeModal = ref(false)
 const mergeSourceId = ref<string | null>(null)
 const mergeTargetId = ref('')
+const selectedCategoryIds = ref<string[]>([])
 const isSubmitting = ref(false)
 const successMessage = ref('')
 const errors = ref<Record<string, string>>({})
@@ -92,6 +93,23 @@ const uncategorizedCount = computed(() => {
   return products.value.filter(product => !categoryIds.has(product.category_id)).length
 })
 const totalCategoryProducts = computed(() => products.value.filter(product => categories.value.some(category => category.id === product.category_id)).length)
+const selectedCount = computed(() => selectedCategoryIds.value.length)
+
+function isCategorySelected(categoryId: string) {
+  return selectedCategoryIds.value.includes(categoryId)
+}
+
+function toggleCategorySelection(categoryId: string) {
+  if (isCategorySelected(categoryId)) {
+    selectedCategoryIds.value = selectedCategoryIds.value.filter(id => id !== categoryId)
+  } else {
+    selectedCategoryIds.value = [...selectedCategoryIds.value, categoryId]
+  }
+}
+
+function clearSelectedCategories() {
+  selectedCategoryIds.value = []
+}
 
 function resetForm() {
   form.value = { name: '', description: '' }
@@ -232,6 +250,30 @@ async function submitMerge() {
   }
 }
 
+async function bulkArchiveSelectedCategories() {
+  if (authStore.isActivitySessionExpired || selectedCategoryIds.value.length === 0) return
+  if (!confirm(`Arsipkan ${selectedCategoryIds.value.length} kategori terpilih?`)) return
+  try {
+    await inventoryStore.bulkArchiveCategories(selectedCategoryIds.value)
+    clearSelectedCategories()
+    successMessage.value = 'Kategori terpilih berhasil diarsipkan'
+  } catch (error) {
+    errors.value.submit = error instanceof Error ? error.message : 'Gagal mengarsipkan kategori'
+  }
+}
+
+async function bulkRestoreSelectedCategories() {
+  if (authStore.isActivitySessionExpired || selectedCategoryIds.value.length === 0) return
+  if (!confirm(`Pulihkan ${selectedCategoryIds.value.length} kategori terpilih?`)) return
+  try {
+    await inventoryStore.bulkRestoreCategories(selectedCategoryIds.value)
+    clearSelectedCategories()
+    successMessage.value = 'Kategori terpilih berhasil dipulihkan'
+  } catch (error) {
+    errors.value.submit = error instanceof Error ? error.message : 'Gagal memulihkan kategori'
+  }
+}
+
 function openProducts(categoryId: string) {
   router.push({ path: '/app/inventory', query: { category_id: categoryId } })
 }
@@ -240,6 +282,10 @@ onMounted(async () => {
   if (inventoryStore.products.length === 0 || inventoryStore.categories.length === 0) {
     await inventoryStore.loadAll().catch(() => {})
   }
+})
+
+watch(statusFilter, () => {
+  clearSelectedCategories()
 })
 </script>
 
@@ -308,6 +354,37 @@ onMounted(async () => {
     </section>
 
     <div
+      v-if="selectedCount > 0"
+      class="flex flex-col gap-3 rounded-xl border border-primary-100 bg-primary-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div>
+        <p class="font-semibold text-primary-900">{{ selectedCount }} kategori dipilih</p>
+        <p class="text-sm text-primary-700">Gunakan aksi massal agar perapihan kategori lebih cepat.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-if="statusFilter !== 'archived'"
+          class="btn-secondary"
+          :disabled="authStore.isActivitySessionExpired"
+          @click="bulkArchiveSelectedCategories"
+        >
+          Arsipkan terpilih
+        </button>
+        <button
+          v-else
+          class="btn-secondary"
+          :disabled="authStore.isActivitySessionExpired"
+          @click="bulkRestoreSelectedCategories"
+        >
+          Pulihkan terpilih
+        </button>
+        <button class="btn-ghost" @click="clearSelectedCategories">
+          Batal
+        </button>
+      </div>
+    </div>
+
+    <div
       v-if="authStore.isActivitySessionExpired"
       class="flex items-start gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 text-warning-800"
     >
@@ -333,6 +410,13 @@ onMounted(async () => {
         class="rounded-xl border border-neutral-100 bg-white p-5 shadow-sm"
       >
         <div class="flex items-start gap-3">
+          <input
+            class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600"
+            type="checkbox"
+            :checked="isCategorySelected(category.id)"
+            @click.stop
+            @change="toggleCategorySelection(category.id)"
+          />
           <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
             <Tags class="h-5 w-5" />
           </div>

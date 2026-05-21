@@ -14,6 +14,11 @@ export interface Supplier {
 
 export type SupplierPayload = Omit<Supplier, 'id' | 'created_at' | 'updated_at'>
 
+export interface BulkActionResponse {
+  ok: true
+  count: number
+}
+
 export const supplierService = {
   async getSuppliers(): Promise<Supplier[]> {
     return api.get<Supplier[]>('/suppliers')
@@ -29,6 +34,22 @@ export const supplierService = {
 
   async deleteSupplier(id: string): Promise<void> {
     return api.delete<void>(`/suppliers/${id}`)
+  },
+
+  async archiveSupplier(id: string): Promise<Supplier> {
+    return api.post<Supplier>(`/suppliers/${id}/archive`, {})
+  },
+
+  async restoreSupplier(id: string): Promise<Supplier> {
+    return api.post<Supplier>(`/suppliers/${id}/restore`, {})
+  },
+
+  async bulkArchiveSuppliers(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/suppliers/bulk-archive', { ids })
+  },
+
+  async bulkRestoreSuppliers(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/suppliers/bulk-restore', { ids })
   },
 }
 

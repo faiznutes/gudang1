@@ -56,6 +56,11 @@ export interface CreateWarehouseRequest {
   address?: string
 }
 
+export interface BulkActionResponse {
+  ok: true
+  count: number
+}
+
 export interface StockMovementRequest {
   product_id: string
   warehouse_id: string
@@ -85,6 +90,22 @@ export const inventoryService = {
     return api.delete<void>(`/products/${id}`)
   },
 
+  async archiveProduct(id: string): Promise<Product> {
+    return api.post<Product>(`/products/${id}/archive`, {})
+  },
+
+  async restoreProduct(id: string): Promise<Product> {
+    return api.post<Product>(`/products/${id}/restore`, {})
+  },
+
+  async bulkArchiveProducts(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/products/bulk-archive', { ids })
+  },
+
+  async bulkRestoreProducts(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/products/bulk-restore', { ids })
+  },
+
   async getCategories(status: 'active' | 'archived' | 'all' = 'all'): Promise<Category[]> {
     if (status === 'all') return api.get<Category[]>('/categories')
     return api.get<Category[]>(`/categories?status=${status}`)
@@ -110,6 +131,14 @@ export const inventoryService = {
     return api.post<Category>(`/categories/${id}/merge`, { target_category_id: targetCategoryId })
   },
 
+  async bulkArchiveCategories(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/categories/bulk-archive', { ids })
+  },
+
+  async bulkRestoreCategories(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/categories/bulk-restore', { ids })
+  },
+
   async getWarehouses(): Promise<Warehouse[]> {
     return api.get<Warehouse[]>('/warehouses')
   },
@@ -128,6 +157,22 @@ export const inventoryService = {
 
   async deleteWarehouse(id: string): Promise<void> {
     return api.delete<void>(`/warehouses/${id}`)
+  },
+
+  async archiveWarehouse(id: string): Promise<Warehouse> {
+    return api.post<Warehouse>(`/warehouses/${id}/archive`, {})
+  },
+
+  async restoreWarehouse(id: string): Promise<Warehouse> {
+    return api.post<Warehouse>(`/warehouses/${id}/restore`, {})
+  },
+
+  async bulkArchiveWarehouses(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/warehouses/bulk-archive', { ids })
+  },
+
+  async bulkRestoreWarehouses(ids: string[]): Promise<BulkActionResponse> {
+    return api.post<BulkActionResponse>('/warehouses/bulk-restore', { ids })
   },
 
   async getInventory(warehouseId?: string): Promise<InventoryItem[]> {

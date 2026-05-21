@@ -72,15 +72,8 @@ function isUnderPrefix(path: string, prefix: string) {
 
 function isTenantProductRoute(route: ApiRoute) {
   if (route.path.startsWith('/api/admin')) return false
+  if (route.path.startsWith('/api/auth')) return false
   if (route.path === '/api/health') return false
-  if ([
-    '/api/auth/login',
-    '/api/auth/logout',
-    '/api/auth/refresh',
-    '/api/auth/register',
-  ].includes(route.path)) {
-    return false
-  }
   return true
 }
 

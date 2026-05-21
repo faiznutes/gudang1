@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useInventoryStore } from '@/stores/inventory'
 import { ArrowLeft, Save } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 const inventoryStore = useInventoryStore()
 
 const isEdit = computed(() => !!route.params.id)
@@ -47,6 +49,7 @@ function validate() {
 }
 
 async function handleSubmit() {
+  if (authStore.isActivitySessionExpired) return
   if (!validate()) return
 
   isLoading.value = true
@@ -69,6 +72,13 @@ async function handleSubmit() {
 
 <template>
   <div class="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
+    <div v-if="authStore.isActivitySessionExpired" class="flex items-start gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 text-warning-800">
+      <div>
+        <p class="font-semibold">Aksi gudang terkunci</p>
+        <p class="text-sm">Anda masih bisa melihat form, tetapi perubahan menunggu sesi aktivitas aktif kembali.</p>
+      </div>
+    </div>
+
     <!-- Back -->
     <router-link
       to="/app/warehouses"
@@ -133,7 +143,7 @@ async function handleSubmit() {
           <router-link to="/app/warehouses" class="btn-secondary">
             Batal
           </router-link>
-          <button type="submit" :disabled="isLoading" class="btn-primary">
+          <button type="submit" :disabled="isLoading || authStore.isActivitySessionExpired" class="btn-primary">
             <Save class="w-4 h-4" />
             {{ isLoading ? 'Menyimpan...' : 'Simpan' }}
           </button>

@@ -49,12 +49,64 @@ async function triggerDeploy(resourceUuid, label) {
     },
   }, 15000)
 
-  const payload = await response.text()
+  const payloadText = await response.text()
   if (!response.ok) {
-    throw new Error(`Failed to trigger ${label} deploy: ${response.status} ${payload}`)
+    throw new Error(`Failed to trigger ${label} deploy: ${response.status} ${payloadText}`)
   }
 
-  console.log(`[deploy] triggered ${label}: ${payload}`)
+  const payload = JSON.parse(payloadText)
+  const deployments = Array.isArray(payload.deployments) ? payload.deployments : []
+  const deploymentUuids = deployments
+    .map(deployment => deployment.deployment_uuid)
+    .filter(Boolean)
+
+  if (deploymentUuids.length === 0) {
+    throw new Error(`Coolify did not return a deployment UUID for ${label}: ${payloadText}`)
+  }
+
+  console.log(`[deploy] triggered ${label}: ${deploymentUuids.join(', ')}`)
+  return deploymentUuids.map(deploymentUuid => ({ deploymentUuid, label }))
+}
+
+function isFinishedStatus(status) {
+  return ['finished', 'success', 'successful'].includes(String(status).toLowerCase())
+}
+
+function isFailedStatus(status) {
+  const normalized = String(status).toLowerCase()
+  return ['failed', 'error', 'cancelled', 'canceled'].includes(normalized) || normalized.includes('failed')
+}
+
+async function waitForDeployment(deploymentUuid, label, deadline) {
+  let attempt = 0
+  while (Date.now() < deadline) {
+    attempt += 1
+    const response = await fetchWithTimeout(new URL(`deployments/${deploymentUuid}`, coolifyBase), {
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: 'application/json',
+      },
+    }, 15000)
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(`Failed to inspect ${label} deployment ${deploymentUuid}: ${response.status}`)
+    }
+
+    if (isFinishedStatus(payload.status)) {
+      console.log(`[deploy] ${label} deployment ${deploymentUuid} finished on attempt ${attempt}`)
+      return
+    }
+
+    if (isFailedStatus(payload.status)) {
+      throw new Error(`${label} deployment ${deploymentUuid} failed with status ${payload.status}`)
+    }
+
+    console.log(`[deploy] waiting for ${label} deployment ${deploymentUuid} (attempt ${attempt}, status: ${payload.status ?? 'unknown'})`)
+    await sleep(pollIntervalMs)
+  }
+
+  throw new Error(`Timed out waiting for ${label} deployment ${deploymentUuid}`)
 }
 
 async function verifyProductionHealth() {
@@ -126,7 +178,10 @@ async function main() {
   }
 
   for (const [resourceUuid, label] of deployTargets) {
-    await triggerDeploy(resourceUuid, label)
+    const deployments = await triggerDeploy(resourceUuid, label)
+    for (const deployment of deployments) {
+      await waitForDeployment(deployment.deploymentUuid, deployment.label, deadline)
+    }
   }
   await waitForHealthyDeployment(deadline)
 }

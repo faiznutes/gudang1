@@ -19,6 +19,7 @@ type AccessTokenPayload = {
   workspaceId?: string
   role?: UserRole
   sessionExpiresAt?: string
+  sessionVersion?: number
 }
 
 export interface RequireAuthOptions {
@@ -83,6 +84,12 @@ export async function requireAuth(app: FastifyInstance, request: FastifyRequest,
 
   if (!membership || membership.user.disabledAt || membership.workspace.status === 'suspended') {
     throw new AppError('forbidden', 'Tenant tidak aktif atau akses ditolak')
+  }
+
+  const tokenSessionVersion = payload.sessionVersion ?? 0
+  const membershipSessionVersion = membership.user.sessionVersion ?? 0
+  if (tokenSessionVersion !== membershipSessionVersion) {
+    throw new AppError('unauthenticated', 'Sesi sudah tidak valid')
   }
 
   const sessionExpiresAt = payload.sessionExpiresAt ? new Date(payload.sessionExpiresAt) : null

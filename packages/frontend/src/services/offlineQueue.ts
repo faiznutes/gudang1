@@ -26,7 +26,7 @@ export interface OfflineOperation {
 const DB_NAME = 'stockpilot-offline'
 const DB_VERSION = 1
 const STORE_NAME = 'queue'
-const API_CACHE_NAME = 'stockpilot-api-v3'
+const API_CACHE_NAME = 'stockpilot-api-v4'
 const POPUP_DISMISSED_KEY = 'stockpilot:pwa-popup-dismissed-date'
 const LAST_CACHE_REFRESH_KEY = 'stockpilot:last-cache-refresh-at'
 const ACTIVE_WORKSPACE_KEY = 'active_workspace_id'
@@ -161,8 +161,11 @@ function postServiceWorkerMessage(message: Record<string, unknown>) {
 export async function clearApiCache() {
   postServiceWorkerMessage({ type: 'CLEAR_API_CACHE' })
   if ('caches' in window) {
-    await caches.delete(API_CACHE_NAME)
-    await caches.delete('stockpilot-api-v2')
+    await Promise.all([
+      caches.delete(API_CACHE_NAME),
+      caches.delete('stockpilot-api-v3'),
+      caches.delete('stockpilot-api-v2'),
+    ])
   }
 }
 

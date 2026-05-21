@@ -62,8 +62,8 @@ function navigate(routePath: string) {
   router.push(routePath)
 }
 
-function handleLogout() {
-  authStore.logout()
+async function handleLogout() {
+  await authStore.logout()
   router.push({ name: 'login' })
 }
 </script>

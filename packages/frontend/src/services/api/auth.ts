@@ -79,6 +79,12 @@ export interface AuthResponse {
   session_policy?: SessionPolicy
 }
 
+export interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
+  new_password_confirmation: string
+}
+
 export interface WorkspaceMembership {
   role: User['role']
   workspace: Workspace
@@ -102,6 +108,10 @@ export const authService = {
     return api.post<void>('/auth/logout', {})
   },
 
+  async logoutAllSessions(): Promise<void> {
+    return api.post<void>('/auth/logout-all', {})
+  },
+
   async getWorkspaces(): Promise<WorkspaceMembershipResponse> {
     return api.get<WorkspaceMembershipResponse>('/auth/workspaces')
   },
@@ -117,6 +127,10 @@ export const authService = {
 
   async getCurrentSession(): Promise<Omit<AuthResponse, 'token'>> {
     return api.get<Omit<AuthResponse, 'token'>>('/auth/me')
+  },
+
+  async changePassword(data: ChangePasswordRequest): Promise<AuthResponse> {
+    return api.post<AuthResponse>('/auth/change-password', data)
   },
 
   setToken(token: string): void {

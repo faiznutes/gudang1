@@ -31,6 +31,10 @@ const categoryMergeSchema = z.object({
   target_category_id: z.string().min(1),
 })
 
+const bulkIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+})
+
 const warehouseSchema = z.object({
   name: z.string().min(1),
   address: z.string().optional(),
@@ -59,6 +63,12 @@ async function ensureWorkspaceProduct(app: FastifyInstance, workspaceId: string,
   return product
 }
 
+async function ensureWorkspaceProductIncludingDisabled(app: FastifyInstance, workspaceId: string, productId: string) {
+  const product = await app.prisma.product.findFirst({ where: { id: productId, workspaceId }, include: { category: true } })
+  if (!product) throw new AppError('not_found', 'Produk tidak ditemukan')
+  return product
+}
+
 async function ensureWorkspaceCategory(app: FastifyInstance, workspaceId: string, categoryId: string) {
   const category = await app.prisma.category.findFirst({ where: { id: categoryId, workspaceId } })
   if (!category) throw new AppError('not_found', 'Kategori tidak ditemukan')
@@ -69,6 +79,71 @@ async function ensureWorkspaceWarehouse(app: FastifyInstance, workspaceId: strin
   const warehouse = await app.prisma.warehouse.findFirst({ where: { id: warehouseId, workspaceId, disabledAt: null } })
   if (!warehouse) throw new AppError('not_found', 'Gudang tidak ditemukan')
   return warehouse
+}
+
+async function ensureWorkspaceWarehouseIncludingDisabled(app: FastifyInstance, workspaceId: string, warehouseId: string) {
+  const warehouse = await app.prisma.warehouse.findFirst({ where: { id: warehouseId, workspaceId } })
+  if (!warehouse) throw new AppError('not_found', 'Gudang tidak ditemukan')
+  return warehouse
+}
+
+async function bulkSetProductDisabledAt(app: FastifyInstance, workspaceId: string, ids: string[], disabledAt: Date | null) {
+  const products = await app.prisma.product.findMany({
+    where: { workspaceId, id: { in: ids } },
+    select: { id: true, disabledAt: true },
+  })
+  if (products.length !== ids.length) {
+    throw new AppError('not_found', 'Sebagian produk tidak ditemukan')
+  }
+  return app.prisma.product.updateMany({
+    where: { workspaceId, id: { in: ids } },
+    data: { disabledAt },
+  })
+}
+
+async function bulkSetCategoryDisabledAt(app: FastifyInstance, workspaceId: string, ids: string[], disabledAt: Date | null) {
+  const categories = await app.prisma.category.findMany({
+    where: { workspaceId, id: { in: ids } },
+    select: { id: true, disabledAt: true },
+  })
+  if (categories.length !== ids.length) {
+    throw new AppError('not_found', 'Sebagian kategori tidak ditemukan')
+  }
+  return app.prisma.category.updateMany({
+    where: { workspaceId, id: { in: ids } },
+    data: { disabledAt },
+  })
+}
+
+async function bulkSetWarehouseDisabledAt(app: FastifyInstance, workspaceId: string, ids: string[], disabledAt: Date | null) {
+  const warehouses = await app.prisma.warehouse.findMany({
+    where: { workspaceId, id: { in: ids } },
+    select: { id: true, isDefault: true },
+  })
+  if (warehouses.length !== ids.length) {
+    throw new AppError('not_found', 'Sebagian gudang tidak ditemukan')
+  }
+  if (disabledAt && warehouses.some(warehouse => warehouse.isDefault)) {
+    throw new AppError('conflict', 'Gudang utama tidak bisa diarsipkan')
+  }
+  return app.prisma.warehouse.updateMany({
+    where: { workspaceId, id: { in: ids } },
+    data: { disabledAt },
+  })
+}
+
+async function bulkSetSupplierDisabledAt(app: FastifyInstance, workspaceId: string, ids: string[], disabledAt: Date | null) {
+  const suppliers = await app.prisma.supplier.findMany({
+    where: { workspaceId, id: { in: ids } },
+    select: { id: true },
+  })
+  if (suppliers.length !== ids.length) {
+    throw new AppError('not_found', 'Sebagian supplier tidak ditemukan')
+  }
+  return app.prisma.supplier.updateMany({
+    where: { workspaceId, id: { in: ids } },
+    data: { disabledAt },
+  })
 }
 
 export async function inventoryRoutes(app: FastifyInstance) {
@@ -188,6 +263,78 @@ export async function inventoryRoutes(app: FastifyInstance) {
       entityId: params.id,
     })
     return { ok: true }
+  })
+
+  app.post('/products/:id/archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    await ensureWorkspaceProduct(app, ctx.workspaceId, params.id)
+    const product = await app.prisma.product.update({
+      where: { id: params.id },
+      data: { disabledAt: new Date() },
+      include: { category: true },
+    })
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.archived',
+      entityType: 'product',
+      entityId: product.id,
+    })
+    return productDto(product)
+  })
+
+  app.post('/products/:id/restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const product = await ensureWorkspaceProductIncludingDisabled(app, ctx.workspaceId, params.id)
+    const restored = await app.prisma.product.update({
+      where: { id: product.id },
+      data: { disabledAt: null },
+      include: { category: true },
+    })
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.restored',
+      entityType: 'product',
+      entityId: restored.id,
+    })
+    return productDto(restored)
+  })
+
+  app.post('/products/bulk-archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetProductDisabledAt(app, ctx.workspaceId, body.ids, new Date())
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.bulk_archived',
+      entityType: 'product',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
+  })
+
+  app.post('/products/bulk-restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetProductDisabledAt(app, ctx.workspaceId, body.ids, null)
+    await writeAuditLog(app, ctx, request, {
+      action: 'product.bulk_restored',
+      entityType: 'product',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
   })
 
   app.get('/categories', async (request) => {
@@ -349,6 +496,40 @@ export async function inventoryRoutes(app: FastifyInstance) {
     return categoryDto(result)
   })
 
+  app.post('/categories/bulk-archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetCategoryDisabledAt(app, ctx.workspaceId, body.ids, new Date())
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.bulk_archived',
+      entityType: 'category',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
+  })
+
+  app.post('/categories/bulk-restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetCategoryDisabledAt(app, ctx.workspaceId, body.ids, null)
+    await writeAuditLog(app, ctx, request, {
+      action: 'category.bulk_restored',
+      entityType: 'category',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
+  })
+
   app.get('/warehouses', async (request) => {
     const ctx = await requireAuth(app, request)
     const warehouses = await app.prisma.warehouse.findMany({
@@ -441,6 +622,73 @@ export async function inventoryRoutes(app: FastifyInstance) {
       entityId: params.id,
     })
     return { ok: true }
+  })
+
+  app.post('/warehouses/:id/archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const warehouse = await ensureWorkspaceWarehouse(app, ctx.workspaceId, params.id)
+    if (warehouse.isDefault) {
+      throw new AppError('conflict', 'Gudang utama tidak bisa diarsipkan')
+    }
+    const archived = await app.prisma.warehouse.update({ where: { id: params.id }, data: { disabledAt: new Date() } })
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.archived',
+      entityType: 'warehouse',
+      entityId: archived.id,
+    })
+    return warehouseDto(archived)
+  })
+
+  app.post('/warehouses/:id/restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const params = z.object({ id: z.string() }).parse(request.params)
+    const warehouse = await ensureWorkspaceWarehouseIncludingDisabled(app, ctx.workspaceId, params.id)
+    const restored = await app.prisma.warehouse.update({ where: { id: params.id }, data: { disabledAt: null } })
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.restored',
+      entityType: 'warehouse',
+      entityId: restored.id,
+    })
+    return warehouseDto(restored)
+  })
+
+  app.post('/warehouses/bulk-archive', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetWarehouseDisabledAt(app, ctx.workspaceId, body.ids, new Date())
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.bulk_archived',
+      entityType: 'warehouse',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
+  })
+
+  app.post('/warehouses/bulk-restore', async (request) => {
+    const ctx = await requireAuth(app, request)
+    requireTenantRole(ctx, ['admin', 'staff', 'trial'])
+    await requireActiveSession(app, ctx)
+    const body = bulkIdsSchema.parse(request.body)
+    const result = await bulkSetWarehouseDisabledAt(app, ctx.workspaceId, body.ids, null)
+    await writeAuditLog(app, ctx, request, {
+      action: 'warehouse.bulk_restored',
+      entityType: 'warehouse',
+      metadata: {
+        ids: body.ids,
+        count: result.count,
+      },
+    })
+    return { ok: true, count: result.count }
   })
 
   app.get('/inventory', async (request) => {

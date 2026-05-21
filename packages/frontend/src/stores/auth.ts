@@ -157,6 +157,27 @@ export const useAuthStore = defineStore('auth', () => {
     cacheSession(data)
   }
 
+  function clearLocalSession() {
+    user.value = null
+    workspace.value = null
+    platformRole.value = null
+    workspaceRole.value = null
+    token.value = null
+    initialized.value = false
+    activitySessionExpiresAt.value = null
+    sessionPolicy.value = { timeout_minutes: null, lock_actions_after_expiry: false }
+    stopCountdown()
+    entitlementsStore.reset()
+    trialStore.endTrial()
+    localStorage.removeItem('token')
+    localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
+    localStorage.removeItem('platform_role')
+    localStorage.removeItem('workspace_role')
+    localStorage.removeItem('activity_session_expires_at')
+    localStorage.removeItem(OFFLINE_SESSION_KEY)
+    clearApiCache().catch(() => {})
+  }
+
   async function login(email: string, password: string) {
     const session = await authService.login({ email, password })
     await clearApiCache().catch(() => {})
@@ -213,6 +234,21 @@ export const useAuthStore = defineStore('auth', () => {
     applySession(session)
   }
 
+  async function changePassword(currentPassword: string, newPassword: string, confirmation = newPassword) {
+    const session = await authService.changePassword({
+      current_password: currentPassword,
+      new_password: newPassword,
+      new_password_confirmation: confirmation,
+    })
+    await clearApiCache().catch(() => {})
+    applySession(session)
+  }
+
+  async function logoutAllSessions() {
+    await authService.logoutAllSessions().catch(() => {})
+    clearLocalSession()
+  }
+
   async function initAuth() {
     if (initialized.value) return
     initialized.value = true
@@ -230,25 +266,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('token', token.value)
   }
 
-  function logout() {
-    authService.logout().catch(() => {})
-    user.value = null
-    workspace.value = null
-    platformRole.value = null
-    workspaceRole.value = null
-    token.value = null
-    initialized.value = false
-    activitySessionExpiresAt.value = null
-    sessionPolicy.value = { timeout_minutes: null, lock_actions_after_expiry: false }
-    stopCountdown()
-    entitlementsStore.reset()
-    localStorage.removeItem('token')
-    localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
-    localStorage.removeItem('platform_role')
-    localStorage.removeItem('workspace_role')
-    localStorage.removeItem('activity_session_expires_at')
-    localStorage.removeItem(OFFLINE_SESSION_KEY)
-    clearApiCache().catch(() => {})
+  async function logout() {
+    await authService.logout().catch(() => {})
+    clearLocalSession()
   }
 
   return {
@@ -275,6 +295,8 @@ export const useAuthStore = defineStore('auth', () => {
     upgradePlan,
     refreshSession,
     switchWorkspace,
+    changePassword,
+    logoutAllSessions,
     setToken,
     logout,
     initAuth,

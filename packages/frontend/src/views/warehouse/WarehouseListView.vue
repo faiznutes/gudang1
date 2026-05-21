@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useInventoryStore } from '@/stores/inventory'
 import {
   Search,
@@ -12,9 +13,12 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const inventoryStore = useInventoryStore()
 
 const searchQuery = ref('')
+const selectedWarehouseIds = ref<string[]>([])
+const errorMessage = ref('')
 
 const warehouses = computed(() => {
   let result = inventoryStore.warehouses
@@ -30,15 +34,77 @@ const warehouses = computed(() => {
   return result
 })
 
+const selectedWarehouseCount = computed(() => selectedWarehouseIds.value.length)
+
+function isWarehouseSelected(warehouseId: string) {
+  return selectedWarehouseIds.value.includes(warehouseId)
+}
+
+function toggleWarehouseSelection(warehouseId: string) {
+  if (isWarehouseSelected(warehouseId)) {
+    selectedWarehouseIds.value = selectedWarehouseIds.value.filter(id => id !== warehouseId)
+  } else {
+    selectedWarehouseIds.value = [...selectedWarehouseIds.value, warehouseId]
+  }
+}
+
+function clearSelectedWarehouses() {
+  selectedWarehouseIds.value = []
+}
+
 async function deleteWarehouse(id: string) {
+  if (authStore.isActivitySessionExpired) return
   if (confirm('Yakin hapus gudang ini?')) {
-    await inventoryStore.deleteWarehouse(id)
+    try {
+      errorMessage.value = ''
+      await inventoryStore.deleteWarehouse(id)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'Gagal menghapus gudang'
+    }
+  }
+}
+
+async function bulkArchiveWarehouses() {
+  if (authStore.isActivitySessionExpired || selectedWarehouseIds.value.length === 0) return
+  if (!confirm(`Arsipkan ${selectedWarehouseIds.value.length} gudang terpilih?`)) return
+  try {
+    errorMessage.value = ''
+    await inventoryStore.bulkArchiveWarehouses(selectedWarehouseIds.value)
+    clearSelectedWarehouses()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Gagal mengarsipkan gudang'
   }
 }
 </script>
 
 <template>
   <div class="p-4 lg:p-8 space-y-6">
+    <div v-if="authStore.isActivitySessionExpired" class="flex items-start gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 text-warning-800">
+      <div>
+        <p class="font-semibold">Aksi gudang terkunci</p>
+        <p class="text-sm">Anda masih bisa melihat data, tetapi perubahan menunggu sesi aktivitas aktif kembali.</p>
+      </div>
+    </div>
+
+    <div v-if="selectedWarehouseCount > 0" class="flex flex-col gap-3 rounded-xl border border-primary-100 bg-primary-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="font-semibold text-primary-900">{{ selectedWarehouseCount }} gudang dipilih</p>
+        <p class="text-sm text-primary-700">Arsipkan banyak gudang dalam satu langkah.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary" :disabled="inventoryStore.isLoading || authStore.isActivitySessionExpired" @click="bulkArchiveWarehouses">
+          Arsipkan terpilih
+        </button>
+        <button class="btn-ghost" @click="clearSelectedWarehouses">
+          Batal
+        </button>
+      </div>
+    </div>
+
+    <div v-if="errorMessage" class="rounded-lg border border-danger-100 bg-danger-50 p-3 text-sm text-danger-700">
+      {{ errorMessage }}
+    </div>
+
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div class="relative flex-1 max-w-md">
@@ -64,6 +130,13 @@ async function deleteWarehouse(id: string) {
         class="card-hover flex flex-col p-5"
       >
         <div class="flex items-start gap-3">
+          <input
+            class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600"
+            type="checkbox"
+            :checked="isWarehouseSelected(warehouse.id)"
+            @click.stop
+            @change="toggleWarehouseSelection(warehouse.id)"
+          />
           <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <Warehouse class="w-6 h-6 text-primary-600" />
           </div>
@@ -83,6 +156,7 @@ async function deleteWarehouse(id: string) {
         <div class="mt-5 grid grid-cols-2 gap-2">
           <button
             class="btn-secondary btn-sm justify-center"
+            :disabled="authStore.isActivitySessionExpired"
             @click="router.push({ name: 'warehouse-edit', params: { id: warehouse.id } })"
           >
             <Pencil class="w-4 h-4" />
@@ -90,6 +164,7 @@ async function deleteWarehouse(id: string) {
           </button>
           <button
             class="btn-secondary btn-sm justify-center text-danger-600"
+            :disabled="authStore.isActivitySessionExpired"
             @click="deleteWarehouse(warehouse.id)"
           >
             <Trash2 class="w-4 h-4" />

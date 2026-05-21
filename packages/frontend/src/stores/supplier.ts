@@ -46,6 +46,32 @@ export const useSupplierStore = defineStore('supplier', () => {
     return true
   }
 
+  async function archiveSupplier(id: string) {
+    const archived = await supplierService.archiveSupplier(id)
+    const index = suppliers.value.findIndex(supplier => supplier.id === id)
+    if (index !== -1) suppliers.value[index] = archived
+    return archived
+  }
+
+  async function restoreSupplier(id: string) {
+    const restored = await supplierService.restoreSupplier(id)
+    const index = suppliers.value.findIndex(supplier => supplier.id === id)
+    if (index !== -1) suppliers.value[index] = restored
+    return restored
+  }
+
+  async function bulkArchiveSuppliers(ids: string[]) {
+    const result = await supplierService.bulkArchiveSuppliers(ids)
+    suppliers.value = suppliers.value.filter(supplier => !ids.includes(supplier.id))
+    return result
+  }
+
+  async function bulkRestoreSuppliers(ids: string[]) {
+    const result = await supplierService.bulkRestoreSuppliers(ids)
+    await loadSuppliers()
+    return result
+  }
+
   function getSupplierById(id: string) {
     return suppliers.value.find(s => s.id === id)
   }
@@ -61,6 +87,10 @@ export const useSupplierStore = defineStore('supplier', () => {
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    archiveSupplier,
+    restoreSupplier,
+    bulkArchiveSuppliers,
+    bulkRestoreSuppliers,
     getSupplierById,
     reset,
   }

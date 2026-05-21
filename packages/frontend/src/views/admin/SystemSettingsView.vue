@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import adminService from '@/services/api/admin'
 import {
   Settings,
@@ -19,6 +21,8 @@ import {
 } from 'lucide-vue-next'
 
 const activeSection = ref('general')
+const router = useRouter()
+const authStore = useAuthStore()
 
 const sections = [
   { id: 'general', name: 'General', icon: Settings },
@@ -95,6 +99,14 @@ const systemStatus = ref([
 
 const saving = ref(false)
 const saveMessage = ref('')
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+const passwordSaving = ref(false)
+const passwordError = ref('')
+const passwordSuccess = ref('')
 
 function settingValue(settings: Array<{ key: string; value: string }>, key: string, fallback: string) {
   return settings.find(item => item.key === key)?.value ?? fallback
@@ -123,6 +135,55 @@ async function saveSettings() {
     setTimeout(() => { saveMessage.value = '' }, 3000)
   } finally {
     saving.value = false
+  }
+}
+
+async function changePassword() {
+  passwordError.value = ''
+  passwordSuccess.value = ''
+
+  if (!passwordForm.value.currentPassword || !passwordForm.value.newPassword || !passwordForm.value.confirmPassword) {
+    passwordError.value = 'Semua field password harus diisi'
+    return
+  }
+
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    passwordError.value = 'Konfirmasi password baru tidak cocok'
+    return
+  }
+
+  passwordSaving.value = true
+  try {
+    await authStore.changePassword(
+      passwordForm.value.currentPassword,
+      passwordForm.value.newPassword,
+      passwordForm.value.confirmPassword,
+    )
+    passwordSuccess.value = 'Password super admin berhasil diperbarui'
+    passwordForm.value = {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    }
+    setTimeout(() => { passwordSuccess.value = '' }, 3000)
+  } catch (error) {
+    passwordError.value = error instanceof Error ? error.message : 'Password gagal diperbarui'
+  } finally {
+    passwordSaving.value = false
+  }
+}
+
+async function logoutAllSessions() {
+  passwordError.value = ''
+  passwordSuccess.value = ''
+  passwordSaving.value = true
+  try {
+    await authStore.logoutAllSessions()
+    await router.replace('/login')
+  } catch (error) {
+    passwordError.value = error instanceof Error ? error.message : 'Gagal logout semua sesi'
+  } finally {
+    passwordSaving.value = false
   }
 }
 
@@ -348,7 +409,46 @@ onMounted(() => {
           <div class="p-4 border-b border-neutral-100">
             <h3 class="font-semibold text-neutral-900">Security Settings</h3>
           </div>
-          <div class="p-4 space-y-4">
+          <div class="p-4 space-y-6">
+            <form class="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-4" @submit.prevent="changePassword">
+              <div>
+                <h4 class="font-semibold text-neutral-900">Akun Super Admin</h4>
+                <p class="text-sm text-neutral-500">Ganti password dan putuskan sesi lama dari seluruh perangkat.</p>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label class="label">Password lama</label>
+                  <input v-model="passwordForm.currentPassword" type="password" class="input w-full" autocomplete="current-password" />
+                </div>
+                <div>
+                  <label class="label">Password baru</label>
+                  <input v-model="passwordForm.newPassword" type="password" class="input w-full" autocomplete="new-password" />
+                </div>
+                <div>
+                  <label class="label">Konfirmasi password baru</label>
+                  <input v-model="passwordForm.confirmPassword" type="password" class="input w-full" autocomplete="new-password" />
+                </div>
+              </div>
+
+              <div v-if="passwordError" class="rounded-lg border border-danger-100 bg-danger-50 p-3 text-sm text-danger-700">
+                {{ passwordError }}
+              </div>
+              <div v-if="passwordSuccess" class="rounded-lg border border-success-100 bg-success-50 p-3 text-sm text-success-700">
+                {{ passwordSuccess }}
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <button type="submit" class="btn-primary" :disabled="passwordSaving">
+                  <Save class="w-4 h-4" />
+                  {{ passwordSaving ? 'Menyimpan...' : 'Simpan Password' }}
+                </button>
+                <button type="button" class="btn-secondary" :disabled="passwordSaving" @click="logoutAllSessions">
+                  Logout Semua
+                </button>
+              </div>
+            </form>
+
             <div class="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
               <div class="flex items-center gap-3">
                 <Shield class="w-5 h-5 text-neutral-500" />

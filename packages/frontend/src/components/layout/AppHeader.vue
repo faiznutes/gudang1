@@ -71,8 +71,8 @@ function navigateTo(routeTarget: string) {
   router.push(routeTarget)
 }
 
-function handleLogout() {
-  authStore.logout()
+async function handleLogout() {
+  await authStore.logout()
   showUserMenu.value = false
   router.push({ name: 'login' })
 }

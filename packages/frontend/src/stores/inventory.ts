@@ -125,6 +125,33 @@ export const useInventoryStore = defineStore('inventory', () => {
     return true
   }
 
+  async function archiveProduct(id: string) {
+    const archived = await inventoryService.archiveProduct(id)
+    const index = products.value.findIndex(product => product.id === id)
+    if (index !== -1) products.value[index] = archived
+    return archived
+  }
+
+  async function restoreProduct(id: string) {
+    const restored = await inventoryService.restoreProduct(id)
+    const index = products.value.findIndex(product => product.id === id)
+    if (index !== -1) products.value[index] = restored
+    return restored
+  }
+
+  async function bulkArchiveProducts(ids: string[]) {
+    const result = await inventoryService.bulkArchiveProducts(ids)
+    products.value = products.value.filter(product => !ids.includes(product.id))
+    inventory.value = inventory.value.filter(item => !ids.includes(item.product_id))
+    return result
+  }
+
+  async function bulkRestoreProducts(ids: string[]) {
+    const result = await inventoryService.bulkRestoreProducts(ids)
+    await loadAll()
+    return result
+  }
+
   async function addCategory(category: Omit<Category, 'id'>) {
     try {
       const created = await inventoryService.createCategory(category)
@@ -170,6 +197,18 @@ export const useInventoryStore = defineStore('inventory', () => {
     return merged
   }
 
+  async function bulkArchiveCategories(ids: string[]) {
+    const result = await inventoryService.bulkArchiveCategories(ids)
+    await loadAll()
+    return result
+  }
+
+  async function bulkRestoreCategories(ids: string[]) {
+    const result = await inventoryService.bulkRestoreCategories(ids)
+    await loadAll()
+    return result
+  }
+
   async function addWarehouse(warehouse: Omit<Warehouse, 'id' | 'created_at'>) {
     const created = await inventoryService.createWarehouse({
       name: warehouse.name,
@@ -194,6 +233,33 @@ export const useInventoryStore = defineStore('inventory', () => {
     warehouses.value = warehouses.value.filter(w => w.id !== id)
     inventory.value = inventory.value.filter(i => i.warehouse_id !== id)
     return true
+  }
+
+  async function archiveWarehouse(id: string) {
+    const archived = await inventoryService.archiveWarehouse(id)
+    const index = warehouses.value.findIndex(warehouse => warehouse.id === id)
+    if (index !== -1) warehouses.value[index] = archived
+    return archived
+  }
+
+  async function restoreWarehouse(id: string) {
+    const restored = await inventoryService.restoreWarehouse(id)
+    const index = warehouses.value.findIndex(warehouse => warehouse.id === id)
+    if (index !== -1) warehouses.value[index] = restored
+    return restored
+  }
+
+  async function bulkArchiveWarehouses(ids: string[]) {
+    const result = await inventoryService.bulkArchiveWarehouses(ids)
+    warehouses.value = warehouses.value.filter(warehouse => !ids.includes(warehouse.id))
+    inventory.value = inventory.value.filter(item => !ids.includes(item.warehouse_id))
+    return result
+  }
+
+  async function bulkRestoreWarehouses(ids: string[]) {
+    const result = await inventoryService.bulkRestoreWarehouses(ids)
+    await loadAll()
+    return result
   }
 
   async function stockIn(data: { product_id: string; warehouse_id: string; quantity: number; notes?: string }) {
@@ -278,15 +344,25 @@ export const useInventoryStore = defineStore('inventory', () => {
     addProduct,
     updateProduct,
     deleteProduct,
+    archiveProduct,
+    restoreProduct,
+    bulkArchiveProducts,
+    bulkRestoreProducts,
     addCategory,
     updateCategory,
     archiveCategory,
     restoreCategory,
     mergeCategories,
+    bulkArchiveCategories,
+    bulkRestoreCategories,
     deleteCategory: archiveCategory,
     addWarehouse,
     updateWarehouse,
     deleteWarehouse,
+    archiveWarehouse,
+    restoreWarehouse,
+    bulkArchiveWarehouses,
+    bulkRestoreWarehouses,
     stockIn,
     stockOut,
     stockTransfer,

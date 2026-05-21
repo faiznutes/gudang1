@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useSupplierStore } from '@/stores/supplier'
 import { Search, Plus, User, Phone, Mail, MapPin, Pencil, Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const supplierStore = useSupplierStore()
 
 const searchQuery = ref('')
+const selectedSupplierIds = ref<string[]>([])
+const errorMessage = ref('')
 
 const suppliers = computed(() => {
   let result = supplierStore.suppliers
@@ -24,15 +28,77 @@ const suppliers = computed(() => {
   return result
 })
 
+const selectedSupplierCount = computed(() => selectedSupplierIds.value.length)
+
+function isSupplierSelected(supplierId: string) {
+  return selectedSupplierIds.value.includes(supplierId)
+}
+
+function toggleSupplierSelection(supplierId: string) {
+  if (isSupplierSelected(supplierId)) {
+    selectedSupplierIds.value = selectedSupplierIds.value.filter(id => id !== supplierId)
+  } else {
+    selectedSupplierIds.value = [...selectedSupplierIds.value, supplierId]
+  }
+}
+
+function clearSelectedSuppliers() {
+  selectedSupplierIds.value = []
+}
+
 async function deleteSupplier(id: string) {
+  if (authStore.isActivitySessionExpired) return
   if (confirm('Yakin hapus supplier ini?')) {
-    await supplierStore.deleteSupplier(id)
+    try {
+      errorMessage.value = ''
+      await supplierStore.deleteSupplier(id)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'Gagal menghapus supplier'
+    }
+  }
+}
+
+async function bulkArchiveSuppliers() {
+  if (authStore.isActivitySessionExpired || selectedSupplierIds.value.length === 0) return
+  if (!confirm(`Arsipkan ${selectedSupplierIds.value.length} supplier terpilih?`)) return
+  try {
+    errorMessage.value = ''
+    await supplierStore.bulkArchiveSuppliers(selectedSupplierIds.value)
+    clearSelectedSuppliers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Gagal mengarsipkan supplier'
   }
 }
 </script>
 
 <template>
   <div class="p-4 lg:p-8 space-y-6">
+    <div v-if="authStore.isActivitySessionExpired" class="flex items-start gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 text-warning-800">
+      <div>
+        <p class="font-semibold">Aksi supplier terkunci</p>
+        <p class="text-sm">Anda masih bisa melihat data, tetapi perubahan menunggu sesi aktivitas aktif kembali.</p>
+      </div>
+    </div>
+
+    <div v-if="selectedSupplierCount > 0" class="flex flex-col gap-3 rounded-xl border border-primary-100 bg-primary-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="font-semibold text-primary-900">{{ selectedSupplierCount }} supplier dipilih</p>
+        <p class="text-sm text-primary-700">Arsipkan beberapa supplier sekaligus.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary" :disabled="supplierStore.isLoading || authStore.isActivitySessionExpired" @click="bulkArchiveSuppliers">
+          Arsipkan terpilih
+        </button>
+        <button class="btn-ghost" @click="clearSelectedSuppliers">
+          Batal
+        </button>
+      </div>
+    </div>
+
+    <div v-if="errorMessage" class="rounded-lg border border-danger-100 bg-danger-50 p-3 text-sm text-danger-700">
+      {{ errorMessage }}
+    </div>
+
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div class="relative flex-1 max-w-md">
@@ -58,6 +124,13 @@ async function deleteSupplier(id: string) {
         class="card-hover flex flex-col p-5"
       >
         <div class="flex items-start gap-3">
+          <input
+            class="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600"
+            type="checkbox"
+            :checked="isSupplierSelected(supplier.id)"
+            @click.stop
+            @change="toggleSupplierSelection(supplier.id)"
+          />
           <div class="w-12 h-12 bg-warning-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <User class="w-6 h-6 text-warning-600" />
           </div>
@@ -87,6 +160,7 @@ async function deleteSupplier(id: string) {
         <div class="mt-5 grid grid-cols-2 gap-2">
           <button
             class="btn-secondary btn-sm justify-center"
+            :disabled="authStore.isActivitySessionExpired"
             @click="router.push({ name: 'supplier-edit', params: { id: supplier.id } })"
           >
             <Pencil class="w-4 h-4" />
@@ -94,6 +168,7 @@ async function deleteSupplier(id: string) {
           </button>
           <button
             class="btn-secondary btn-sm justify-center text-danger-600"
+            :disabled="authStore.isActivitySessionExpired"
             @click="deleteSupplier(supplier.id)"
           >
             <Trash2 class="w-4 h-4" />

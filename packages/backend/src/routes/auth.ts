@@ -19,6 +19,12 @@ const switchWorkspaceSchema = z.object({
   workspace_id: z.string().min(1),
 })
 
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
+  new_password_confirmation: z.string().min(8),
+})
+
 function base64Url(value: string) {
   return Buffer.from(value).toString('base64url')
 }
@@ -43,7 +49,7 @@ function verifyRefreshToken(token: string) {
     throw new Error('Invalid token')
   }
 
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { exp?: number; sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string }
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { exp?: number; sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string; sessionVersion?: number }
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) {
     throw new Error('Expired token')
   }
@@ -72,7 +78,7 @@ function sessionDto(policy: Awaited<ReturnType<typeof getSessionPolicy>>) {
   }
 }
 
-function signAccessToken(app: FastifyInstance, payload: { sub: string; workspaceId: string; role: string; sessionExpiresAt: string }) {
+function signAccessToken(app: FastifyInstance, payload: { sub: string; workspaceId: string; role: string; sessionExpiresAt: string; sessionVersion: number }) {
   return app.jwt.sign(payload, { expiresIn: '8h' })
 }
 
@@ -116,11 +122,13 @@ async function issueSession(
   membership: Awaited<ReturnType<typeof getValidMembership>>,
   sessionPolicy: Awaited<ReturnType<typeof getSessionPolicy>>,
 ) {
+  const sessionVersion = membership.user.sessionVersion ?? 0
   const payload = {
     sub: membership.userId,
     workspaceId: membership.workspaceId,
     role: membership.role,
     sessionExpiresAt: sessionPolicy.expiresAt.toISOString(),
+    sessionVersion,
   }
   const token = signAccessToken(app, payload)
   setRefreshCookie(app, reply, payload)
@@ -207,6 +215,92 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true }
   })
 
+  app.post('/logout-all', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const ctx = await requireAuth(app, request)
+    await app.prisma.user.update({
+      where: { id: ctx.userId },
+      data: { sessionVersion: { increment: 1 } },
+    })
+    reply.clearCookie('refreshToken', { path: '/api/auth' })
+    await writeAuthAuditLog(app, request, {
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      action: 'auth.logout_all',
+    })
+    return { ok: true }
+  })
+
+  app.post('/change-password', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const ctx = await requireAuth(app, request)
+    const body = changePasswordSchema.parse(request.body)
+
+    if (body.new_password !== body.new_password_confirmation) {
+      throw new AppError('validation_error', 'Konfirmasi password baru tidak cocok')
+    }
+
+    const currentUser = await app.prisma.user.findUnique({
+      where: { id: ctx.userId },
+      include: {
+        memberships: {
+          include: { workspace: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    })
+
+    if (!currentUser || currentUser.disabledAt) {
+      throw new AppError('forbidden', 'Akun tidak aktif atau akses ditolak')
+    }
+
+    if (!(await bcrypt.compare(body.current_password, currentUser.passwordHash))) {
+      throw new AppError('unauthenticated', 'Password lama salah')
+    }
+
+    await app.prisma.user.update({
+      where: { id: ctx.userId },
+      data: {
+        passwordHash: await bcrypt.hash(body.new_password, 10),
+        sessionVersion: { increment: 1 },
+      },
+    })
+
+    const activeMembership = currentUser.memberships.find(member => member.workspaceId === ctx.workspaceId && member.workspace.status !== 'suspended')
+      ?? currentUser.memberships.find(member => member.workspace.status !== 'suspended')
+    if (!activeMembership) {
+      throw new AppError('forbidden', 'Tenant tidak aktif atau akses ditolak')
+    }
+
+    const sessionPolicy = await getSessionPolicy(app)
+    const refreshedMembership = await getValidMembership(app, ctx.userId, activeMembership.workspaceId)
+    const session = await issueSession(app, reply, refreshedMembership, sessionPolicy)
+
+    await writeAuthAuditLog(app, request, {
+      workspaceId: refreshedMembership.workspaceId,
+      userId: refreshedMembership.userId,
+      action: 'auth.password_changed',
+      metadata: {
+        platform_role: refreshedMembership.user.role,
+        workspace_role: refreshedMembership.role,
+      },
+    })
+
+    return session
+  })
+
   app.get('/me', async (request) => {
     const ctx = await requireAuth(app, request)
     const settings = await getPlatformSettings(app)
@@ -288,7 +382,7 @@ export async function authRoutes(app: FastifyInstance) {
       throw new AppError('unauthenticated', 'Refresh token tidak ditemukan')
     }
 
-    let payload: { sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string }
+    let payload: { sub?: string; workspaceId?: string; role?: string; sessionExpiresAt?: string; sessionVersion?: number }
     try {
       payload = verifyRefreshToken(refreshToken)
     } catch {
@@ -300,6 +394,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const membership = await getValidMembership(app, payload.sub, payload.workspaceId)
+    if ((payload.sessionVersion ?? 0) !== (membership.user.sessionVersion ?? 0)) {
+      throw new AppError('unauthenticated', 'Refresh token sudah tidak valid')
+    }
     const sessionPolicy = await getSessionPolicy(app)
     const sessionExpiresAt = payload.sessionExpiresAt ?? sessionPolicy.expiresAt.toISOString()
 
@@ -308,12 +405,14 @@ export async function authRoutes(app: FastifyInstance) {
       workspaceId: membership.workspaceId,
       role: membership.role,
       sessionExpiresAt,
+      sessionVersion: membership.user.sessionVersion ?? 0,
     })
     setRefreshCookie(app, reply, {
       sub: membership.userId,
       workspaceId: membership.workspaceId,
       role: membership.role,
       sessionExpiresAt,
+      sessionVersion: membership.user.sessionVersion ?? 0,
     })
     return { token }
   })

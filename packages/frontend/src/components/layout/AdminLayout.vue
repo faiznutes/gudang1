@@ -173,8 +173,8 @@ function handleNav(item: { route?: string; action?: string }) {
   if (item.route) navigate(item.route)
 }
 
-function handleLogout() {
-  authStore.logout()
+async function handleLogout() {
+  await authStore.logout()
   closeMenus()
   router.push({ name: 'login' })
 }
