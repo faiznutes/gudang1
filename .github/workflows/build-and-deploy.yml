@@ -47,6 +47,9 @@ jobs:
       - name: Build all packages
         run: pnpm build:all
 
+      - name: Install Playwright browsers
+        run: pnpm --filter @stockpilot/frontend exec playwright install --with-deps chromium
+
       - name: Run frontend smoke tests
         run: pnpm --filter @stockpilot/frontend test:e2e -- tests/auth.spec.ts tests/navigation.spec.ts tests/category.spec.ts tests/admin-access.spec.ts tests/pwa-popup.spec.ts
 
